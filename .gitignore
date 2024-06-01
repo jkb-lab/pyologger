@@ -2,6 +2,9 @@
 .Rhistory
 .Rapp.history
 
+data/
+video-footage/
+
 # Session Data files
 .RData
 .RDataTmp
