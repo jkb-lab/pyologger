@@ -1,16 +1,20 @@
+import os
 from notion_client import Client
 import pandas as pd
+from dotenv import load_dotenv
 
-# Initialize the Notion client with your integration token
-notion = Client(auth="***REMOVED-NOTION-TOKEN***") # Secret token
+load_dotenv()
+notion_token = os.getenv("notion_token") # uses environmental variable to store token
+# Initialize the Notion client with integration token
+notion = Client(auth=notion_token) # Secret token
 
-# The ID of your Notion databases
 databases = {
-    "dep_DB": "657cae511066439ea9499085e3443406",  # Link to Deployments database
-    "rec_DB": "0a86a1b1756c46afa84429e8ff13c79a",  # Link to Recordings database
-    "logger_DB": "8aa29755491c4357b87e43cb9a505a70",  # Link to Loggers database
-    "animal_DB": "b57495033c4d4391aa5ab75de0291802",  # Link to Animal database
+    "dep_DB": os.getenv("databases.dep_DB"), # uses environmental variable to store database ID
+    "rec_DB": os.getenv("databases.rec_DB"), # uses environmental variable to store database ID
+    "logger_DB": os.getenv("databases.logger_DB"), # uses environmental variable to store database ID
+    "animal_DB": os.getenv("databases.animal_DB"), # uses environmental variable to store database ID
 }
+os.getenv("databases") # uses environmental variable to store database IDs
 
 # Initialize a dictionary to hold each DataFrame
 metadataframes = {}
