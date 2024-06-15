@@ -1,6 +1,8 @@
 # Python files
 *.env
 
+__pycache__/
+
 # History files
 .Rhistory
 .Rapp.history
