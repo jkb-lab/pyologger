@@ -10,6 +10,7 @@ class DataReader:
         self.data_folder = os.path.join(self.current_dir, '../../data/')
         self.deployment_data_folder = os.path.join(self.data_folder, deployment_folder_name)
         self.file_list = os.listdir(self.deployment_data_folder)
+        self.data_raw = {}
     
     def read_ube(self, ube_path):
         with open(ube_path, 'rb') as file:
@@ -62,7 +63,13 @@ class DataReader:
                 print(f"Error reading {csv_path} with encoding {encoding}: {e}")
         raise UnicodeDecodeError(f"Failed to read {csv_path} with available encodings.")
 
-    def read_files(self, metadata):
+    def read_files(self, metadata, deployment_folder_name, save_csv=True):
+        self.deployment_folder_name = deployment_folder_name
+        self.current_dir = os.path.dirname(__file__)
+        self.data_folder = os.path.join(self.current_dir, '../../data/')
+        self.deployment_data_folder = os.path.join(self.data_folder, deployment_folder_name)
+        self.file_list = os.listdir(self.deployment_data_folder)
+        
         metadata.fetch_databases()
         logger_db = metadata.get_metadata("logger_DB")
         
@@ -80,10 +87,12 @@ class DataReader:
         
         if manufacturer_files:
             total_files = sum(len(files) for files in manufacturer_files.values())
+            print()
             print(f"SUCCESS: {total_files} Data files found.")
             for manufacturer, files in manufacturer_files.items():
                 print(f"{len(files)} {manufacturer} files: {files}")
-        
+                print()
+
         else:
             print("No logger files found.")
 
@@ -94,19 +103,44 @@ class DataReader:
                 if file.endswith('.ube'):
                     try:
                         data = self.read_ube(file_path)
-                        print(f"File: {file}")
                         print(data.head())
+                        if save_csv:
+                            self.save_data(data, file, save_csv=True)
+                        else:
+                            self.save_data(data, file, save_csv=False)
+                        print()
+                        print(f"File: {file} - Successfully processed.")
                     except ValueError as e:
+                        print()
                         print(f"Error processing file {file}: {e}")
                 elif file.endswith('.csv'):
                     try:
                         data = self.read_csv(file_path)
-                        print(f"File: {file}")
-                        print(data.dtypes.head())
+                        print(data.head())
+                        if save_csv:
+                            self.save_data(data, file, save_csv=True)
+                        else:
+                            self.save_data(data, file, save_csv=False)
                         print()
+                        print(f"File: {file} - Successfully processed.")
                     except UnicodeDecodeError as e:
+                        print()
                         print(f"Error processing file {file}: {e}")
                 else:
-                    print(f"File: {file}")
-                    print("Unsupported file type")
                     print()
+                    print(f"File: {file} - NOT a supported file type.")
+    
+    def save_data(self, data, file, save_csv=True):
+        attribute_name = ""
+        if file is not None:
+            attribute_name = os.path.splitext(file)[0]
+        self.data_raw[attribute_name] = data
+        if save_csv and file is not None:
+            output_folder = os.path.join(os.path.dirname(__file__), '../outputs')
+            os.makedirs(output_folder, exist_ok=True)
+            output_path = os.path.join(output_folder, f"{os.path.splitext(file)[0]}.csv")
+            data.to_csv(output_path, index=False)
+            print(f"Data successfully saved to: {output_path}")
+        else:
+            self.data_raw[attribute_name] = data
+            print("Data saved to attribute and not to CSV. *Change save_csv to True to save to CSV.")

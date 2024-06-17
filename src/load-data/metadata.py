@@ -9,7 +9,7 @@ class Metadata:
         notion_token = os.getenv("notion_token")
         if not notion_token:
             raise ValueError("Notion token not found in environment variables")
-        print(f"Loaded Notion token: {notion_token}")
+        print(f"Loaded Notion secret token.")
 
         self.notion = Client(auth=notion_token)
         self.databases = {

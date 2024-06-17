@@ -23,8 +23,6 @@ if __name__ == "__main__":
     deployment_folder_name = '00_renamed-raw-data'
     data_reader = DataReader(deployment_folder_name)
     
-    # Initialize the Metadata class
-    metadata = Metadata()
-    
     # Use the DataReader to process the files
-    data_reader.read_files(metadata)
+    data_reader.read_files(metadata, deployment_folder_name, save_csv=False)
+    print(data_reader.data_raw['2024-01-16_oror-002a_CC-96_001'])
