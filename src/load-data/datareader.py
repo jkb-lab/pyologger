@@ -69,6 +69,7 @@ class DataReader:
         self.data_folder = os.path.join(self.current_dir, '../../data/')
         self.deployment_data_folder = os.path.join(self.data_folder, deployment_folder_name)
         self.file_list = os.listdir(self.deployment_data_folder)
+        print(f"Deployment data folder: {self.deployment_data_folder}")
         
         metadata.fetch_databases()
         logger_db = metadata.get_metadata("logger_DB")
@@ -136,7 +137,7 @@ class DataReader:
             attribute_name = os.path.splitext(file)[0]
         self.data_raw[attribute_name] = data
         if save_csv and file is not None:
-            output_folder = os.path.join(os.path.dirname(__file__), '../outputs')
+            output_folder = os.path.join(os.path.dirname(__file__), '../../outputs')
             os.makedirs(output_folder, exist_ok=True)
             output_path = os.path.join(output_folder, f"{os.path.splitext(file)[0]}.csv")
             data.to_csv(output_path, index=False)

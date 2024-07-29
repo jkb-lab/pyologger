@@ -10,6 +10,11 @@ __pycache__/
 data/
 video-footage/
 
+outputs/
+
+.DS_Store
+db.sqlite3
+
 # Session Data files
 .RData
 .RDataTmp
