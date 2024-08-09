@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "Finescale-HR",
+			"path": "."
+		},
+		{
+			"name": "Seal-Sleep-Capstone",
+			"path": "../Seal-Sleep-Capstone"
+		}
+	],
+	"settings": {}
+}
