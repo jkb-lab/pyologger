@@ -6,8 +6,8 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "finescale_hr"
-description = "Tools for analyzing stroke rate and heart rate."
+name = "pyologger"
+description = "Tools for analyzing biologging data in Python."
 requires-python = ">=3.8" # specifying minimum and maximum python versions
 version = "0.1.0"
 authors = [
@@ -25,5 +25,5 @@ dependencies = [
 ]
 
 [tool_setuptools.packages.find] # finds submodules
-packages = "finescale_hr"
+packages = "pyologger"
 exclude = ["media", "docs", "notebooks"]
