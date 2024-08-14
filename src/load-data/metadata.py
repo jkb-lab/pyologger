@@ -23,7 +23,7 @@ class Metadata:
         for db_name, db_id in self.databases.items():
             if not db_id:
                 raise ValueError(f"Database ID for {db_name} not found in environment variables")
-            print(f"Loaded database ID for {db_name}.") # Print {db_id} for debugging
+            print(f"Loaded database ID for {db_name}.")
 
         self.metadata = {}
 
@@ -50,8 +50,7 @@ class Metadata:
                         # Add more property types as needed
                     rows_list.append(row_data)
                 self.metadata[db_name] = pd.DataFrame(rows_list)
-                print(f"Fetched data for {db_name}:")
-                print(self.metadata[db_name])
+                print(f"Successfully fetched data for {db_name}.")
             except Exception as e:
                 print(f"Error fetching data for {db_name}: {e}")
 

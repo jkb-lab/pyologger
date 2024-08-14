@@ -1,0 +1,29 @@
+[build-system]
+requires = [
+  "setuptools>=62.1",
+  "setuptools_scm[toml]>=8.0",
+  "wheel",]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finescale_hr"
+description = "Tools for analyzing stroke rate and heart rate."
+requires-python = ">=3.8" # specifying minimum and maximum python versions
+version = "0.1.0"
+authors = [
+  { name = "Jessica Kendall-Bar", email = "jkendallbar@ucsd.edu" },
+]
+dependencies = [
+  "numpy",
+  "pandas",
+  "mne",
+  "pytz",
+  "python-dotenv",
+  "notion-client",
+  "plotly",
+  "nbformat",
+]
+
+[tool_setuptools.packages.find] # finds submodules
+packages = "finescale_hr"
+exclude = ["media", "docs", "notebooks"]

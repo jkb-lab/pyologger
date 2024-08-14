@@ -3,6 +3,8 @@
 
 __pycache__/
 
+.conda/
+
 # History files
 .Rhistory
 .Rapp.history

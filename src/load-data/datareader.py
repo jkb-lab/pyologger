@@ -4,11 +4,12 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 class DataReader:
-    def __init__(self, deployment_folder_name):
-        self.deployment_folder_name = deployment_folder_name
-        self.current_dir = os.path.dirname(__file__)
-        self.data_folder = os.path.join(self.current_dir, '../../data/')
-        self.deployment_data_folder = os.path.join(self.data_folder, deployment_folder_name)
+    def __init__(self, deployment_folder_path):
+        if not os.path.isabs(deployment_folder_path):
+            raise ValueError("Please provide an absolute path for the deployment folder.")
+        self.deployment_data_folder = deployment_folder_path
+        if not os.path.exists(self.deployment_data_folder):
+            raise FileNotFoundError(f"The deployment folder '{self.deployment_data_folder}' does not exist.")
         self.file_list = os.listdir(self.deployment_data_folder)
         self.data_raw = {}
     
@@ -63,12 +64,7 @@ class DataReader:
                 print(f"Error reading {csv_path} with encoding {encoding}: {e}")
         raise UnicodeDecodeError(f"Failed to read {csv_path} with available encodings.")
 
-    def read_files(self, metadata, deployment_folder_name, save_csv=True):
-        self.deployment_folder_name = deployment_folder_name
-        self.current_dir = os.path.dirname(__file__)
-        self.data_folder = os.path.join(self.current_dir, '../../data/')
-        self.deployment_data_folder = os.path.join(self.data_folder, deployment_folder_name)
-        self.file_list = os.listdir(self.deployment_data_folder)
+    def read_files(self, metadata, save_csv=True):
         print(f"Deployment data folder: {self.deployment_data_folder}")
         
         metadata.fetch_databases()
@@ -137,7 +133,7 @@ class DataReader:
             attribute_name = os.path.splitext(file)[0]
         self.data_raw[attribute_name] = data
         if save_csv and file is not None:
-            output_folder = os.path.join(os.path.dirname(__file__), '../../outputs')
+            output_folder = os.path.join(self.deployment_data_folder, 'outputs')
             os.makedirs(output_folder, exist_ok=True)
             output_path = os.path.join(output_folder, f"{os.path.splitext(file)[0]}.csv")
             data.to_csv(output_path, index=False)
