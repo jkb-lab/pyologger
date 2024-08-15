@@ -27,10 +27,11 @@ class Metadata:
 
         self.metadata = {}
 
-    def fetch_databases(self):
+    def fetch_databases(self, verbose=True):
         for db_name, db_id in self.databases.items():
             try:
-                print(f"Fetching data for {db_name} with ID {db_id}")
+                if verbose:
+                    print(f"Fetching data for {db_name} with ID {db_id}")
                 db = self.notion.databases.query(database_id=db_id)
                 rows_list = []
                 for page in db["results"]:
@@ -50,9 +51,11 @@ class Metadata:
                         # Add more property types as needed
                     rows_list.append(row_data)
                 self.metadata[db_name] = pd.DataFrame(rows_list)
-                print(f"Successfully fetched data for {db_name}.")
+                if verbose:
+                    print(f"Successfully fetched data for {db_name}.")
             except Exception as e:
-                print(f"Error fetching data for {db_name}: {e}")
+                if verbose:
+                    print(f"Error fetching data for {db_name}: {e}")
 
     def get_metadata(self, db_name):
         return self.metadata.get(db_name)
