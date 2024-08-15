@@ -6,3 +6,4 @@ python-dotenv
 notion_client
 plotly
 nbformat
+openpyxl
