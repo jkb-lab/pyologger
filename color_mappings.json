@@ -1,0 +1,14 @@
+{
+    "ECG": "#af6a6a",
+    "Depth": "#00008B",
+    "Accelerometer X [m/s\u00b2]": "#6CA1C3",
+    "Accelerometer Y [m/s\u00b2]": "#98FB98",
+    "Accelerometer Z [m/s\u00b2]": "#FF6347",
+    "Gyroscope X [mrad/s]": "#9370DB",
+    "Gyroscope Y [mrad/s]": "#BA55D3",
+    "Gyroscope Z [mrad/s]": "#8A2BE2",
+    "Magnetometer X [\u00b5T]": "#FFD700",
+    "Magnetometer Y [\u00b5T]": "#FFA500",
+    "Magnetometer Z [\u00b5T]": "#FF8C00",
+    "Filtered Heartbeats": "#808080"
+}

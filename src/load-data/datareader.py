@@ -4,16 +4,17 @@ import pickle
 import pytz
 import json
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 
 class DataReader:
     def __init__(self, deployment_folder_path=None):
         self.deployment_data_folder = deployment_folder_path
         self.selected_deployment = None  # Store selected deployment metadata here
-        self.data = {}  # To store both original and concatenated data
-        self.metadata = {"channelnames": {}}  # Initialize metadata storage for channel names
+        self.data = {}  # Store data by logger ID
+        self.info = {}  # Store info (metadata) by logger ID
 
-    def read_files(self, metadata, save_csv=True):
+    def read_files(self, metadata, save_csv=True, save_parq=True):
         if not self.deployment_data_folder:
             print("No deployment folder set. Please use check_deployment_folder first.")
             return
@@ -31,7 +32,6 @@ class DataReader:
         notes_df = self.import_notes()
         if notes_df is not None:
             print("Notes imported successfully.")
-            # You can now store the notes_df in a class attribute or process it further as needed
             self.notes_df = notes_df
         else:
             print("No valid notes were imported.")
@@ -59,13 +59,18 @@ class DataReader:
         print("Loggers with files:", ", ".join(loggers_with_files.keys()))
         print("Loggers without files:", ", ".join(loggers_without_files))
 
-        # Step 5: Check for existing processed files only for loggers with files
-        print("Step 5: Checking for existing processed files in the output folder for loggers with files...")
+        # Initialize logger-specific dictionaries
+        for logger_id in loggers_with_files:
+            self.data[logger_id] = None
+            self.info[logger_id] = {"channelinfo": {}}
+
+
+        # Step 5: Check outputs folder to see if processing is needed
         if self.check_outputs_folder(loggers_with_files.keys()):
-            print("Step 5 complete: Skipping reprocessing.")
+            print("All necessary files are already processed. Skipping further processing.")
             return
-        
-        # Step 6 & 7: Process each logger's files
+
+        # Step 5: Process each logger's files
         for logger_id, files in loggers_with_files.items():
             manufacturer = logger_db.loc[logger_db['LoggerID'] == logger_id, 'Manufacturer'].values[0]
 
@@ -75,21 +80,34 @@ class DataReader:
 
             if ube_files:
                 for ube_file in ube_files:
-                    self.process_ube_file(ube_file, logger_id, save_csv)
+                    ube_df, self.info[logger_id]['channelinfo'] = self.process_ube_file(ube_file)
+                    ube_df, datetime_metadata = self.process_datetime(ube_df, time_zone=self.selected_deployment['Time Zone'])
+                    self.info[logger_id]['datetime_metadata'] = datetime_metadata
+                    if ube_df is not None and 'datetime' in ube_df.columns:
+                        self.save_data(ube_df, logger_id, f"{logger_id}.csv", save_csv, save_parq)
+                        print(f"Files saved for logger {logger_id}.")
+                    else:
+                        print("Issue with UBE file saving.")
 
             if csv_files:
                 print(f"Step 7: Processing CSV files for logger: {logger_id}")
-                self.concatenate_and_save_csvs(csv_files, logger_id, save_csv)
+                final_df, self.info[logger_id]['channelinfo'] = self.concatenate_and_save_csvs(csv_files)
+                final_df, datetime_metadata = self.process_datetime(final_df, time_zone=self.selected_deployment['Time Zone'])
+                self.info[logger_id]['datetime_metadata'] = datetime_metadata
+                if final_df is not None and 'datetime' in final_df.columns:
+                    self.save_data(final_df, logger_id, f"{logger_id}.csv", save_csv, save_parq)
+                    print(f"Files saved for logger {logger_id}.")
+                else:
+                    print("Issue with CSV file saving.")
 
         print("Step 8: All processing complete.")
         
         # Step 9: Save the DataReader object as a pickle file
-        pickle_filename = os.path.join(self.deployment_data_folder, 'outputs', 'data_reader.pkl')
+        pickle_filename = os.path.join(self.deployment_data_folder, 'outputs', 'data.pkl')
         with open(pickle_filename, 'wb') as f:
             pickle.dump(self, f)
         print(f"Step 9: DataReader object successfully saved to {pickle_filename}.")
-
-
+    
     def check_deployment_folder(self, dep_db, data_dir):
         # Step 1: Display relevant information to help the user decide
         print("Step 1: Displaying deployments to help you select one.")
@@ -102,7 +120,7 @@ class DataReader:
         if 0 <= selected_index < len(dep_db):
             selected_deployment = dep_db.iloc[selected_index]
             self.selected_deployment = selected_deployment  # Save selected deployment to self
-            print(f"Step 2: You selected the deployment: {selected_deployment['Deployment Name']}")
+            print(f"Step 1: You selected the deployment: {selected_deployment['Deployment Name']}")
             print(f"Description: {selected_deployment['Notes']}")
         else:
             print("Invalid index selected.")
@@ -179,38 +197,18 @@ class DataReader:
             print(f"Error reading {notes_filename}: {e}")
             return None
 
-        # Combine Rec Date and Start Time to form a base datetime
-        rec_date_str = pd.to_datetime(rec_date).strftime('%Y-%m-%d')
-        timezone = time_zone
-
-        # Add Rec Date to time entries without a date
-        def add_date_if_missing(time_str):
-            try:
-                # Try to parse directly as datetime (to handle full datetime entries)
-                datetime_value = pd.to_datetime(time_str, errors='coerce')
-                if pd.isna(datetime_value):
-                    # If parsing as full datetime fails, treat it as time and prepend the Rec Date
-                    datetime_value = pd.to_datetime(f"{rec_date_str} {time_str}", errors='coerce')
-                return datetime_value
-            except Exception as e:
-                print(f"Error parsing time '{time_str}': {e}")
-                return pd.NaT  # Return Not-a-Time if parsing fails
-
-        # Apply the function to create the datetime column
-        notes_df['datetime'] = notes_df.iloc[:, 0].apply(add_date_if_missing)
-
-        # Convert base datetime to the specified timezone
-        tz = pytz.timezone(timezone)
-        notes_df['datetime'] = notes_df['datetime'].apply(lambda dt: tz.localize(dt) if pd.notna(dt) else dt)
-
+        # Use process_datetime to handle datetime creation and time zone localization
+        notes_df, datetime_metadata = self.process_datetime(notes_df, time_zone=time_zone)
+        
         if notes_df['datetime'].isna().any():
-            print(f"Error: Some timestamps could not be parsed.")
-            return None
+            print(f"WARNING: Some timestamps could not be parsed.")
+            return notes_df
 
-        print(f"Notes imported and processed from {notes_filename}.")
+        # Sort the DataFrame by the 'datetime' column
+        notes_df = notes_df.sort_values(by='datetime').reset_index(drop=True)
+
+        print(f"Notes imported, processed, and sorted chronologically from {notes_filename}.")
         return notes_df
-
-
 
 
     def check_outputs_folder(self, logger_ids):
@@ -235,7 +233,7 @@ class DataReader:
         print("All necessary files are already processed and available in the outputs folder.")
         return True  # All logger IDs have corresponding files in the outputs folder
 
-    def concatenate_and_save_csvs(self, csv_files, logger_id, save_csv):
+    def concatenate_and_save_csvs(self, csv_files):
         dfs = []
         for file in csv_files:
             file_path = os.path.join(self.deployment_data_folder, file)
@@ -254,10 +252,10 @@ class DataReader:
 
         # Define a mapping of original column names to computer-friendly names
         column_mapping = {
-            "Date (UTC)": "datetime-utc",
+            "Date (UTC)": "date-utc",
             "Time (UTC)": "time-utc",
-            "Date (local)": "date",
-            "Time (local)": "time",
+            " Date (local)": "date",
+            " Time (local)": "time",
             "Accelerometer X [m/s²]": "accX",
             "Accelerometer Y [m/s²]": "accY",
             "Accelerometer Z [m/s²]": "accZ",
@@ -268,9 +266,9 @@ class DataReader:
             "Magnetometer Y [µT]": "magY",
             "Magnetometer Z [µT]": "magZ",
             "Temperature (imu) [°C]": "tempIMU",
-            "Depth (100bar) 1 [m]": "depth1",
+            "Depth (100bar) 1 [m]": "depth",
             "Depth (100bar) 2 [°C]": "depth2",
-            "Light intensity 1 [raw]": "light1",
+            "Light intensity 1 [raw]": "light",
             "Light intensity 2 [raw]": "light2",
             "System error": "sysError",
             "BATT [V]": "battV",
@@ -282,15 +280,15 @@ class DataReader:
             "Camera time": "cameraTime",
             "GPS": "gps",
             "CC status": "ccStatus",
-            "CC vid. size [kBytes]": "ccVidSize",
+            " CC vid. size [kBytes]": "ccVidSize",
             # Add more mappings as needed
         }
 
         # Define units for the computer-friendly names
         units_mapping = {
-            "datetime-utc": "datetime",
+            "date-utc": "datetime",
             "time-utc": "time",
-            "datetime": "date",
+            "date": "date",
             "time": "time",
             "accX": "m/s²",
             "accY": "m/s²",
@@ -302,9 +300,9 @@ class DataReader:
             "magY": "µT",
             "magZ": "µT",
             "tempIMU": "°C",
-            "depth1": "m",
+            "depth": "m",
             "depth2": "°C",
-            "light1": "raw",
+            "light": "raw",
             "light2": "raw",
             "sysError": "unknown",
             "battV": "V",
@@ -320,7 +318,6 @@ class DataReader:
             # Add more units as needed
         }
 
-
         # Create a dictionary to store original names, friendly names, and units
         column_metadata = {}
 
@@ -331,33 +328,102 @@ class DataReader:
                 "unit": units_mapping.get(friendly_name, "unknown")  # Default to "unknown" if not mapped
             }
 
-        # Store the metadata for this logger
-        self.metadata["channelnames"][logger_id] = column_metadata
-
         # Apply the renaming to the DataFrame
         concatenated_df.rename(columns={v["original_name"]: k for k, v in column_metadata.items()}, inplace=True)
 
-        # Save the concatenated DataFrame and metadata
-        output_filename = f"{'_'.join(csv_files[0].split('_')[:-1])}_ALL.csv"
-        self.save_data(concatenated_df, output_filename, save_csv)
+        return concatenated_df, column_metadata
 
-        # Save the metadata to a JSON file
-        metadata_filename = f"{logger_id}_metadata.json"
-        metadata_filepath = os.path.join(self.deployment_data_folder, 'outputs', metadata_filename)
-        with open(metadata_filepath, 'w') as json_file:
-            json.dump(self.metadata["channelnames"][logger_id], json_file, indent=4)
-        print(f"Metadata for logger {logger_id} saved to {metadata_filepath}")
+    def process_datetime(self, df, time_zone=None):
+        metadata = {
+            'datetime_created_from': None,
+            'fs': None
+        }
 
-    def process_ube_file(self, ube_file, logger_id, save_csv):
+        # If 'datetime' column exists, calculate sampling frequency and return
+        if 'datetime' in df.columns:
+            print("'datetime' column found.")
+            metadata['datetime_created_from'] = 'datetime'
+            
+            # If time_zone is provided and datetime is naive, localize it
+            if time_zone and df['datetime'].dt.tz is None:
+                print(f"Localizing datetime using timezone {time_zone}.")
+                tz = pytz.timezone(time_zone)
+                df['datetime'] = df['datetime'].dt.tz_localize(tz)
+
+            # Convert to UTC and Unix timestamp in milliseconds
+            df['datetime_utc'] = df['datetime'].dt.tz_convert('UTC')
+            df['time_unix_ms'] = df['datetime_utc'].astype(np.int64) // 10**6
+
+            # Calculate time differences and sampling frequency
+            df['sec_diff'] = df['datetime_utc'].diff().dt.total_seconds()
+            if len(df) > 1:
+                mean_diff = df['sec_diff'].mean()
+                sampling_frequency = 1 / mean_diff if mean_diff else None
+                max_timediff = np.max(df['sec_diff'])
+                formatted_fs = f"{sampling_frequency:.5g}" # Using 5 significant figures to save fs
+                print(f"Sampling frequency: {formatted_fs} Hz with a maximum time difference of {max_timediff} seconds")
+                metadata['fs'] = formatted_fs
+            else:
+                print("Insufficient data points to calculate sampling frequency.")
+                metadata['fs'] = None
+
+            return df, metadata
+            
+        # If 'date' and 'time' columns exist, combine them to create 'datetime'
+        elif 'time' in df.columns and 'date' in df.columns:
+            print("'datetime' column not found. Combining 'date' and 'time' columns.")
+            dates = pd.to_datetime(df['date'], format='%d.%m.%Y', errors='coerce')
+            times = pd.to_timedelta(df['time'].astype(str))
+            df['datetime'] = dates + times
+            metadata['datetime_created_from'] = 'date and time'
+
+        # If only 'time' column exists, use it to create 'datetime'
+        elif 'time' in df.columns:
+            print("'datetime' and 'date' columns not found. Trying to parse 'time' as datetime.")
+            df['datetime'] = pd.to_datetime(df['time'], errors='coerce')
+            metadata['datetime_created_from'] = 'time'
+
+        # If no suitable columns are found, return the DataFrame as is
+        else:
+            print("No suitable columns found to create a 'datetime' column.")
+            return df, metadata
+
+        # Convert the newly created datetime to the specified timezone if not already timezone-aware
+        if time_zone and df['datetime'].dt.tz is None:
+            print(f"Localizing datetime using timezone {time_zone}.")
+            tz = pytz.timezone(time_zone)
+            df['datetime'] = df['datetime'].dt.tz_localize(tz)
+
+        print("Converting to UTC and Unix.")
+        df['datetime_utc'] = df['datetime'].dt.tz_convert('UTC')
+        df['time_unix_ms'] = df['datetime_utc'].astype(np.int64) // 10**6
+
+        # Calculate time differences and sampling frequency
+        df['sec_diff'] = df['datetime_utc'].diff().dt.total_seconds()
+        if len(df) > 1:
+            mean_diff = df['sec_diff'].mean()
+            sampling_frequency = 1 / mean_diff if mean_diff else None
+            max_timediff = np.max(df['sec_diff'])
+            formatted_fs = f"{sampling_frequency:.5g}" # Using 5 significant digits to save frequency
+            print(f"Sampling frequency: {formatted_fs} Hz with a maximum time difference of {max_timediff} seconds")
+            metadata['fs'] = formatted_fs
+        else:
+            print("Insufficient data points to calculate sampling frequency.")
+            metadata['fs'] = None
+
+        # Return the updated DataFrame and metadata
+        return df, metadata
+
+
+
+    def process_ube_file(self, ube_file):
         file_path = os.path.join(self.deployment_data_folder, ube_file)
         try:
             data = self.read_ube(file_path)
-            output_filename = f"{'_'.join(ube_file.split('_')[:-1])}_only.csv"
-            self.data[logger_id + '_ube_' + os.path.splitext(ube_file)[0]] = data  # Store the UBE data
-            self.save_data(data, output_filename, save_csv)
-            print(f"UBE file for logger {logger_id} saved to {output_filename}")
+            return data
         except Exception as e:
-            print(f"Error processing UBE file {ube_file} for logger {logger_id}: {e}")
+            print(f"Error processing UBE file {ube_file}: {e}")
+            return None
 
     def read_ube(self, ube_path):
         if self.selected_deployment is None or self.selected_deployment.empty:
@@ -416,8 +482,33 @@ class DataReader:
         })
         result.attrs['created'] = dl_time
 
-        return result
+        # Define a mapping of original column names to computer-friendly names
+        column_mapping = {
+            "datetime": "datetime",
+            "ecg": "ecg",
+        }
 
+        # Define units for the computer-friendly names
+        units_mapping = {
+            "datetime": "datetime",
+            "ecg": "microVolts",
+            # Add more units as needed
+        }
+
+        # Create a dictionary to store original names, friendly names, and units
+        column_metadata = {}
+
+        for original_name in result.columns:
+            friendly_name = column_mapping.get(original_name, original_name)  # Use original name if not mapped
+            column_metadata[friendly_name] = {
+                "original_name": original_name,
+                "unit": units_mapping.get(friendly_name, "unknown")  # Default to "unknown" if not mapped
+            }
+
+        # Apply the renaming to the DataFrame
+        result.rename(columns={v["original_name"]: k for k, v in column_metadata.items()}, inplace=True)
+
+        return result, column_metadata
 
     def read_csv(self, csv_path):
         encodings = ['utf-8', 'ISO-8859-1', 'windows-1252']
@@ -429,15 +520,25 @@ class DataReader:
                 print(f"Error reading {csv_path} with encoding {encoding}: {e}")
         raise UnicodeDecodeError(f"Failed to read {csv_path} with available encodings.")
 
-    def save_data(self, data, filename, save_csv=True):
-        attribute_name = os.path.splitext(filename)[0]
-        self.data[attribute_name] = data  # Save everything to data
-        
+    def save_data(self, data, logger_id, filename, save_csv=True, save_parq=False):
+        self.data[logger_id] = {}
+        output_folder = os.path.join(self.deployment_data_folder, 'outputs')
+        os.makedirs(output_folder, exist_ok=True)
+        self.data[logger_id] = data
+
         if save_csv:
-            output_folder = os.path.join(self.deployment_data_folder, 'outputs')
-            os.makedirs(output_folder, exist_ok=True)
-            output_path = os.path.join(output_folder, filename)
-            data.to_csv(output_path, index=False)
-            print(f"Data successfully saved to: {output_path}")
-        else:
-            print(f"Data saved to attribute {attribute_name} but not to CSV.")
+            csv_path = os.path.join(output_folder, f"{filename}")
+            data.to_csv(csv_path, index=False)
+            print(f"Data for {logger_id} successfully saved as CSV to: {csv_path}")
+
+        if save_parq:
+            # Ensure no non-serializable attributes exist for Parquet
+            if hasattr(data, 'attrs'):
+                data.attrs = {key: str(value) for key, value in data.attrs.items()}
+            
+            parq_path = os.path.join(output_folder, f"{os.path.splitext(filename)[0]}.parquet")
+            data.to_parquet(parq_path, index=False)
+            print(f"Data for {logger_id} successfully saved as Parquet to: {parq_path}")
+
+        if not save_csv and not save_parq:
+            print(f"Data for {logger_id} saved to attribute {filename} but not to CSV or Parquet.")
