@@ -1,14 +1,16 @@
 {
-    "ECG": "#af6a6a",
-    "Depth": "#00008B",
+    "ECG": "#d09191",
+    "Depth": "#a2bae0",
+    "Corrected Depth": "#476390",
     "Accelerometer X [m/s\u00b2]": "#6CA1C3",
-    "Accelerometer Y [m/s\u00b2]": "#98FB98",
-    "Accelerometer Z [m/s\u00b2]": "#FF6347",
-    "Gyroscope X [mrad/s]": "#9370DB",
-    "Gyroscope Y [mrad/s]": "#BA55D3",
-    "Gyroscope Z [mrad/s]": "#8A2BE2",
-    "Magnetometer X [\u00b5T]": "#FFD700",
-    "Magnetometer Y [\u00b5T]": "#FFA500",
-    "Magnetometer Z [\u00b5T]": "#FF8C00",
-    "Filtered Heartbeats": "#808080"
+    "Accelerometer Y [m/s\u00b2]": "#99d8b5",
+    "Accelerometer Z [m/s\u00b2]": "#e4d596",
+    "Gyroscope X [mrad/s]": "#6ca1c3",
+    "Gyroscope Y [mrad/s]": "#99d8b5",
+    "Gyroscope Z [mrad/s]": "#e4d596",
+    "Magnetometer X [\u00b5T]": "#6ca1c3",
+    "Magnetometer Y [\u00b5T]": "#99d8b5",
+    "Magnetometer Z [\u00b5T]": "#e4d596",
+    "Filtered Heartbeats": "#e8d6d6",
+    "Exhalation Breath": "#6ca1c3"
 }

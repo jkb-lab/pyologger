@@ -33,6 +33,7 @@ else:
     color_mapping = {
         'ECG': '#FFCCCC',
         'Depth': '#00008B',
+        'Corrected Depth': '#6CA1C3',  # Added color for corrected depth
         'Accelerometer X [m/s²]': '#6CA1C3',
         'Accelerometer Y [m/s²]': '#98FB98',
         'Accelerometer Z [m/s²]': '#FF6347',
@@ -43,6 +44,7 @@ else:
         'Magnetometer Y [µT]': '#FFA500',
         'Magnetometer Z [µT]': '#FF8C00',
         'Filtered Heartbeats': '#808080',
+        'Exhalation Breath': '#0000FF',  # Added color for exhalation breath
     }
 
 # Function to save updated color mappings to JSON
@@ -50,7 +52,7 @@ def save_color_mapping(mapping, path):
     with open(path, 'w') as f:
         json.dump(mapping, f, indent=4)
 
-def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_logger=None, ephys_logger=None, imu_sampling_rate=10, ephys_sampling_rate=10, time_range=None):
+def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_logger=None, ephys_logger=None, imu_sampling_rate=10, ephys_sampling_rate=50, time_range=None, note_annotations=None):
     # Streamlit color pickers for each channel type
     st.sidebar.header("Customize Colors")
     for key in color_mapping.keys():
@@ -65,6 +67,8 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
         ordered_channels.append(('ECG', 'ecg'))
     if 'depth' in [ch.lower() for ch in imu_channels]:
         ordered_channels.append(('Depth', 'depth'))
+    if 'corrdepth' in imu_channels:
+        ordered_channels.append(('Corrected Depth', 'corrdepth'))
     if any(ch.lower() in ['accx', 'accy', 'accz'] for ch in imu_channels):
         ordered_channels.append(('Accel', ['accX', 'accY', 'accZ']))
     if any(ch.lower() in ['gyrx', 'gyry', 'gyrz'] for ch in imu_channels):
@@ -138,17 +142,18 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
             y_label = f"{original_name} [{unit}]"
             color = color_mapping['ECG']
 
-            # Add vertical lines for heartbeats
-            filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == 'heartbeat_manual_ok']
-            if not filtered_notes.empty:
-                for dt in filtered_notes['datetime']:
-                    fig.add_trace(go.Scatter(
-                        x=[dt, dt],
-                        y=[y_data.min(), y_data.max()],
-                        mode='lines',
-                        line=dict(color=color_mapping['Filtered Heartbeats'], width=1, dash='dot'),
-                        showlegend=False
-                    ), row=row_counter, col=1)
+            # Add vertical lines for annotations
+            if note_annotations and 'heartbeat_manual_ok' in note_annotations:
+                filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == 'heartbeat_manual_ok']
+                if not filtered_notes.empty:
+                    for dt in filtered_notes['datetime']:
+                        fig.add_trace(go.Scatter(
+                            x=[dt, dt],
+                            y=[y_data.min(), y_data.max()],
+                            mode='lines',
+                            line=dict(color=color_mapping['Filtered Heartbeats'], width=1, dash='dot'),
+                            showlegend=False
+                        ), row=row_counter, col=1)
 
             fig.add_trace(go.Scatter(
                 x=x_data,
@@ -182,8 +187,44 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
                 line=dict(color=color)
             ), row=row_counter, col=1)
 
+            # Add vertical lines for annotations
+            if note_annotations and 'exhalation_breath' in note_annotations:
+                filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == 'exhalation_breath']
+                if not filtered_notes.empty:
+                    for dt in filtered_notes['datetime']:
+                        fig.add_trace(go.Scatter(
+                            x=[dt, dt],
+                            y=[y_data.min(), y_data.max()],
+                            mode='lines',
+                            line=dict(color=color_mapping['Exhalation Breath'], width=1, dash='dot'),
+                            showlegend=False
+                        ), row=row_counter, col=1)
+
             fig.update_yaxes(title_text=y_label, autorange="reversed", row=row_counter, col=1)
             row_counter += 1
+
+        elif channel_type == 'Corrected Depth' and 'corrdepth' in imu_df_filtered.columns:
+            channel = 'corrdepth'
+            df = imu_df_filtered
+            info = imu_info
+            original_name = "Corrected Depth"
+            unit = info.get(channel, {}).get('unit', 'm')
+
+            y_data = df[channel]
+            x_data = df['datetime']
+
+            y_label = f"{original_name} [{unit}]"
+            color = color_mapping['Corrected Depth']
+
+            fig.add_trace(go.Scatter(
+                x=x_data,
+                y=y_data,
+                mode='lines',
+                name=y_label,
+                line=dict(color=color)
+            ), row=row_counter-1, col=1)  # Plot on the same row as original depth
+
+            # No need to update row_counter here since we plot on the same axis as Depth
 
         elif channel_type in ['Accel', 'Gyro', 'Mag']:
             for sub_channel in channels:
@@ -229,7 +270,7 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
     st.plotly_chart(fig)
 
 # Example usage in Streamlit
-imu_channels_to_plot = ['depth', 'accX', 'accY', 'accZ', 'gyrX', 'gyrY', 'gyrZ', 'magX', 'magY', 'magZ']
+imu_channels_to_plot = ['depth', 'corrdepth', 'accX', 'accY', 'accZ', 'gyrX', 'gyrY', 'gyrZ', 'magX', 'magY', 'magZ']
 ephys_channels_to_plot = ['ecg']
 imu_logger_to_use = 'CC-96'
 ephys_logger_to_use = 'UF-01'
@@ -245,5 +286,11 @@ st.sidebar.title("Select Time Range")
 start_time = st.sidebar.slider("Start Time", value=overlap_start_time, min_value=overlap_start_time, max_value=overlap_end_time, format="YYYY-MM-DD HH:mm:ss")
 end_time = st.sidebar.slider("End Time", value=overlap_end_time, min_value=overlap_start_time, max_value=overlap_end_time, format="YYYY-MM-DD HH:mm:ss")
 
+# Define notes to plot
+notes_to_plot = {
+    'heartbeat_manual_ok': 'ecg',
+    'exhalation_breath': 'depth'
+}
+
 st.title('Interactive Plot Customization')
-plot_tag_data_interactive(data_pkl, imu_channels_to_plot, ephys_channels=ephys_channels_to_plot, imu_logger=imu_logger_to_use, ephys_logger=ephys_logger_to_use, time_range=(start_time, end_time))
+plot_tag_data_interactive(data_pkl, imu_channels_to_plot, ephys_channels=ephys_channels_to_plot, imu_logger=imu_logger_to_use, ephys_logger=ephys_logger_to_use, time_range=(start_time, end_time), note_annotations=notes_to_plot)
