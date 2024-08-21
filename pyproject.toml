@@ -22,6 +22,8 @@ dependencies = [
   "notion-client",
   "plotly",
   "nbformat",
+  "sphinx",
+  "sphinx-rtd-theme"
 ]
 
 [tool.setuptools.packages.find] # finds submodules

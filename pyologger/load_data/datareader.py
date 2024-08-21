@@ -8,13 +8,39 @@ import numpy as np
 from datetime import datetime, timedelta
 
 class DataReader:
+    """A class for handling the reading and processing of deployment data files.
+
+    This class is responsible for managing and processing data from different logger devices
+    within a deployment. It provides methods to read, organize, process, and save data from
+    various file formats including UBE and CSV.
+
+    :param deployment_folder_path: The path to the folder containing the deployment data, defaults to None
+    :type deployment_folder_path: str, optional
+    """
     def __init__(self, deployment_folder_path=None):
+        """Constructor method for initializing the DataReader.
+
+        :param deployment_folder_path: The path to the folder containing the deployment data, defaults to None
+        :type deployment_folder_path: str, optional
+        """
         self.deployment_data_folder = deployment_folder_path
         self.selected_deployment = None  # Store selected deployment metadata here
         self.data = {}  # Store data by logger ID
         self.info = {}  # Store info (metadata) by logger ID
 
     def read_files(self, metadata, save_csv=True, save_parq=True):
+        """Reads and processes the deployment data files.
+
+        This method reads the data files for each logger in the deployment, processes them,
+        and optionally saves the results as CSV and/or Parquet files.
+
+        :param metadata: The metadata object containing logger information.
+        :type metadata: Metadata object
+        :param save_csv: Flag indicating whether to save the processed data as CSV files, defaults to True
+        :type save_csv: bool, optional
+        :param save_parq: Flag indicating whether to save the processed data as Parquet files, defaults to True
+        :type save_parq: bool, optional
+        """
         if not self.deployment_data_folder:
             print("No deployment folder set. Please use check_deployment_folder first.")
             return
@@ -109,6 +135,18 @@ class DataReader:
         print(f"Step 9: DataReader object successfully saved to {pickle_filename}.")
     
     def check_deployment_folder(self, dep_db, data_dir):
+        """Checks the deployment folder and allows the user to select a deployment.
+
+        This method assists the user in selecting a deployment folder from a database and ensures that the
+        folder exists. If the folder is not found, it attempts to find a similar folder in the directory.
+
+        :param dep_db: The deployment database containing metadata about available deployments.
+        :type dep_db: pandas.DataFrame
+        :param data_dir: The directory containing deployment folders.
+        :type data_dir: str
+        :return: The path to the selected deployment folder, or None if not found
+        :rtype: str or None
+        """
         # Step 1: Display relevant information to help the user decide
         print("Step 1: Displaying deployments to help you select one.")
         print(dep_db[['Deployment Name', 'Notes']])
@@ -169,6 +207,14 @@ class DataReader:
         return self.deployment_data_folder
 
     def import_notes(self):
+        """Imports and processes notes associated with the selected deployment.
+
+        This method reads a notes file in Excel format, processes the timestamps, and sorts
+        the notes chronologically.
+
+        :return: A DataFrame containing the processed notes, or None if notes could not be imported
+        :rtype: pandas.DataFrame or None
+        """
         if self.selected_deployment is None or self.selected_deployment.empty:
             print("Selected deployment metadata not found. Please ensure you have selected a deployment.")
             return None
@@ -212,7 +258,16 @@ class DataReader:
 
 
     def check_outputs_folder(self, logger_ids):
-        """Check if all expected processed files are already in the outputs folder."""
+        """Checks if the processed data files for the given loggers already exist in the outputs folder.
+
+        This method checks if all necessary files are present in the outputs folder and determines
+        if further processing is needed.
+
+        :param logger_ids: A list of logger IDs for which the outputs should be checked.
+        :type logger_ids: list
+        :return: True if all necessary files are found, False otherwise
+        :rtype: bool
+        """
         output_folder = os.path.join(self.deployment_data_folder, 'outputs')
         if not os.path.exists(output_folder):
             print("Outputs folder does not exist. Processing required.")
@@ -234,6 +289,16 @@ class DataReader:
         return True  # All logger IDs have corresponding files in the outputs folder
 
     def concatenate_and_save_csvs(self, csv_files):
+        """Concatenates multiple CSV files and saves the result.
+
+        This method reads multiple CSV files, concatenates them into a single DataFrame,
+        and saves the result to disk with appropriate column mappings and units.
+
+        :param csv_files: A list of CSV file names to be concatenated.
+        :type csv_files: list
+        :return: The concatenated DataFrame and column metadata
+        :rtype: tuple (pandas.DataFrame, dict)
+        """
         dfs = []
         for file in csv_files:
             file_path = os.path.join(self.deployment_data_folder, file)
@@ -334,6 +399,18 @@ class DataReader:
         return concatenated_df, column_metadata
 
     def process_datetime(self, df, time_zone=None):
+        """Processes datetime columns in the DataFrame and calculates sampling frequency.
+
+        This method creates a 'datetime' column from existing date and time columns, localizes
+        the timestamps, converts them to UTC, and calculates the sampling frequency.
+
+        :param df: The DataFrame containing the data to be processed.
+        :type df: pandas.DataFrame
+        :param time_zone: The time zone to localize the datetime column, defaults to None
+        :type time_zone: str, optional
+        :return: The processed DataFrame and metadata about the datetime processing
+        :rtype: tuple (pandas.DataFrame, dict)
+        """
         metadata = {
             'datetime_created_from': None,
             'fs': None
@@ -417,6 +494,15 @@ class DataReader:
 
 
     def process_ube_file(self, ube_file):
+        """Processes a UBE file and extracts data.
+
+        This method reads a UBE file, extracts the relevant data, and returns it in a DataFrame.
+
+        :param ube_file: The name of the UBE file to be processed.
+        :type ube_file: str
+        :return: The DataFrame containing the processed data and column metadata
+        :rtype: tuple (pandas.DataFrame, dict)
+        """
         file_path = os.path.join(self.deployment_data_folder, ube_file)
         try:
             data = self.read_ube(file_path)
@@ -426,6 +512,16 @@ class DataReader:
             return None
 
     def read_ube(self, ube_path):
+        """Reads and processes the raw data from a UBE file.
+
+        This method reads the raw binary data from a UBE file, processes it, and returns
+        a DataFrame with the extracted data.
+
+        :param ube_path: The path to the UBE file.
+        :type ube_path: str
+        :return: The DataFrame containing the processed data and column metadata
+        :rtype: tuple (pandas.DataFrame, dict)
+        """
         if self.selected_deployment is None or self.selected_deployment.empty:
             print("Selected deployment metadata not found. Please ensure you have selected a deployment.")
             return None
@@ -511,6 +607,16 @@ class DataReader:
         return result, column_metadata
 
     def read_csv(self, csv_path):
+        """Reads a CSV file with multiple encoding attempts.
+
+        This method attempts to read a CSV file using different encodings and returns the
+        data as a DataFrame.
+
+        :param csv_path: The path to the CSV file.
+        :type csv_path: str
+        :return: The DataFrame containing the CSV data
+        :rtype: pandas.DataFrame
+        """
         encodings = ['utf-8', 'ISO-8859-1', 'windows-1252']
         for encoding in encodings:
             try:
@@ -521,6 +627,22 @@ class DataReader:
         raise UnicodeDecodeError(f"Failed to read {csv_path} with available encodings.")
 
     def save_data(self, data, logger_id, filename, save_csv=True, save_parq=False):
+        """Saves the processed data to disk in CSV and/or Parquet format.
+
+        This method saves the processed data for a specific logger to disk, either as a
+        CSV file, a Parquet file, or both.
+
+        :param data: The DataFrame containing the data to be saved.
+        :type data: pandas.DataFrame
+        :param logger_id: The ID of the logger whose data is being saved.
+        :type logger_id: str
+        :param filename: The filename to save the data under.
+        :type filename: str
+        :param save_csv: Flag indicating whether to save the data as a CSV file, defaults to True
+        :type save_csv: bool, optional
+        :param save_parq: Flag indicating whether to save the data as a Parquet file, defaults to False
+        :type save_parq: bool, optional
+        """
         self.data[logger_id] = {}
         output_folder = os.path.join(self.deployment_data_folder, 'outputs')
         os.makedirs(output_folder, exist_ok=True)
