@@ -1,0 +1,8 @@
+numpy
+pandas
+mne
+pytz
+python-dotenv
+notion-client
+plotly
+nbformat

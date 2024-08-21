@@ -3,7 +3,6 @@ pandas
 mne
 pytz
 python-dotenv
-notion_client
+notion-client
 plotly
 nbformat
-openpyxl

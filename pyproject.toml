@@ -24,6 +24,6 @@ dependencies = [
   "nbformat",
 ]
 
-[tool_setuptools.packages.find] # finds submodules
-packages = "pyologger"
-exclude = ["media", "docs", "notebooks"]
+[tool.setuptools.packages.find] # finds submodules
+exclude = ["media", "docs", "notebooks", "home", "data", "notes", "djangodb"]
+where = ["."]
