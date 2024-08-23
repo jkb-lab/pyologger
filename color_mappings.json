@@ -12,5 +12,17 @@
     "Magnetometer Y [\u00b5T]": "#99d8b5",
     "Magnetometer Z [\u00b5T]": "#e4d596",
     "Filtered Heartbeats": "#e8d6d6",
-    "Exhalation Breath": "#6ca1c3"
+    "Exhalation Breath": "#6ca1c3",
+    "field_intensity_acc": "#88ba92",
+    "field_intensity_mag": "#b884a7",
+    "inclination_angle": "#d99e9d",
+    "field_intensity_acc2": "#957684",
+    "field_intensity_mag2": "#fc9e6d",
+    "inclination_angle2": "#d6e1ff",
+    "corr_accX": "#899bb1",
+    "corr_accY": "#9fabff",
+    "corr_accZ": "#9cc398",
+    "pitch_deg": "#c966ec",
+    "roll_deg": "#e1ecbe",
+    "heading_deg": "#6c99ef"
 }

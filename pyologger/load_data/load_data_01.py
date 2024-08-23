@@ -1,19 +1,7 @@
 # Import libraries and set working directory (adjust to fit your preferences)
 import os
-import sys
-import numpy as np
-import pandas as pd
-import pytz
-import matplotlib.pyplot as plt
-from notion_client import Client
-from dotenv import load_dotenv
-from datareader import DataReader
-from metadata import Metadata
-from loggerdata import LoggerData
-import plotly.express as px
-import pickle
-import nbformat
-print(nbformat.__version__)
+from pyologger.load_data.datareader import DataReader
+from pyologger.load_data.metadata import Metadata
 
 # Change the current working directory to the root directory
 # os.chdir("/Users/fbar/Documents/GitHub/pyologger")
