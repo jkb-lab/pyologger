@@ -24,5 +24,7 @@
     "corr_accZ": "#9cc398",
     "pitch_deg": "#c966ec",
     "roll_deg": "#e1ecbe",
-    "heading_deg": "#6c99ef"
+    "heading_deg": "#6c99ef",
+    "odba": "#87c577",
+    "hr": "#9aad81"
 }

@@ -71,10 +71,11 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
     # Load the color mapping
     color_mapping = load_color_mapping(color_mapping_path) if color_mapping_path else {}
 
-    # Ensure the order of channels: ECG, Depth, Accel, Gyro, Mag
+    # Ensure the order of channels: ECG, HR, Depth, Accel, Gyro, Mag
     ordered_channels = []
-    if ephys_channels and 'ecg' in [ch.lower() for ch in ephys_channels]:
-        ordered_channels.append(('ECG', 'ecg'))
+    if ephys_channels:
+        if 'ecg' in [ch.lower() for ch in ephys_channels]:
+            ordered_channels.append(('ECG', 'ecg'))
     if 'depth' in [ch.lower() for ch in imu_channels]:
         ordered_channels.append(('Depth', 'depth'))
     if 'corrdepth' in imu_channels:
@@ -88,10 +89,13 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
 
     # Add any undefined channels to the bottom of the list
     defined_channels = {ch.lower() for channel_type, channels in ordered_channels for ch in (channels if isinstance(channels, list) else [channels])}
-    undefined_channels = [ch for ch in imu_channels if ch.lower() not in defined_channels]
+    undefined_imu_channels = [ch for ch in imu_channels if ch.lower() not in defined_channels]
+    undefined_ephys_channels = [ch for ch in ephys_channels if ch.lower() not in defined_channels]
 
-    for ch in undefined_channels:
-        ordered_channels.append(('Undefined', ch))
+    for ch in undefined_imu_channels:
+        ordered_channels.append(('Undefined_IMU', ch))
+    for ch in undefined_ephys_channels:
+        ordered_channels.append(('Undefined_EPHYS', ch))
 
     # Get the datetime overlap between IMU and ePhys data
     imu_df = data_pkl.data[imu_logger] if imu_logger else None
@@ -140,8 +144,8 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
     row_counter = 1
 
     for channel_type, channels in ordered_channels:
-        if channel_type == 'ECG' and ephys_channels and 'ecg' in [ch.lower() for ch in ephys_channels]:
-            channel = 'ecg'
+        if channel_type in ['ECG'] and ephys_channels:
+            channel = channels.lower()
             df = ephys_df_filtered
             info = ephys_info
             original_name = info[channel]['original_name']
@@ -151,10 +155,10 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
             x_data = df['datetime']
 
             y_label = f"{original_name} [{unit}]"
-            color = color_mapping.get('ECG', '#FFCCCC')
+            color = color_mapping.get(channel.upper(), '#FFCCCC' if channel == 'ecg' else '#FF6347')
 
-            # Add vertical lines for annotations
-            if note_annotations and 'heartbeat_manual_ok' in note_annotations:
+            # Add vertical lines for annotations if ECG is being plotted
+            if channel == 'ecg' and note_annotations and 'heartbeat_manual_ok' in note_annotations:
                 filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == 'heartbeat_manual_ok']
                 if not filtered_notes.empty:
                     for dt in filtered_notes['datetime']:
@@ -259,9 +263,38 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
             fig.update_yaxes(title_text=f"{channel_type} [{unit}]", row=row_counter, col=1)
             row_counter += 1
 
-        elif channel_type == 'Undefined':
+        elif channel_type == 'Undefined_IMU':
             channel = channels  # Single channel
             df = imu_df_filtered
+
+            if channel in df.columns:
+                y_data = df[channel]
+                x_data = df['datetime']
+
+                y_label = channel  # Use the channel name directly
+                color = color_mapping.get(y_label)
+
+                # If no color mapping exists, create one
+                if color is None:
+                    color = generate_random_color()
+                    color_mapping[y_label] = color
+                    if color_mapping_path:
+                        save_color_mapping(color_mapping, color_mapping_path)
+
+                fig.add_trace(go.Scatter(
+                    x=x_data,
+                    y=y_data,
+                    mode='lines',
+                    name=y_label,
+                    line=dict(color=color)
+                ), row=row_counter, col=1)
+
+                fig.update_yaxes(title_text=y_label, row=row_counter, col=1)
+                row_counter += 1
+
+        elif channel_type == 'Undefined_EPHYS':
+            channel = channels  # Single channel
+            df = ephys_df_filtered
 
             if channel in df.columns:
                 y_data = df[channel]
@@ -305,6 +338,7 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
     fig.update_xaxes(title_text="Datetime", row=row_counter-1, col=1)
 
     return fig
+
 
 def plot_tag_data(data_pkl, imu_channels, ephys_channels=None, imu_logger=None, ephys_logger=None, imu_sampling_rate=10, ephys_sampling_rate=50, draw=True):
     if not imu_logger and not ephys_logger:
