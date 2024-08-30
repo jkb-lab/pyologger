@@ -130,7 +130,7 @@ def get_heart_rate(ecg_data, fs=500, search_radius=200, filter_threshold=200, al
     filter_threshold: threshold above which to throw out values (filter_threshold=200 would throw out any value above 200 bpm
                       and impute it from its neighbors)
     """
-    def bandpass_filter(signal, lowcut=0.5, highcut=45, fs=500, order=5):
+    def bandpass_filter(signal, lowcut=1, highcut=20, fs=500, order=5):
         nyquist = 0.5 * fs
         low = lowcut / nyquist
         high = highcut / nyquist

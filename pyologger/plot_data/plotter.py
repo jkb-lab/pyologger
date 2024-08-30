@@ -38,6 +38,222 @@ def generate_random_color():
     r = lambda: random.randint(100, 255)
     return f'#{r():02x}{r():02x}{r():02x}'
 
+
+def plot_tag_data_interactive2(data_pkl, imu_channels, ephys_channels=None, imu_logger=None, 
+                              ephys_logger=None, imu_sampling_rate=10, ephys_sampling_rate=50, 
+                              time_range=None, note_annotations=None, color_mapping_path=None):
+    """
+    Function to plot tag data interactively using Plotly.
+
+    Parameters
+    ----------
+    data_pkl : object
+        The pickle object containing the data.
+    imu_channels : list
+        List of IMU channels to plot.
+    ephys_channels : list, optional
+        List of electrophysiology channels to plot.
+    imu_logger : str, optional
+        IMU logger identifier.
+    ephys_logger : str, optional
+        Electrophysiology logger identifier.
+    imu_sampling_rate : int, optional
+        Sampling rate for IMU data.
+    ephys_sampling_rate : int, optional
+        Sampling rate for electrophysiology data.
+    time_range : tuple, optional
+        Tuple specifying the start and end time for plotting.
+    note_annotations : dict, optional
+        Dictionary of annotations to plot.
+    color_mapping_path : str, optional
+        Path to the JSON file containing the color mappings.
+    """
+
+    # Load the color mapping
+    color_mapping = load_color_mapping(color_mapping_path) if color_mapping_path else {}
+
+    # Define and order channels
+    ordered_channels = []
+    if ephys_channels:
+        if 'ecg' in [ch.lower() for ch in ephys_channels]:
+            ordered_channels.append(('ECG', 'ecg'))
+    if 'depth' in [ch.lower() for ch in imu_channels]:
+        ordered_channels.append(('Depth', 'depth'))
+    if 'corrdepth' in imu_channels:
+        ordered_channels.append(('Corrected Depth', 'corrdepth'))
+
+    if any(ch.lower() in ['accx', 'accy', 'accz'] for ch in imu_channels):
+        ordered_channels.append(('Accelerometer', ['accX', 'accY', 'accZ']))
+    if any(ch.lower() in ['accx_adjusted', 'accy_adjusted', 'accz_adjusted'] for ch in imu_channels):
+        ordered_channels.append(('Accel_Adjusted', ['accX', 'accY', 'accZ']))
+    if any(ch.lower() in ['corr_accx', 'corr_accy', 'corr_accz'] for ch in imu_channels):
+        ordered_channels.append(('Accel_Corrected', ['corr_accX', 'corr_accY', 'corr_accZ']))
+        
+    if any(ch.lower() in ['gyrx', 'gyry', 'gyrz'] for ch in imu_channels):
+        ordered_channels.append(('Gyroscope', ['gyrX', 'gyrY', 'gyrZ']))
+    if any(ch.lower() in ['gyrx_adjusted', 'gyry_adjusted', 'gyrz_adjusted'] for ch in imu_channels):
+        ordered_channels.append(('Gyro_Adjusted', ['gyrX', 'gyrY', 'gyrZ']))
+    if any(ch.lower() in ['corr_gyrx', 'corr_gyry', 'corr_gyrz'] for ch in imu_channels):
+        ordered_channels.append(('Gyro_Corrected', ['corr_gyrX', 'corr_gyrY', 'corr_gyrZ']))
+
+    if any(ch.lower() in ['magx', 'magy', 'magz'] for ch in imu_channels):
+        ordered_channels.append(('Magnetometer', ['magX', 'magY', 'magZ']))
+    if any(ch.lower() in ['magx_adjusted', 'magy_adjusted', 'magz_adjusted'] for ch in imu_channels):
+        ordered_channels.append(('Mag_Adjusted', ['magX', 'magY', 'magZ']))
+    if any(ch.lower() in ['corr_magx', 'corr_magy', 'corr_magz'] for ch in imu_channels):
+        ordered_channels.append(('Mag_Corrected', ['corr_magX', 'corr_magY', 'corr_magZ']))
+    
+    if 'pitch' in [ch.lower() for ch in imu_channels]:
+        ordered_channels.append(('Pitch', 'pitch'))
+    if 'roll' in [ch.lower() for ch in imu_channels]:
+        ordered_channels.append(('Roll', 'roll'))
+    if 'heading' in [ch.lower() for ch in imu_channels]:
+        ordered_channels.append(('Heading', 'heading'))
+
+    #if any(ch.lower() in ['pitch', 'roll', 'heading'] for ch in imu_channels):
+    #    ordered_channels.append(('Pitch Roll Heading', ['pitch', 'roll', 'heading']))
+
+    # Add any undefined channels to the bottom of the list
+    defined_channels = {ch.lower() for channel_type, channels in ordered_channels for ch in (channels if isinstance(channels, list) else [channels])}
+    undefined_imu_channels = [ch for ch in imu_channels if ch.lower() not in defined_channels]
+    undefined_ephys_channels = [ch for ch in ephys_channels if ch.lower() not in defined_channels]
+
+    for ch in undefined_imu_channels:
+        ordered_channels.append(('Undefined_IMU', ch))
+    for ch in undefined_ephys_channels:
+        ordered_channels.append(('Undefined_EPHYS', ch))
+
+    # Get the datetime overlap between IMU and ePhys data
+    imu_df = data_pkl.data[imu_logger] if imu_logger else None
+    ephys_df = data_pkl.data[ephys_logger] if ephys_logger else None
+
+    imu_start_time = imu_df['datetime'].min().to_pydatetime() if imu_df is not None else None
+    imu_end_time = imu_df['datetime'].max().to_pydatetime() if imu_df is not None else None
+    ephys_start_time = ephys_df['datetime'].min().to_pydatetime() if ephys_df is not None else None
+    ephys_end_time = ephys_df['datetime'].max().to_pydatetime() if ephys_df is not None else None
+
+    # Determine overlapping time range
+    start_time = max(imu_start_time, ephys_start_time) if imu_start_time and ephys_start_time else imu_start_time or ephys_start_time
+    end_time = min(imu_end_time, ephys_end_time) if imu_end_time and ephys_end_time else imu_end_time or ephys_end_time
+
+    # Use the user-defined time range if provided
+    if time_range:
+        start_time = max(start_time, time_range[0])
+        end_time = min(end_time, time_range[1])
+
+    # Filter data to the overlapping time range
+    def get_time_filtered_df(df, start_time, end_time):
+        return df[(df['datetime'] >= start_time) & (df['datetime'] <= end_time)]
+    
+    def downsample(df, original_fs, target_fs):
+        if target_fs >= original_fs:
+            return df
+        conversion_factor = int(original_fs / target_fs)
+        print(f"Original FS: {original_fs}, Target FS: {target_fs}, Conversion Factor: {conversion_factor}")
+        return df.iloc[::conversion_factor, :]
+
+    if imu_logger:
+        imu_fs = 1 / imu_df['datetime'].diff().dt.total_seconds().mean()
+        imu_df_downsampled = downsample(imu_df, imu_fs, imu_sampling_rate)
+        imu_df_filtered = get_time_filtered_df(imu_df_downsampled, start_time, end_time)
+        imu_info = data_pkl.info[imu_logger]['channelinfo']
+        print(f"IMU was downsampled from {imu_fs} to {imu_sampling_rate}")
+
+    if ephys_logger:
+        ephys_fs = 1 / ephys_df['datetime'].diff().dt.total_seconds().mean()
+        ephys_df_downsampled = downsample(ephys_df, ephys_fs, ephys_sampling_rate)
+        ephys_df_filtered = get_time_filtered_df(ephys_df_downsampled, start_time, end_time)
+        ephys_info = data_pkl.info[ephys_logger]['channelinfo']
+
+    # Prepare the data and layout structure
+    data = []
+    yaxis_counter = 1
+    yaxis_map = {}
+
+    for channel_type, channels in ordered_channels:
+        for sub_channel in channels if isinstance(channels, list) else [channels]:
+            if channel_type == 'ECG':
+                df = ephys_df_filtered
+                info = ephys_info
+            else:
+                df = imu_df_filtered
+                info = imu_info
+
+            if sub_channel in df.columns:
+                y_data = df[sub_channel]
+                x_data = df['datetime']
+
+                # Handle undefined channels and assign a random color if necessary
+                original_name = info[sub_channel]['original_name']
+                unit = info[sub_channel]['unit']
+                y_label = f"{original_name}"
+
+                if original_name not in color_mapping:
+                    color = generate_random_color()
+                    color_mapping[original_name] = color
+                    if color_mapping_path:
+                        save_color_mapping(color_mapping, color_mapping_path)
+                else:
+                    color = color_mapping[original_name]
+
+                if channel_type not in yaxis_map:
+                    yaxis_map[channel_type] = f'y{yaxis_counter}'
+                    yaxis_counter += 1
+
+                yaxis = yaxis_map[channel_type]
+                
+                data.append(go.Scatter(
+                    x=x_data,
+                    y=y_data,
+                    mode='lines',
+                    name=y_label,
+                    line=dict(color=color),
+                    yaxis=yaxis
+                ))
+
+    # Calculate the height based on the number of rows
+    row_height = 120  # Height per row in pixels
+    total_height = row_height * (yaxis_counter - 1)
+    
+    layout = {
+        'title': f"{data_pkl.selected_deployment['Deployment Name']}",
+        'hovermode': 'x unified',
+        'height': total_height,
+        'margin': dict(l=10, r=10, t=40, b=20),
+        'grid': {'rows': yaxis_counter - 1, 'columns': 1},
+        'showlegend': True,
+        'legend': {
+            'xanchor': 'center',
+        }
+    }
+
+    for i, channel_type in enumerate(yaxis_map, start=1):
+        yaxis_name = f'yaxis{i}' if i > 1 else 'yaxis'
+        layout[yaxis_name] = {'title': channel_type}
+        if channel_type == 'Depth':
+            layout[yaxis_name]['autorange'] = 'reversed'
+
+    fig = go.Figure(data=data, layout=layout)
+
+    if note_annotations:
+        for note_type, note_channel in note_annotations.items():
+            if note_channel in imu_df_filtered.columns or note_channel in ephys_df_filtered.columns:
+                filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == note_type]
+                for dt in filtered_notes['datetime']:
+                    # Use color from color_mapping or default to 50% opaque gray
+                    color = color_mapping.get(note_type, 'rgba(128, 128, 128, 0.5)')
+                    fig.add_vline(
+                        x=dt,
+                        line=dict(color=color, width=1, dash='dot')
+                    )
+
+    return fig
+
+
+
+
+
+
 def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_logger=None, 
                               ephys_logger=None, imu_sampling_rate=10, ephys_sampling_rate=50, 
                               time_range=None, note_annotations=None, color_mapping_path=None):
@@ -80,12 +296,30 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
         ordered_channels.append(('Depth', 'depth'))
     if 'corrdepth' in imu_channels:
         ordered_channels.append(('Corrected Depth', 'corrdepth'))
+
     if any(ch.lower() in ['accx', 'accy', 'accz'] for ch in imu_channels):
         ordered_channels.append(('Accel', ['accX', 'accY', 'accZ']))
+    if any(ch.lower() in ['accX_adjusted', 'accY_adjusted', 'accZ_adjusted'] for ch in imu_channels):
+        ordered_channels.append(('Accel_Adjusted', ['accX', 'accY', 'accZ']))
+    if any(ch.lower() in ['corr_accx', 'corr_accy', 'corr_accz'] for ch in imu_channels):
+        ordered_channels.append(('Accel_Corrected', ['corr_accX', 'corr_accY', 'corr_accZ']))
+        
     if any(ch.lower() in ['gyrx', 'gyry', 'gyrz'] for ch in imu_channels):
         ordered_channels.append(('Gyro', ['gyrX', 'gyrY', 'gyrZ']))
+    if any(ch.lower() in ['gyrx_adjusted', 'gyry_adjusted', 'gyrz_adjusted'] for ch in imu_channels):
+        ordered_channels.append(('Gyro_Adjusted', ['gyrX', 'gyrY', 'gyrZ']))
+    if any(ch.lower() in ['corr_gyrx', 'corr_gyry', 'corr_gyrz'] for ch in imu_channels):
+        ordered_channels.append(('Gyro_Corrected', ['corr_gyrX', 'corr_gyrY', 'corr_gyrZ']))
+
     if any(ch.lower() in ['magx', 'magy', 'magz'] for ch in imu_channels):
         ordered_channels.append(('Mag', ['magX', 'magY', 'magZ']))
+    if any(ch.lower() in ['magx_adjusted', 'magy_adjusted', 'magz_adjusted'] for ch in imu_channels):
+        ordered_channels.append(('Mag_Adjusted', ['magX', 'magY', 'magZ']))
+    if any(ch.lower() in ['corr_magx', 'corr_magy', 'corr_magz'] for ch in imu_channels):
+        ordered_channels.append(('Mag_Corrected', ['corr_magX', 'corr_magY', 'corr_magZ']))
+
+    if any(ch.lower() in ['pitch', 'roll', 'heading'] for ch in imu_channels):
+        ordered_channels.append(('prh', ['pitch', 'roll', 'heading']))
 
     # Add any undefined channels to the bottom of the list
     defined_channels = {ch.lower() for channel_type, channels in ordered_channels for ch in (channels if isinstance(channels, list) else [channels])}
@@ -101,6 +335,7 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
     imu_df = data_pkl.data[imu_logger] if imu_logger else None
     ephys_df = data_pkl.data[ephys_logger] if ephys_logger else None
 
+    # Determine overlapping time range based on the data
     imu_start_time = imu_df['datetime'].min().to_pydatetime() if imu_df is not None else None
     imu_end_time = imu_df['datetime'].max().to_pydatetime() if imu_df is not None else None
     ephys_start_time = ephys_df['datetime'].min().to_pydatetime() if ephys_df is not None else None
@@ -110,10 +345,14 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
     start_time = max(imu_start_time, ephys_start_time) if imu_start_time and ephys_start_time else imu_start_time or ephys_start_time
     end_time = min(imu_end_time, ephys_end_time) if imu_end_time and ephys_end_time else imu_end_time or ephys_end_time
 
-    # Use the user-defined time range if provided
+    # Apply the user-defined time range if provided
     if time_range:
-        start_time = max(start_time, time_range[0])
-        end_time = min(end_time, time_range[1])
+        # Constrain within the overlap time range
+        user_start_time = time_range[0].to_pydatetime() if time_range[0].tzinfo is None else time_range[0]
+        user_end_time = time_range[1].to_pydatetime() if time_range[1].tzinfo is None else time_range[1]
+        
+        start_time = max(start_time, user_start_time)
+        end_time = min(end_time, user_end_time)
 
     # Filter data to the overlapping time range
     def get_time_filtered_df(df, start_time, end_time):
@@ -202,10 +441,9 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
                 line=dict(color=color)
             ), row=row_counter, col=1)
 
-            # Add vertical lines for annotations
             if note_annotations and 'exhalation_breath' in note_annotations:
                 filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == 'exhalation_breath']
-                if not filtered_notes.empty:
+                if not filtered_notes.empty:  
                     for dt in filtered_notes['datetime']:
                         fig.add_trace(go.Scatter(
                             x=[dt, dt],
@@ -238,7 +476,9 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
                 line=dict(color=color)
             ), row=row_counter-1, col=1)  # Plot on the same row as original depth
 
-        elif channel_type in ['Accel', 'Gyro', 'Mag']:
+        elif channel_type in ['Accel', 'Gyro', 'Mag', 
+                              'Accel_Adjusted', 'Gyro_Adjusted', 'Mag_Adjusted', 
+                              'Accel_Corrected', 'Gyro_Corrected', 'Mag_Corrected', 'prh']:
             for sub_channel in channels:
                 if sub_channel in imu_df_filtered.columns:
                     df = imu_df_filtered
@@ -324,20 +564,20 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
     fig.update_layout(
         height=200 * num_rows,
         width=1200,
+        hovermode="x unified",  # Enables the vertical hover line across subplots
         title_text=f"{data_pkl.selected_deployment['Deployment Name']}",
         showlegend=True,
         legend=dict(
             orientation="h",  # Horizontal legend
-            x=0.5,  # Center the legend horizontally
-            y=-0.3,  # Place the legend above the plot
             xanchor='center',  # Anchor the legend horizontally at the center
-            yanchor='bottom'   # Anchor the legend vertically at the bottom of the legend box
+            yanchor='top'   # Anchor the legend vertically at the top of the legend box
         )
     )
 
     fig.update_xaxes(title_text="Datetime", row=row_counter-1, col=1)
 
     return fig
+
 
 
 def plot_tag_data(data_pkl, imu_channels, ephys_channels=None, imu_logger=None, ephys_logger=None, imu_sampling_rate=10, ephys_sampling_rate=50, draw=True):
@@ -580,7 +820,10 @@ def plot_depth_correction(datetime_data, dec_factor, depth_data, first_derivativ
         fig.update_yaxes(title_text="Temperature Correction (m)", row=4, col=1)
 
     # Update layout
-    fig.update_layout(title="Depth Data Analysis", height=800)
+    fig.update_layout(title="Depth Data Analysis", 
+                      height=800,
+                      hoversubplots="axis",  # Synchronize hover across subplots
+                      hovermode="x unified") # This enables the vertical line across subplots
 
     return fig
 
