@@ -1,0 +1,37 @@
+{
+    "CATS": {
+        "date_utc": "date_utc",
+        "time_utc": "time_utc",
+        "date_local": "date",
+        "time_local": "time",
+        "accelerometer_x": "ax",
+        "accelerometer_y": "ay",
+        "accelerometer_z": "az",
+        "gyroscope_x": "gx",
+        "gyroscope_y": "gy",
+        "gyroscope_z": "gz",
+        "magnetometer_x": "magx",
+        "magnetometer_y": "magy",
+        "magnetometer_z": "magz",
+        "temperature_imu": "temp",
+        "depth_100bar_1": "depth",
+        "depth_100bar_2": "depth2",
+        "light_intensity_1": "light",
+        "light_intensity_2": "light2",
+        "system_error": "syserror",
+        "batt_v": "battv",
+        "batt_ma": "batta",
+        "batt_mah": "battah",
+        "camera": "camera",
+        "flags": "flags",
+        "led": "led",
+        "camera_time": "cameratime",
+        "gps": "gps",
+        "cc_status": "ccstatus",
+        "cc_vid._size__kbytes": "ccvidsize"
+    },
+    "UFI": {
+        "ecg": "ecg",
+        "datetime": "datetime"
+    }
+}

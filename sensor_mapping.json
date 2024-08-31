@@ -1,0 +1,15 @@
+{
+    "ax": "Accelerometer",
+    "ay": "Accelerometer",
+    "az": "Accelerometer",
+    "gx": "Gyroscope",
+    "gy": "Gyroscope",
+    "gz": "Gyroscope",
+    "mx": "Magnetometer",
+    "my": "Magnetometer",
+    "mz": "Magnetometer",
+    "depth": "Depth",
+    "temp": "Temperature",
+    "light": "Light",
+    "ecg": "ecg"
+}

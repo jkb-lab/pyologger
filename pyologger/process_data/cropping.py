@@ -1,3 +1,4 @@
+import copy
 import pandas as pd
 import pytz
 
@@ -23,8 +24,8 @@ def crop_data(data_pkl, imu_logger=None, ephys_logger=None, start_time=None, end
     data_pkl_crop : object
         A new structured data object containing the cropped datasets and metadata.
     """
-    # Copy the original data_pkl to retain the structure
-    data_pkl_crop = data_pkl
+    # Deep copy the original data_pkl to retain the structure without modifying the original object
+    data_pkl_crop = copy.deepcopy(data_pkl)
 
     # Get the time zone from the deployment
     time_zone_str = data_pkl.selected_deployment['Time Zone']
@@ -37,8 +38,8 @@ def crop_data(data_pkl, imu_logger=None, ephys_logger=None, start_time=None, end
         end_time = time_zone.localize(end_time)
 
     if imu_logger:
-        imu_df = data_pkl.data[imu_logger]
-        imu_fs = int(data_pkl.info[imu_logger]['datetime_metadata']['fs'])
+        imu_df = data_pkl_crop.data[imu_logger]  # Work on the copy
+        imu_fs = int(data_pkl_crop.info[imu_logger]['datetime_metadata']['fs'])
         print(f"IMU Logger {imu_logger} sampled at: {imu_fs} Hz")
 
         # Crop the IMU data based on start and end time
@@ -52,8 +53,8 @@ def crop_data(data_pkl, imu_logger=None, ephys_logger=None, start_time=None, end
         data_pkl_crop.info[imu_logger]['datetime_metadata']['original_end_time'] = imu_df['datetime'].max()
 
     if ephys_logger:
-        ephys_df = data_pkl.data[ephys_logger]
-        ephys_fs = int(data_pkl.info[ephys_logger]['datetime_metadata']['fs'])
+        ephys_df = data_pkl_crop.data[ephys_logger]  # Work on the copy
+        ephys_fs = int(data_pkl_crop.info[ephys_logger]['datetime_metadata']['fs'])
         print(f"ePhys Logger {ephys_logger} sampled at: {ephys_fs} Hz")
 
         # Crop the ephys data based on start and end time
