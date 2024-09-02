@@ -23,7 +23,8 @@ dependencies = [
   "plotly",
   "nbformat",
   "sphinx",
-  "sphinx-rtd-theme"
+  "sphinx-rtd-theme",
+  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB@feature/duckdb-features-and-docs"
 ]
 
 [tool.setuptools.packages.find] # finds submodules
