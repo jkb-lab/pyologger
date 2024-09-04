@@ -23,7 +23,8 @@ dependencies = [
   "plotly",
   "nbformat",
   "sphinx",
-  "sphinx-rtd-theme"
+  "sphinx-rtd-theme",
+  "EDFlib-Python"
 ]
 
 [tool.setuptools.packages.find] # finds submodules

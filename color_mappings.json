@@ -33,5 +33,13 @@
     "Heading [degrees]": "#6f5398",
     "odba": "#87c577",
     "hr": "#9aad81",
-    "Depth (100bar) 1 [m]": "#ab65ee"
+    "Depth (100bar) 1 [m]": "#ab65ee",
+    "ax": "#c7cccf",
+    "ay": "#d1b4ea",
+    "az": "#ec7cca",
+    "gx": "#c38b95",
+    "gy": "#94f199",
+    "gz": "#ab8d77",
+    "Light intensity 1 [raw]": "#a5e591",
+    "Temperature (imu) [\u00b0C]": "#a39fc0"
 }

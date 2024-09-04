@@ -23,3 +23,10 @@ def upsample(data, upsampling_factor, original_length):
         upsampled_data = np.pad(upsampled_data, (0, original_length - len(upsampled_data)), 'edge')
     
     return upsampled_data
+
+def downsample(df, original_fs, target_fs):
+    if target_fs >= original_fs:
+        return df
+    conversion_factor = int(original_fs / target_fs)
+    print(f"Original FS: {original_fs}, Target FS: {target_fs}, Conversion Factor: {conversion_factor}")
+    return df.iloc[::conversion_factor, :]

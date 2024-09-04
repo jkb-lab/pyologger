@@ -1,33 +1,17 @@
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
-from itertools import groupby
+from pyologger.process_data.sampling import *
 import json
 import os
+import pandas as pd
 import numpy as np
-import random
-
 
 def load_color_mapping(path):
     if os.path.exists(path):
         with open(path, 'r') as f:
             return json.load(f)
     else:
-        return {
-            'ECG': '#FFCCCC',
-            'Depth': '#00008B',
-            'Corrected Depth': '#6CA1C3',
-            'Accelerometer X [m/s²]': '#6CA1C3',
-            'Accelerometer Y [m/s²]': '#98FB98',
-            'Accelerometer Z [m/s²]': '#FF6347',
-            'Gyroscope X [mrad/s]': '#9370DB',
-            'Gyroscope Y [mrad/s]': '#BA55D3',
-            'Gyroscope Z [mrad/s]': '#8A2BE2',
-            'Magnetometer X [µT]': '#FFD700',
-            'Magnetometer Y [µT]': '#FFA500',
-            'Magnetometer Z [µT]': '#FF8C00',
-            'Filtered Heartbeats': '#808080',
-            'Exhalation Breath': '#0000FF',
-        }
+        return {}
 
 def save_color_mapping(mapping, path):
     with open(path, 'w') as f:
@@ -35,9 +19,131 @@ def save_color_mapping(mapping, path):
 
 def generate_random_color():
     """Generate a random pastel color in HEX format."""
+    import random
     r = lambda: random.randint(100, 255)
     return f'#{r():02x}{r():02x}{r():02x}'
 
+def plot_tag_data_interactive3(data_pkl, sensors=None, channels=None, time_range=None, note_annotations=None, 
+                              color_mapping_path=None, target_sampling_rate=10):
+    """
+    Function to plot tag data interactively using Plotly.
+
+    Parameters
+    ----------
+    data_pkl : object
+        The object containing the sensor data and metadata.
+    sensors : list, optional
+        List of sensors to plot. If None, plot all available sensors.
+    channels : dict, optional
+        Dictionary specifying the channels to plot for each sensor.
+        E.g., {'ecg': ['ecg'], 'depth': ['depth']}
+        If None, plot all channels for the specified sensors.
+    time_range : tuple, optional
+        Tuple specifying the start and end time for plotting.
+    note_annotations : dict, optional
+        Dictionary of annotations to plot. E.g., {'heartbeat_manual_ok': 'ecg'}
+    color_mapping_path : str, optional
+        Path to the JSON file containing the color mappings.
+    target_sampling_rate : int, optional
+        The target sampling rate to downsample the data for plotting.
+    """
+    
+    # Load the color mapping
+    color_mapping = load_color_mapping(color_mapping_path) if color_mapping_path else {}
+
+    # Determine the sensors to plot
+    if sensors is None:
+        sensors = list(data_pkl.sensor_data.keys())
+
+    # Set up the figure
+    fig = make_subplots(rows=len(sensors), cols=1, shared_xaxes=True, vertical_spacing=0.03)
+    
+    row_counter = 1
+
+    for sensor in sensors:
+        sensor_df = data_pkl.sensor_data[sensor]
+        sensor_info = data_pkl.sensor_info[sensor]
+
+        # Determine the channels to plot for the current sensor
+        if channels is None or sensor not in channels:
+            sensor_channels = sensor_info['channels']
+        else:
+            sensor_channels = channels[sensor]
+
+        # Filter data to the time range
+        if time_range:
+            start_time, end_time = time_range
+            sensor_df_filtered = sensor_df[(sensor_df['datetime'] >= start_time) & (sensor_df['datetime'] <= end_time)]
+        else:
+            sensor_df_filtered = sensor_df
+
+        # Calculate original sampling rate
+        original_fs = 1 / sensor_df_filtered['datetime'].diff().dt.total_seconds().mean()
+
+        # Downsample the data
+        def downsample(df, original_fs, target_fs):
+            if target_fs >= original_fs:
+                return df
+            conversion_factor = int(original_fs / target_fs)
+            return df.iloc[::conversion_factor, :]
+
+        sensor_df_filtered = downsample(sensor_df_filtered, original_fs, target_sampling_rate)
+
+        # Plot each channel
+        for channel in sensor_channels:
+            if channel in sensor_df_filtered.columns:
+                x_data = sensor_df_filtered['datetime']
+                y_data = sensor_df_filtered[channel]
+
+                original_name = sensor_info['metadata'][channel]['original_name']
+                unit = sensor_info['metadata'][channel]['unit']
+                y_label = f"{original_name} [{unit}]"
+
+                color = color_mapping.get(original_name, generate_random_color())
+                color_mapping[original_name] = color
+
+                fig.add_trace(go.Scatter(
+                    x=x_data,
+                    y=y_data,
+                    mode='lines',
+                    name=y_label,
+                    line=dict(color=color)
+                ), row=row_counter, col=1)
+
+        # Handle annotations for this sensor
+        if note_annotations:
+            for note_type, note_channel in note_annotations.items():
+                if note_channel in sensor_df_filtered.columns:
+                    filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == note_type]
+                    if not filtered_notes.empty:
+                        for dt in filtered_notes['datetime']:
+                            fig.add_trace(go.Scatter(
+                                x=[dt, dt],
+                                y=[sensor_df_filtered[note_channel].min(), sensor_df_filtered[note_channel].max()],
+                                mode='lines',
+                                line=dict(color=color_mapping.get(note_type, 'rgba(128, 128, 128, 0.5)'), width=1, dash='dot'),
+                                showlegend=False
+                            ), row=row_counter, col=1)
+
+        fig.update_yaxes(title_text=sensor, row=row_counter, col=1)
+        row_counter += 1
+
+    fig.update_layout(
+        height=200 * len(sensors),
+        width=1200,
+        hovermode="x unified",  # Enables the vertical hover line across subplots
+        title_text=f"{data_pkl.selected_deployment['Deployment Name']}",
+        showlegend=True,
+        legend=dict(
+            orientation="h",  # Horizontal legend
+            xanchor='center',  # Anchor the legend horizontally at the center
+            yanchor='top'   # Anchor the legend vertically at the top of the legend box
+        )
+    )
+
+    fig.update_xaxes(title_text="Datetime", row=row_counter-1, col=1)
+
+    return fig
 
 def plot_tag_data_interactive2(data_pkl, imu_channels, ephys_channels=None, imu_logger=None, 
                               ephys_logger=None, imu_sampling_rate=10, ephys_sampling_rate=50, 
@@ -248,10 +354,6 @@ def plot_tag_data_interactive2(data_pkl, imu_channels, ephys_channels=None, imu_
                     )
 
     return fig
-
-
-
-
 
 
 def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_logger=None, 
