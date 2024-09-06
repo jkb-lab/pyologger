@@ -13,3 +13,6 @@ Requires-Dist: python-dotenv
 Requires-Dist: notion-client
 Requires-Dist: plotly
 Requires-Dist: nbformat
+Requires-Dist: sphinx
+Requires-Dist: sphinx-rtd-theme
+Requires-Dist: DiveDB@ git+https://github.com/ecophysviz-lab/DiveDB@feature/distributing-pip-installs

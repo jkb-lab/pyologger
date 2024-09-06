@@ -24,7 +24,7 @@ dependencies = [
   "nbformat",
   "sphinx",
   "sphinx-rtd-theme",
-  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB@feature/duckdb-features-and-docs"
+  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB@feature/distributing-pip-installs"
 ]
 
 [tool.setuptools.packages.find] # finds submodules
