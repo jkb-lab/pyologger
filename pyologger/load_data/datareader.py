@@ -118,7 +118,6 @@ class DataReader:
                 # Save the matching row of recording_db in self.logger_info[logger_id]['recording_info']
                 self.logger_info[logger_id]['recording_info'] = recording_matches.to_dict('records')[0]
 
-
             if manufacturer == "CATS":
                 processor = CATSManufacturer(self, logger_id, manufacturer="CATS", custom_mapping_path=custom_mapping_path)
             elif manufacturer == "UFI":
@@ -155,7 +154,6 @@ class DataReader:
 
     def save_to_netcdf(self, filepath):
         """Saves the current state of the DataReader object to a NetCDF file."""
-
         def convert_to_compatible_array(df):
             """Convert DataFrame columns to compatible numpy arrays."""
             for col in df.columns:
@@ -197,7 +195,7 @@ class DataReader:
                         ds.attrs[flattened_key] = serialized_value
                     else:
                         raise TypeError("Invalid value type for NetCDF serialization")
-                except (TypeError, ValueError) as e:
+                except (TypeError, ValueError):
                     ds.attrs[flattened_key] = "Invalid entry"
                     print(f"Invalid entry recognized and placed in {flattened_key}")
 
@@ -206,20 +204,57 @@ class DataReader:
 
         # Flatten the dictionaries into xarray DataArrays
         for sensor_name, df in self.sensor_data.items():
-            data_array = xr.DataArray(convert_to_compatible_array(df), coords=[df.index, df.columns], dims=['time', 'variables'])
+            datetime_coord = pd.to_datetime(df['datetime'])
+            df = df.drop(columns=['datetime'])
+            variables = [col for col in df.columns]
+            data_array = xr.DataArray(
+                convert_to_compatible_array(df),
+                dims=[f"{sensor_name}_samples", f"{sensor_name}_variables"],
+                coords={f"{sensor_name}_samples": datetime_coord}
+            )
             ds[f'sensor_data_{sensor_name}'] = data_array
+            ds[f'sensor_data_{sensor_name}'].attrs['variables'] = variables
 
         for logger_id, df in self.logger_data.items():
-            data_array = xr.DataArray(convert_to_compatible_array(df), coords=[df.index, df.columns], dims=['time', 'variables'])
+            # Remove specified columns
+            columns_to_remove = ['date_utc', 'time_utc', 'date', 'time']
+            df = df.drop(columns=[col for col in columns_to_remove if col in df.columns])
+            datetime_coord = pd.to_datetime(df['datetime'])
+            df = df.drop(columns=['datetime'])
+            # Remove string type columns
+            df = df.select_dtypes(exclude=['object'])
+            variables = [col for col in df.columns]
+            data_array = xr.DataArray(
+                convert_to_compatible_array(df),
+                dims=[f"{logger_id}_samples", f"{logger_id}_variables"],
+                coords={f"{logger_id}_samples": datetime_coord},
+            )
             ds[f'logger_data_{logger_id}'] = data_array
+            ds[f'logger_data_{logger_id}'].attrs['variables'] = variables
 
         for derived_name, df in self.derived_data.items():
-            data_array = xr.DataArray(convert_to_compatible_array(df), coords=[df.index, df.columns], dims=['time', 'variables'])
+            datetime_coord = pd.to_datetime(df['datetime'])
+            df = df.drop(columns=['datetime'])
+            variables = [col for col in df.columns]
+            data_array = xr.DataArray(
+                convert_to_compatible_array(df),
+                dims=[f"{derived_name}_samples", f"{derived_name}_variables"],
+                coords={f"{derived_name}_samples": datetime_coord}
+            )
             ds[f'derived_data_{derived_name}'] = data_array
+            ds[f'derived_data_{derived_name}'].attrs['variables'] = variables
 
         if isinstance(self.event_data, pd.DataFrame):
-            event_data_array = xr.DataArray(convert_to_compatible_array(self.event_data), coords=[self.event_data.index, self.event_data.columns], dims=['time', 'variables'])
+            datetime_coord = pd.to_datetime(self.event_data['datetime'])
+            self.event_data = self.event_data.drop(columns=['datetime'])
+            variables = [col for col in self.event_data.columns]
+            event_data_array = xr.DataArray(
+                convert_to_compatible_array(self.event_data),
+                dims=["event_samples", "event_variables"],
+                coords={"event_samples": datetime_coord}
+            )
             ds['event_data'] = event_data_array
+            ds['event_data'].attrs['variables'] = variables
 
         # Flatten and add global attributes
         flatten_dict('deployment_info', self.deployment_info)
@@ -237,10 +272,7 @@ class DataReader:
         ds.to_netcdf(filepath)
         print(f"NetCDF file saved at {filepath}")
 
-
-
-
-
+        return ds
 
     def collect_file_info(self):
         """Collect information about the files in the outputs folder and store in self.files_info."""
