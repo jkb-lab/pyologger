@@ -272,8 +272,6 @@ class DataReader:
         ds.to_netcdf(filepath)
         print(f"NetCDF file saved at {filepath}")
 
-        return ds
-
     def collect_file_info(self):
         """Collect information about the files in the outputs folder and store in self.files_info."""
         output_folder = os.path.join(self.files_info['deployment_folder_path'], 'outputs')
@@ -342,8 +340,8 @@ class DataReader:
             animal_ids = [self.animal_info['Animal ID']]
 
         # Retrieve datasets associated with these Animal IDs, handling None/NaN values
-        dataset_info = dataset_db[dataset_db['Animal ID'].notna() & 
-                                    dataset_db['Animal ID'].apply(lambda x: any(aid in x for aid in animal_ids) if x else False)]
+        dataset_info = dataset_db[dataset_db['Animal ID'].notna() &
+                                  dataset_db['Animal ID'].apply(lambda x: any(aid in x for aid in animal_ids) if x else False)]
 
         if dataset_info.empty:
             print("No matching datasets found for the animal(s).")
@@ -351,7 +349,6 @@ class DataReader:
 
         # Return the dataset info as a list of records
         return dataset_info.to_dict('records')
-
 
     def process_datetime(self, df, time_zone=None):
         """Processes datetime columns in the DataFrame and calculates sampling frequency."""
