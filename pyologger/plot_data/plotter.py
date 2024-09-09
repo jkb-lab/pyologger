@@ -1,6 +1,7 @@
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 from pyologger.process_data.sampling import *
+from datetime import timedelta
 import json
 import os
 import pandas as pd
@@ -114,7 +115,7 @@ def plot_tag_data_interactive3(data_pkl, sensors=None, channels=None, time_range
         if note_annotations:
             for note_type, note_channel in note_annotations.items():
                 if note_channel in sensor_df_filtered.columns:
-                    filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == note_type]
+                    filtered_notes = data_pkl.event_data[data_pkl.event_data['key'] == note_type]
                     if not filtered_notes.empty:
                         for dt in filtered_notes['datetime']:
                             fig.add_trace(go.Scatter(
@@ -132,7 +133,7 @@ def plot_tag_data_interactive3(data_pkl, sensors=None, channels=None, time_range
         height=200 * len(sensors),
         width=1200,
         hovermode="x unified",  # Enables the vertical hover line across subplots
-        title_text=f"{data_pkl.selected_deployment['Deployment Name']}",
+        title_text=f"{data_pkl.deployment_info['Deployment ID']}",
         showlegend=True,
         legend=dict(
             orientation="h",  # Horizontal legend
@@ -142,6 +143,249 @@ def plot_tag_data_interactive3(data_pkl, sensors=None, channels=None, time_range
     )
 
     fig.update_xaxes(title_text="Datetime", row=row_counter-1, col=1)
+
+    return fig
+
+def plot_tag_data_interactive4(data_pkl, sensors=None, channels=None, time_range=None, note_annotations=None, 
+                               color_mapping_path=None, target_sampling_rate=10, zoom_start_time=None, zoom_end_time=None,
+                               plot_event_values=None, zoom_range_selector_channel=None):
+    """
+    Function to plot tag data interactively using Plotly with optional initial zooming into a specific time range.
+
+    Parameters
+    ----------
+    data_pkl : object
+        The object containing the sensor data and metadata.
+    sensors : list, optional
+        List of sensors to plot. If None, plot all available sensors.
+    channels : dict, optional
+        Dictionary specifying the channels to plot for each sensor.
+        E.g., {'ecg': ['ecg', 'ecg_filt']}
+        If None, plot all channels for the specified sensors.
+    time_range : tuple, optional
+        Tuple specifying the start and end time for plotting.
+    note_annotations : dict, optional
+        Dictionary of annotations to plot. 
+        E.g., {'heartbeat_manual_ok': {'sensor': 'ecg', 'symbol': 'line', 'color': 'pink'},
+               'heartbeat_auto_detect': {'sensor': 'ecg', 'symbol': 'circle', 'color': 'yellow'}}
+    color_mapping_path : str, optional
+        Path to the JSON file containing the color mappings.
+    target_sampling_rate : int, optional
+        The target sampling rate to downsample the data for plotting.
+    zoom_start_time : datetime, optional
+        Start time for zooming into the plot initially.
+    zoom_end_time : datetime, optional
+        End time for zooming into the plot initially.
+    zoom_range_selector_channel : str, optional
+        Specify the channel to show the range selector.
+    plot_event_values : list, optional
+        List of event types to plot values associated with.
+        E.g., ['heartbeat_manual_ok', 'heartbeat_auto_detect']
+    """
+
+    # Default sensor order
+    default_order = ['ecg', 'depth', 'accelerometer', 'magnetometer', 'gyroscope', 
+                     'prh', 'temperature', 'light']
+
+    # Load the color mapping
+    color_mapping = load_color_mapping(color_mapping_path) if color_mapping_path else {}
+
+    # Determine the sensors to plot
+    if sensors is None:
+        sensors = list(data_pkl.sensor_data.keys())
+
+    # If a zoom_range_selector_channel is specified, move it to the top of the plot list
+    if zoom_range_selector_channel and zoom_range_selector_channel in sensors:
+        sensors_sorted = [zoom_range_selector_channel] + [s for s in sensors if s != zoom_range_selector_channel]
+    else:
+        sensors_sorted = sorted(sensors, key=lambda x: (default_order.index(x) 
+                                                        if x in default_order else len(default_order) + sensors.index(x)))
+
+    # Sort sensors based on the default order, with any others at the end
+    sensors_sorted = sorted(sensors, key=lambda x: (default_order.index(x) 
+                                                    if x in default_order else len(default_order) + sensors.index(x)))
+
+    # If plotting event values, add an extra subplot row
+    extra_rows = len(plot_event_values) if plot_event_values else 0
+
+    # Set up the figure with one subplot per sensor, plus extra for event values
+    fig = make_subplots(rows=len(sensors_sorted) + extra_rows, cols=1, shared_xaxes=True, vertical_spacing=0.03)
+
+    row_counter = 1
+
+    for sensor in sensors_sorted:
+        sensor_df = data_pkl.sensor_data[sensor]
+        sensor_info = data_pkl.sensor_info[sensor]
+
+        # Determine the channels to plot for the current sensor
+        if channels is None or sensor not in channels:
+            sensor_channels = sensor_info['channels']
+        else:
+            sensor_channels = channels[sensor]
+
+        # Filter data to the specified time range
+        if time_range:
+            start_time, end_time = time_range
+            sensor_df_filtered = sensor_df[(sensor_df['datetime'] >= start_time) & (sensor_df['datetime'] <= end_time)]
+        else:
+            sensor_df_filtered = sensor_df
+
+        # Calculate original sampling rate
+        original_fs = 1 / sensor_df_filtered['datetime'].diff().dt.total_seconds().mean()
+
+        # Downsample the data
+        def downsample(df, original_fs, target_fs):
+            if target_fs >= original_fs:
+                return df
+            conversion_factor = int(original_fs / target_fs)
+            return df.iloc[::conversion_factor, :]
+
+        sensor_df_filtered = downsample(sensor_df_filtered, original_fs, target_sampling_rate)
+
+        # Plot each channel
+        for channel in sensor_channels:
+            if channel in sensor_df_filtered.columns:
+                x_data = sensor_df_filtered['datetime']
+                y_data = sensor_df_filtered[channel]
+
+                # Use the original name if available, else default to channel name
+                original_name = sensor_info['metadata'].get(channel, {}).get('original_name', channel)
+                unit = sensor_info['metadata'].get(channel, {}).get('unit', '')
+                y_label = f"{original_name} [{unit}]" if unit else original_name
+
+                color = color_mapping.get(original_name, generate_random_color())
+                color_mapping[original_name] = color
+
+                fig.add_trace(go.Scatter(
+                    x=x_data,
+                    y=y_data,
+                    mode='lines',
+                    name=y_label,
+                    line=dict(color=color)
+                ), row=row_counter, col=1)
+
+        if note_annotations:
+            plotted_annotations = set()
+            all_shapes = []
+            y_offsets = {}
+            for note_type, note_params in note_annotations.items():
+                note_channel = note_params['sensor']
+                if note_channel in sensor_df_filtered.columns:
+                    # Filter notes by the specified time range
+                    filtered_notes = data_pkl.event_data[data_pkl.event_data['key'] == note_type]
+                    filtered_notes = filtered_notes[(filtered_notes['datetime'] >= start_time) & 
+                                                    (filtered_notes['datetime'] <= end_time)]
+                    
+                    if not filtered_notes.empty:
+                        symbol = note_params.get('symbol', 'circle')
+                        color = note_params.get('color', 'rgba(128, 128, 128, 0.5)')
+                        
+                        # Calculate the fixed y-value (half of the maximum y-value)
+                        y_fixed = (2/3)*sensor_df_filtered[note_channel].max()
+                        scatter_x = []
+                        scatter_y = []
+
+                        offset_threshold = timedelta(milliseconds=50)
+
+                        for dt in filtered_notes['datetime']:
+                            # Check if there's an existing datetime within 10 milliseconds
+                            close_times = [existing_dt for existing_dt in y_offsets if abs(dt - existing_dt) <= offset_threshold]
+
+                            if close_times:
+                                # If there's a close datetime, apply an additional offset
+                                closest_time = max(close_times)  # Get the most recent close time
+                                y_current = y_offsets[closest_time] + 0.15 * sensor_df_filtered[note_channel].max()
+                            else:
+                                y_current = y_fixed
+
+                            scatter_x.append(dt)
+                            scatter_y.append(y_current)
+
+                            # Track the y-offset for this datetime to avoid overlap
+                            y_offsets[dt] = y_current
+
+                        # Add the Scatter trace for this note_type
+                        showlegend = note_type not in plotted_annotations
+                        plotted_annotations.add(note_type)
+
+                        fig.add_trace(go.Scatter(
+                            x=scatter_x,
+                            y=scatter_y,
+                            mode='markers',
+                            marker=dict(symbol=symbol, color=color, size=10),
+                            name=note_type,
+                            opacity=0.5,
+                            showlegend=showlegend
+                        ), row=row_counter, col=1)
+
+        # Update y-axis label and move to the next row
+        fig.update_yaxes(title_text=sensor, row=row_counter, col=1)
+        row_counter += 1
+
+    # Add all vertical line shapes at once
+    fig.update_layout(shapes=all_shapes)
+
+    # Plot event values in separate subplots if specified
+    if plot_event_values:
+        for event_type in plot_event_values:
+            event_data = data_pkl.event_data[data_pkl.event_data['key'] == event_type]
+            if not event_data.empty:
+                fig.add_trace(go.Scatter(
+                    x=event_data['datetime'],
+                    y=event_data['value'],
+                    mode='markers',
+                    marker=dict(symbol='circle', color='orange', size=8),
+                    name=f"{event_type} value"
+                ), row=row_counter, col=1)
+                fig.update_yaxes(title_text=f"{event_type} values", row=row_counter, col=1)
+                row_counter += 1
+
+    # Set a minimum height for the figure
+    min_height_per_subplot = 600  # Minimum height for each subplot
+    fig_height = min_height_per_subplot * (len(sensors_sorted) + extra_rows)  # Adjust height based on the number of sensors and extra rows
+
+    fig.update_layout(
+        height=fig_height,
+        width=800,
+        hovermode="x",  # Enables the vertical hover line across subplots
+        #title_text=f"{data_pkl.deployment_info['Deployment ID']}",
+        showlegend=True,
+        legend=dict(
+            orientation="h",  # Horizontal legend
+            yanchor="bottom"
+        )
+    )
+
+    # Apply zoom if zoom_start_time and zoom_end_time are provided
+    if zoom_start_time and zoom_end_time:
+        fig.update_xaxes(range=[zoom_start_time, zoom_end_time], row=row_counter-1, col=1)
+
+    # Apply a single range selector only to the specified channel
+    if zoom_range_selector_channel:
+        for i, sensor in enumerate(sensors_sorted, 1):
+            if sensor == zoom_range_selector_channel:
+                fig.update_xaxes(
+                    rangeselector=dict(
+                        buttons=list([
+                            dict(count=30, label="30s", step="second", stepmode="backward"),
+                            dict(count=1, label="1m", step="minute", stepmode="backward"),
+                            dict(count=30, label="30m", step="minute", stepmode="backward"),
+                            dict(count=1, label="1h", step="hour", stepmode="backward"),
+                            dict(count=6, label="6h", step="hour", stepmode="backward"),
+                            dict(count=12, label="12h", step="hour", stepmode="backward"),
+                            dict(count=1, label="1d", step="day", stepmode="backward"),
+                            dict(step="all", label="Reset Zoom")
+                        ])
+                    ),
+                    rangeslider=dict(visible=True),
+                    row=i, col=1,
+                    type="date"
+                )
+            else:
+                # Shift all subplots below the range selector channel
+                domain_shift = 400 / fig_height  # Convert 200 pixels to a fraction of the total figure height
+                fig['layout']['yaxis{}'.format(i)].update(domain=[(i-1) / len(sensors_sorted) - domain_shift, i / len(sensors_sorted) - domain_shift])
+
 
     return fig
 
@@ -230,8 +474,8 @@ def plot_tag_data_interactive2(data_pkl, imu_channels, ephys_channels=None, imu_
         ordered_channels.append(('Undefined_EPHYS', ch))
 
     # Get the datetime overlap between IMU and ePhys data
-    imu_df = data_pkl.data[imu_logger] if imu_logger else None
-    ephys_df = data_pkl.data[ephys_logger] if ephys_logger else None
+    imu_df = data_pkl.logger_data[imu_logger] if imu_logger else None
+    ephys_df = data_pkl.logger_data[ephys_logger] if ephys_logger else None
 
     imu_start_time = imu_df['datetime'].min().to_pydatetime() if imu_df is not None else None
     imu_end_time = imu_df['datetime'].max().to_pydatetime() if imu_df is not None else None
@@ -262,14 +506,14 @@ def plot_tag_data_interactive2(data_pkl, imu_channels, ephys_channels=None, imu_
         imu_fs = 1 / imu_df['datetime'].diff().dt.total_seconds().mean()
         imu_df_downsampled = downsample(imu_df, imu_fs, imu_sampling_rate)
         imu_df_filtered = get_time_filtered_df(imu_df_downsampled, start_time, end_time)
-        imu_info = data_pkl.info[imu_logger]['channelinfo']
+        imu_info = data_pkl.logger_info[imu_logger]['channelinfo']
         print(f"IMU was downsampled from {imu_fs} to {imu_sampling_rate}")
 
     if ephys_logger:
         ephys_fs = 1 / ephys_df['datetime'].diff().dt.total_seconds().mean()
         ephys_df_downsampled = downsample(ephys_df, ephys_fs, ephys_sampling_rate)
         ephys_df_filtered = get_time_filtered_df(ephys_df_downsampled, start_time, end_time)
-        ephys_info = data_pkl.info[ephys_logger]['channelinfo']
+        ephys_info = data_pkl.logger_info[ephys_logger]['channelinfo']
 
     # Prepare the data and layout structure
     data = []
@@ -322,7 +566,7 @@ def plot_tag_data_interactive2(data_pkl, imu_channels, ephys_channels=None, imu_
     total_height = row_height * (yaxis_counter - 1)
     
     layout = {
-        'title': f"{data_pkl.selected_deployment['Deployment Name']}",
+        'title': f"{data_pkl.deployment_info['Deployment ID']}",
         'hovermode': 'x unified',
         'height': total_height,
         'margin': dict(l=10, r=10, t=40, b=20),
@@ -344,7 +588,7 @@ def plot_tag_data_interactive2(data_pkl, imu_channels, ephys_channels=None, imu_
     if note_annotations:
         for note_type, note_channel in note_annotations.items():
             if note_channel in imu_df_filtered.columns or note_channel in ephys_df_filtered.columns:
-                filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == note_type]
+                filtered_notes = data_pkl.event_data[data_pkl.event_data['key'] == note_type]
                 for dt in filtered_notes['datetime']:
                     # Use color from color_mapping or default to 50% opaque gray
                     color = color_mapping.get(note_type, 'rgba(128, 128, 128, 0.5)')
@@ -434,8 +678,8 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
         ordered_channels.append(('Undefined_EPHYS', ch))
 
     # Get the datetime overlap between IMU and ePhys data
-    imu_df = data_pkl.data[imu_logger] if imu_logger else None
-    ephys_df = data_pkl.data[ephys_logger] if ephys_logger else None
+    imu_df = data_pkl.logger_data[imu_logger] if imu_logger else None
+    ephys_df = data_pkl.logger_data[ephys_logger] if ephys_logger else None
 
     # Determine overlapping time range based on the data
     imu_start_time = imu_df['datetime'].min().to_pydatetime() if imu_df is not None else None
@@ -470,13 +714,13 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
         imu_fs = 1 / imu_df['datetime'].diff().dt.total_seconds().mean()
         imu_df_downsampled = downsample(imu_df, imu_fs, imu_sampling_rate)
         imu_df_filtered = get_time_filtered_df(imu_df_downsampled, start_time, end_time)
-        imu_info = data_pkl.info[imu_logger]['channelinfo']
+        imu_info = data_pkl.logger_info[imu_logger]['channelinfo']
 
     if ephys_logger:
         ephys_fs = 1 / ephys_df['datetime'].diff().dt.total_seconds().mean()
         ephys_df_downsampled = downsample(ephys_df, ephys_fs, ephys_sampling_rate)
         ephys_df_filtered = get_time_filtered_df(ephys_df_downsampled, start_time, end_time)
-        ephys_info = data_pkl.info[ephys_logger]['channelinfo']
+        ephys_info = data_pkl.logger_info[ephys_logger]['channelinfo']
 
     # Set up plotting
     num_rows = len(ordered_channels)
@@ -500,7 +744,7 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
 
             # Add vertical lines for annotations if ECG is being plotted
             if channel == 'ecg' and note_annotations and 'heartbeat_manual_ok' in note_annotations:
-                filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == 'heartbeat_manual_ok']
+                filtered_notes = data_pkl.event_data[data_pkl.event_data['key'] == 'heartbeat_manual_ok']
                 if not filtered_notes.empty:
                     for dt in filtered_notes['datetime']:
                         fig.add_trace(go.Scatter(
@@ -544,7 +788,7 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
             ), row=row_counter, col=1)
 
             if note_annotations and 'exhalation_breath' in note_annotations:
-                filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == 'exhalation_breath']
+                filtered_notes = data_pkl.event_data[data_pkl.event_data['key'] == 'exhalation_breath']
                 if not filtered_notes.empty:  
                     for dt in filtered_notes['datetime']:
                         fig.add_trace(go.Scatter(
@@ -667,7 +911,7 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
         height=200 * num_rows,
         width=1200,
         hovermode="x unified",  # Enables the vertical hover line across subplots
-        title_text=f"{data_pkl.selected_deployment['Deployment Name']}",
+        title_text=f"{data_pkl.deployment_info['Deployment ID']}",
         showlegend=True,
         legend=dict(
             orientation="h",  # Horizontal legend
@@ -679,123 +923,6 @@ def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_l
     fig.update_xaxes(title_text="Datetime", row=row_counter-1, col=1)
 
     return fig
-
-
-
-def plot_tag_data(data_pkl, imu_channels, ephys_channels=None, imu_logger=None, ephys_logger=None, imu_sampling_rate=10, ephys_sampling_rate=50, draw=True):
-    if not imu_logger and not ephys_logger:
-        raise ValueError("At least one logger (imu_logger or ephys_logger) must be specified.")
-
-    fig = make_subplots(rows=len(imu_channels) + (len(ephys_channels) if ephys_channels else 0), cols=1, shared_xaxes=True, vertical_spacing=0.03)
-    
-    def downsample(df, original_fs, target_fs):
-        if target_fs >= original_fs:
-            return df
-        conversion_factor = int(original_fs / target_fs)
-        return df.iloc[::conversion_factor, :]
-
-    if imu_logger:
-        imu_df = data_pkl.data[imu_logger]
-        imu_fs = 1 / imu_df['datetime'].diff().dt.total_seconds().mean()
-        imu_df_downsampled = downsample(imu_df, imu_fs, imu_sampling_rate)
-        imu_info = data_pkl.info[imu_logger]['channelinfo']
-    
-    if ephys_logger:
-        ephys_df = data_pkl.data[ephys_logger]
-        ephys_fs = 1 / ephys_df['datetime'].diff().dt.total_seconds().mean()
-        ephys_df_downsampled = downsample(ephys_df, ephys_fs, ephys_sampling_rate)
-        ephys_info = data_pkl.info[ephys_logger]['channelinfo']
-
-    row_counter = 1
-    
-    # Plot IMU channels
-    for channel in imu_channels:
-        if channel in imu_df_downsampled.columns:
-            df = imu_df_downsampled
-            info = imu_info
-        else:
-            raise ValueError(f"IMU Channel {channel} not found in the specified loggers' DataFrames.")
-        
-        original_name = info[channel]['original_name']
-        unit = info[channel]['unit']
-        is_depth = 'depth' in channel.lower() or channel.lower() == 'p'
-
-        y_data = df[channel]
-        x_data = df['datetime']
-
-        y_label = f"{original_name} [{unit}]"
-        color = color_mapping.get(original_name, '#000000')  # Default to black if not found
-
-        fig.add_trace(go.Scatter(
-            x=x_data,
-            y=y_data,
-            mode='lines',
-            name=y_label,
-            line=dict(color=color)
-        ), row=row_counter, col=1)
-
-        if is_depth:
-            fig.update_yaxes(autorange="reversed", row=row_counter, col=1)
-
-        fig.update_yaxes(title_text=y_label, row=row_counter, col=1)
-        row_counter += 1
-
-    # Plot ePhys channels
-    if ephys_channels and ephys_logger:
-        for channel in ephys_channels:
-            if channel in ephys_df_downsampled.columns:
-                df = ephys_df_downsampled
-                info = ephys_info
-            else:
-                raise ValueError(f"ePhys Channel {channel} not found in the specified loggers' DataFrames.")
-            
-            original_name = info[channel]['original_name']
-            unit = info[channel]['unit']
-
-            y_data = df[channel]
-            x_data = df['datetime']
-
-            y_label = f"{original_name} [{unit}]"
-            color = color_mapping.get(original_name, '#00FF00')  # Default to green if not found
-
-            fig.add_trace(go.Scatter(
-                x=x_data,
-                y=y_data,
-                mode='lines',
-                name=y_label,
-                line=dict(color=color)
-            ), row=row_counter, col=1)
-
-            fig.update_yaxes(title_text=y_label, row=row_counter, col=1)
-
-            # Add vertical lines for heartbeats if ECG is plotted
-            if 'ecg' in channel.lower():
-                filtered_notes = data_pkl.notes_df[data_pkl.notes_df['key'] == 'heartbeat_manual_ok']
-                if not filtered_notes.empty:
-                    for dt in filtered_notes['datetime']:
-                        fig.add_trace(go.Scatter(
-                            x=[dt, dt],
-                            y=[y_data.min(), y_data.max()],
-                            mode='lines',
-                            line=dict(color=color_mapping['Filtered Heartbeats'], width=1, dash='dot'),
-                            showlegend=False
-                        ), row=row_counter, col=1)
-
-            row_counter += 1
-
-    fig.update_layout(
-        height=200 * (len(imu_channels) + (len(ephys_channels) if ephys_channels else 0)),
-        width=1200,
-        title_text=f"{data_pkl.selected_deployment['Deployment Name']}",
-        showlegend=True
-    )
-    
-    fig.update_xaxes(title_text="Datetime", row=row_counter-1, col=1)
-
-    if draw:
-        fig.show()
-    else:
-        return fig
     
 def plot_depth_correction(datetime_data, dec_factor, depth_data, first_derivative, repeated_corrected_depth_temp, 
                           repeated_corrected_depth_no_temp, depth_correction, dives, flat_chunks, 

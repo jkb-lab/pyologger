@@ -237,11 +237,6 @@ class DataReader:
         ds.to_netcdf(filepath)
         print(f"NetCDF file saved at {filepath}")
 
-
-
-
-
-
     def collect_file_info(self):
         """Collect information about the files in the outputs folder and store in self.files_info."""
         output_folder = os.path.join(self.files_info['deployment_folder_path'], 'outputs')
@@ -319,7 +314,6 @@ class DataReader:
 
         # Return the dataset info as a list of records
         return dataset_info.to_dict('records')
-
 
     def process_datetime(self, df, time_zone=None):
         """Processes datetime columns in the DataFrame and calculates sampling frequency."""

@@ -1,5 +1,10 @@
 {
     "ecg": "#d09191",
+    "broad_bandpassed_signal": "#d09191",
+    "narrow_bandpassed_signal": "#e64747",
+    "spike_removed_signal": "#62b5d9",
+    "smoothed_signal": "#9f76ba",
+    "normalized_signal": "#6c4e7f",
     "depth": "#a2bae0",
     "Corrected Depth": "#476390",
     "Accelerometer X [m/s\u00b2]": "#6CA1C3",
