@@ -20,13 +20,15 @@ docs/source/pyologger.plot_data.rst
 docs/source/pyologger.process_data.rst
 docs/source/pyologger.rst
 notebooks/00_load_data.ipynb
+notebooks/00_misc.ipynb
 notebooks/01_calibrate_pressure.ipynb
 notebooks/02_calibrate_accmag.ipynb
 notebooks/03_tag2animal.ipynb
 notebooks/04_stroke_detect.ipynb
 notebooks/05_viz_data.ipynb
 notebooks/06_heartbeat_detect.ipynb
-notebooks/0x_using_DiveDB.ipynb
+notebooks/xx_divedb_data_querying.ipynb
+notebooks/xx_divedb_data_upload.ipynb
 pyologger/__init__.py
 pyologger.egg-info/PKG-INFO
 pyologger.egg-info/SOURCES.txt

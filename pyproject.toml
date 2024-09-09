@@ -24,7 +24,7 @@ dependencies = [
   "nbformat",
   "sphinx",
   "sphinx-rtd-theme",
-  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB@feature/distributing-pip-installs",
+  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB@feature/netcdf-utils",
   "EDFlib-Python"
 ]
 
