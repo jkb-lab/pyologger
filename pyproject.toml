@@ -24,8 +24,9 @@ dependencies = [
   "nbformat",
   "sphinx",
   "sphinx-rtd-theme",
-  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB@feature/netcdf-utils",
-  "EDFlib-Python"
+  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB",
+  "EDFlib-Python",
+  "openpyxl",
 ]
 
 [tool.setuptools.packages.find] # finds submodules

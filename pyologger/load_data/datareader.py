@@ -204,11 +204,13 @@ class DataReader:
 
         # Flatten the dictionaries into xarray DataArrays
         for sensor_name, df in self.sensor_data.items():
-            datetime_coord = pd.to_datetime(df['datetime'])
-            df = df.drop(columns=['datetime'])
+            sensor_data = df.copy()
+            # Saving datetime as timezone-aware
+            datetime_coord = pd.to_datetime(sensor_data['datetime'])
+            sensor_data = sensor_data.drop(columns=['datetime'])
             variables = [col for col in df.columns]
             data_array = xr.DataArray(
-                convert_to_compatible_array(df),
+                convert_to_compatible_array(sensor_data),
                 dims=[f"{sensor_name}_samples", f"{sensor_name}_variables"],
                 coords={f"{sensor_name}_samples": datetime_coord}
             )
@@ -217,15 +219,17 @@ class DataReader:
 
         for logger_id, df in self.logger_data.items():
             # Remove specified columns
+            logger_data = df.copy()
             columns_to_remove = ['date_utc', 'time_utc', 'date', 'time']
-            df = df.drop(columns=[col for col in columns_to_remove if col in df.columns])
-            datetime_coord = pd.to_datetime(df['datetime'])
-            df = df.drop(columns=['datetime'])
+            logger_data = logger_data.drop(columns=[col for col in columns_to_remove if col in logger_data.columns])
+            # Saving datetime as timezone-aware
+            datetime_coord = pd.to_datetime(logger_data['datetime'])
+            logger_data = logger_data.drop(columns=['datetime'])
             # Remove string type columns
-            df = df.select_dtypes(exclude=['object'])
-            variables = [col for col in df.columns]
+            logger_data = logger_data.select_dtypes(exclude=['object'])
+            variables = [col for col in logger_data.columns]
             data_array = xr.DataArray(
-                convert_to_compatible_array(df),
+                convert_to_compatible_array(logger_data),
                 dims=[f"{logger_id}_samples", f"{logger_id}_variables"],
                 coords={f"{logger_id}_samples": datetime_coord},
             )
@@ -233,11 +237,13 @@ class DataReader:
             ds[f'logger_data_{logger_id}'].attrs['variables'] = variables
 
         for derived_name, df in self.derived_data.items():
-            datetime_coord = pd.to_datetime(df['datetime'])
-            df = df.drop(columns=['datetime'])
+            derived_data = df.copy()
+            # Saving datetime as timezone-aware
+            datetime_coord = pd.to_datetime(derived_data['datetime'])
+            derived_data = derived_data.drop(columns=['datetime'])
             variables = [col for col in df.columns]
             data_array = xr.DataArray(
-                convert_to_compatible_array(df),
+                convert_to_compatible_array(derived_data),
                 dims=[f"{derived_name}_samples", f"{derived_name}_variables"],
                 coords={f"{derived_name}_samples": datetime_coord}
             )
@@ -245,11 +251,14 @@ class DataReader:
             ds[f'derived_data_{derived_name}'].attrs['variables'] = variables
 
         if isinstance(self.event_data, pd.DataFrame):
-            datetime_coord = pd.to_datetime(self.event_data['datetime'])
-            self.event_data = self.event_data.drop(columns=['datetime'])
-            variables = [col for col in self.event_data.columns]
+            event_data = self.event_data.copy()
+            # Saving datetime as timezone-aware
+            datetime_coord = pd.to_datetime(event_data['datetime_utc'])
+            vars_to_keep = ["type", "key", "short_description", "long_description"]
+            event_data = event_data[vars_to_keep]
+            variables = [col for col in event_data.columns]
             event_data_array = xr.DataArray(
-                convert_to_compatible_array(self.event_data),
+                convert_to_compatible_array(event_data),
                 dims=["event_samples", "event_variables"],
                 coords={"event_samples": datetime_coord}
             )
@@ -504,7 +513,7 @@ class DataReader:
         if self.deployment_info is None or self.deployment_info.empty:
             print("Selected deployment metadata not found. Please ensure you have selected a deployment.")
             return None
-
+        print("import_notes")
         notes_filename = f"{self.deployment_info['Deployment ID']}_00_Notes.xlsx"
         rec_date = self.deployment_info['Recording Date']
         start_time = self.deployment_info.get('Start Time', "00:00:00")
