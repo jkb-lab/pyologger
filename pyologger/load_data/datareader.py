@@ -118,7 +118,6 @@ class DataReader:
                 # Save the matching row of recording_db in self.logger_info[logger_id]['recording_info']
                 self.logger_info[logger_id]['recording_info'] = recording_matches.to_dict('records')[0]
 
-
             if manufacturer == "CATS":
                 processor = CATSManufacturer(self, logger_id, manufacturer="CATS", custom_mapping_path=custom_mapping_path)
             elif manufacturer == "UFI":
@@ -155,7 +154,6 @@ class DataReader:
 
     def save_to_netcdf(self, filepath):
         """Saves the current state of the DataReader object to a NetCDF file."""
-
         def convert_to_compatible_array(df):
             """Convert DataFrame columns to compatible numpy arrays."""
             for col in df.columns:
@@ -197,7 +195,7 @@ class DataReader:
                         ds.attrs[flattened_key] = serialized_value
                     else:
                         raise TypeError("Invalid value type for NetCDF serialization")
-                except (TypeError, ValueError) as e:
+                except (TypeError, ValueError):
                     ds.attrs[flattened_key] = "Invalid entry"
                     print(f"Invalid entry recognized and placed in {flattened_key}")
 
@@ -206,20 +204,66 @@ class DataReader:
 
         # Flatten the dictionaries into xarray DataArrays
         for sensor_name, df in self.sensor_data.items():
-            data_array = xr.DataArray(convert_to_compatible_array(df), coords=[df.index, df.columns], dims=['time', 'variables'])
+            sensor_data = df.copy()
+            # Saving datetime as timezone-aware
+            datetime_coord = pd.to_datetime(sensor_data['datetime'])
+            sensor_data = sensor_data.drop(columns=['datetime'])
+            variables = [col for col in df.columns]
+            data_array = xr.DataArray(
+                convert_to_compatible_array(sensor_data),
+                dims=[f"{sensor_name}_samples", f"{sensor_name}_variables"],
+                coords={f"{sensor_name}_samples": datetime_coord}
+            )
             ds[f'sensor_data_{sensor_name}'] = data_array
+            ds[f'sensor_data_{sensor_name}'].attrs['variables'] = variables
 
         for logger_id, df in self.logger_data.items():
-            data_array = xr.DataArray(convert_to_compatible_array(df), coords=[df.index, df.columns], dims=['time', 'variables'])
+            # Remove specified columns
+            logger_data = df.copy()
+            columns_to_remove = ['date_utc', 'time_utc', 'date', 'time']
+            logger_data = logger_data.drop(columns=[col for col in columns_to_remove if col in logger_data.columns])
+            # Saving datetime as timezone-aware
+            datetime_coord = pd.to_datetime(logger_data['datetime'])
+            logger_data = logger_data.drop(columns=['datetime'])
+            # Remove string type columns
+            logger_data = logger_data.select_dtypes(exclude=['object'])
+            variables = [col for col in logger_data.columns]
+            data_array = xr.DataArray(
+                convert_to_compatible_array(logger_data),
+                dims=[f"{logger_id}_samples", f"{logger_id}_variables"],
+                coords={f"{logger_id}_samples": datetime_coord},
+            )
             ds[f'logger_data_{logger_id}'] = data_array
+            ds[f'logger_data_{logger_id}'].attrs['variables'] = variables
 
         for derived_name, df in self.derived_data.items():
-            data_array = xr.DataArray(convert_to_compatible_array(df), coords=[df.index, df.columns], dims=['time', 'variables'])
+            derived_data = df.copy()
+            # Saving datetime as timezone-aware
+            datetime_coord = pd.to_datetime(derived_data['datetime'])
+            derived_data = derived_data.drop(columns=['datetime'])
+            variables = [col for col in df.columns]
+            data_array = xr.DataArray(
+                convert_to_compatible_array(derived_data),
+                dims=[f"{derived_name}_samples", f"{derived_name}_variables"],
+                coords={f"{derived_name}_samples": datetime_coord}
+            )
             ds[f'derived_data_{derived_name}'] = data_array
+            ds[f'derived_data_{derived_name}'].attrs['variables'] = variables
 
         if isinstance(self.event_data, pd.DataFrame):
-            event_data_array = xr.DataArray(convert_to_compatible_array(self.event_data), coords=[self.event_data.index, self.event_data.columns], dims=['time', 'variables'])
+            event_data = self.event_data.copy()
+            # Saving datetime as timezone-aware
+            datetime_coord = pd.to_datetime(event_data['datetime_utc'])
+            vars_to_keep = ["type", "key", "short_description", "long_description"]
+            event_data = event_data[vars_to_keep]
+            variables = [col for col in event_data.columns]
+            event_data_array = xr.DataArray(
+                convert_to_compatible_array(event_data),
+                dims=["event_samples", "event_variables"],
+                coords={"event_samples": datetime_coord}
+            )
             ds['event_data'] = event_data_array
+            ds['event_data'].attrs['variables'] = variables
 
         # Flatten and add global attributes
         flatten_dict('deployment_info', self.deployment_info)
@@ -305,8 +349,8 @@ class DataReader:
             animal_ids = [self.animal_info['Animal ID']]
 
         # Retrieve datasets associated with these Animal IDs, handling None/NaN values
-        dataset_info = dataset_db[dataset_db['Animal ID'].notna() & 
-                                    dataset_db['Animal ID'].apply(lambda x: any(aid in x for aid in animal_ids) if x else False)]
+        dataset_info = dataset_db[dataset_db['Animal ID'].notna() &
+                                  dataset_db['Animal ID'].apply(lambda x: any(aid in x for aid in animal_ids) if x else False)]
 
         if dataset_info.empty:
             print("No matching datasets found for the animal(s).")
@@ -469,7 +513,7 @@ class DataReader:
         if self.deployment_info is None or self.deployment_info.empty:
             print("Selected deployment metadata not found. Please ensure you have selected a deployment.")
             return None
-
+        print("import_notes")
         notes_filename = f"{self.deployment_info['Deployment ID']}_00_Notes.xlsx"
         rec_date = self.deployment_info['Recording Date']
         start_time = self.deployment_info.get('Start Time', "00:00:00")

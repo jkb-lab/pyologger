@@ -24,7 +24,9 @@ dependencies = [
   "nbformat",
   "sphinx",
   "sphinx-rtd-theme",
-  "EDFlib-Python"
+  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB@feature/add-frequency-query",
+  "EDFlib-Python",
+  "openpyxl",
 ]
 
 [tool.setuptools.packages.find] # finds submodules
