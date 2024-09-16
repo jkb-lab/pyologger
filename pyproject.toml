@@ -24,7 +24,7 @@ dependencies = [
   "nbformat",
   "sphinx",
   "sphinx-rtd-theme",
-  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB",
+  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB@feature/add-frequency-query",
   "EDFlib-Python",
   "openpyxl",
 ]
