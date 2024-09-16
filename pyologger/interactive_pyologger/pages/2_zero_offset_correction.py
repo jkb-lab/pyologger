@@ -17,9 +17,9 @@ with open(pkl_path, 'rb') as file:
     data_pkl = pickle.load(file)
 
 # Load the depth and temperature data
-depth_data = data_pkl.data['CC-96']['depth'].values
-temp_data = data_pkl.data['CC-96'].get('tempIMU')
-sampling_rate = int(data_pkl.info['CC-96']['datetime_metadata']['fs'])
+depth_data = data_pkl.sensor_data['depth']['depth'].values
+temp_data = data_pkl.sensor_data['temperature']['temp'].values
+sampling_rate = int(data_pkl.sensor_info['CC-96']['datetime_metadata']['fs'])
 datetime_data = pd.to_datetime(data_pkl.data['CC-96']['datetime'])
 
 # Sidebar for parameters

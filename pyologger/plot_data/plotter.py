@@ -146,28 +146,28 @@ def plot_tag_data_interactive3(data_pkl, sensors=None, channels=None, time_range
 
     return fig
 
-def plot_tag_data_interactive4(data_pkl, sensors=None, channels=None, time_range=None, note_annotations=None, 
-                               color_mapping_path=None, target_sampling_rate=10, zoom_start_time=None, zoom_end_time=None,
+def plot_tag_data_interactive4(data_pkl, sensors=None, derived_data_signals=None, channels=None, 
+                               time_range=None, note_annotations=None, color_mapping_path=None, 
+                               target_sampling_rate=10, zoom_start_time=None, zoom_end_time=None, 
                                plot_event_values=None, zoom_range_selector_channel=None):
     """
     Function to plot tag data interactively using Plotly with optional initial zooming into a specific time range.
-
+    Includes both sensor_data and derived_data.
+    
     Parameters
     ----------
     data_pkl : object
         The object containing the sensor data and metadata.
     sensors : list, optional
         List of sensors to plot. If None, plot all available sensors.
+    derived_data_signals : list, optional
+        List of derived data signals to plot. If None, plot all available derived data.
     channels : dict, optional
         Dictionary specifying the channels to plot for each sensor.
-        E.g., {'ecg': ['ecg', 'ecg_filt']}
-        If None, plot all channels for the specified sensors.
     time_range : tuple, optional
         Tuple specifying the start and end time for plotting.
     note_annotations : dict, optional
-        Dictionary of annotations to plot. 
-        E.g., {'heartbeat_manual_ok': {'sensor': 'ecg', 'symbol': 'line', 'color': 'pink'},
-               'heartbeat_auto_detect': {'sensor': 'ecg', 'symbol': 'circle', 'color': 'yellow'}}
+        Dictionary of annotations to plot.
     color_mapping_path : str, optional
         Path to the JSON file containing the color mappings.
     target_sampling_rate : int, optional
@@ -180,89 +180,123 @@ def plot_tag_data_interactive4(data_pkl, sensors=None, channels=None, time_range
         Specify the channel to show the range selector.
     plot_event_values : list, optional
         List of event types to plot values associated with.
-        E.g., ['heartbeat_manual_ok', 'heartbeat_auto_detect']
     """
-
-    # Default sensor order
+    
+    # Default sensor and derived data order
     default_order = ['ecg', 'depth', 'accelerometer', 'magnetometer', 'gyroscope', 
                      'prh', 'temperature', 'light']
 
     # Load the color mapping
     color_mapping = load_color_mapping(color_mapping_path) if color_mapping_path else {}
 
-    # Determine the sensors to plot
+    # Determine the sensors and derived data to plot
     if sensors is None:
         sensors = list(data_pkl.sensor_data.keys())
+        
+    if derived_data_signals is None:
+        derived_data_signals = list(data_pkl.derived_data.keys())
+
+    # Combine sensors and derived data
+    signals = sensors + derived_data_signals
 
     # If a zoom_range_selector_channel is specified, move it to the top of the plot list
-    if zoom_range_selector_channel and zoom_range_selector_channel in sensors:
-        sensors_sorted = [zoom_range_selector_channel] + [s for s in sensors if s != zoom_range_selector_channel]
+    if zoom_range_selector_channel and zoom_range_selector_channel in signals:
+        signals_sorted = [zoom_range_selector_channel] + [s for s in signals if s != zoom_range_selector_channel]
     else:
-        sensors_sorted = sorted(sensors, key=lambda x: (default_order.index(x) 
-                                                        if x in default_order else len(default_order) + sensors.index(x)))
-
-    # Sort sensors based on the default order, with any others at the end
-    sensors_sorted = sorted(sensors, key=lambda x: (default_order.index(x) 
-                                                    if x in default_order else len(default_order) + sensors.index(x)))
+        signals_sorted = sorted(signals, key=lambda x: (default_order.index(x) 
+                                                        if x in default_order else len(default_order) + signals.index(x)))
 
     # If plotting event values, add an extra subplot row
     extra_rows = len(plot_event_values) if plot_event_values else 0
 
-    # Set up the figure with one subplot per sensor, plus extra for event values
-    fig = make_subplots(rows=len(sensors_sorted) + extra_rows, cols=1, shared_xaxes=True, vertical_spacing=0.03)
+    # Set up the figure with one subplot per signal, plus extra for event values
+    fig = make_subplots(rows=len(signals_sorted) + extra_rows, cols=1, shared_xaxes=True, vertical_spacing=0.03)
 
     row_counter = 1
 
-    for sensor in sensors_sorted:
-        sensor_df = data_pkl.sensor_data[sensor]
-        sensor_info = data_pkl.sensor_info[sensor]
+    for signal in signals_sorted:
+        if signal in data_pkl.sensor_data:
+            # Plot sensor data
+            sensor_df = data_pkl.sensor_data[signal]
+            sensor_info = data_pkl.sensor_info[signal]
 
-        # Determine the channels to plot for the current sensor
-        if channels is None or sensor not in channels:
-            sensor_channels = sensor_info['channels']
-        else:
-            sensor_channels = channels[sensor]
+            # Determine the channels to plot for the current sensor
+            if channels is None or signal not in channels:
+                sensor_channels = sensor_info['channels']
+            else:
+                sensor_channels = channels[signal]
 
-        # Filter data to the specified time range
-        if time_range:
-            start_time, end_time = time_range
-            sensor_df_filtered = sensor_df[(sensor_df['datetime'] >= start_time) & (sensor_df['datetime'] <= end_time)]
-        else:
-            sensor_df_filtered = sensor_df
+            # Filter data to the specified time range
+            if time_range:
+                start_time, end_time = time_range
+                sensor_df_filtered = sensor_df[(sensor_df['datetime'] >= start_time) & (sensor_df['datetime'] <= end_time)]
+            else:
+                sensor_df_filtered = sensor_df
 
-        # Calculate original sampling rate
-        original_fs = 1 / sensor_df_filtered['datetime'].diff().dt.total_seconds().mean()
+            # Calculate original sampling rate
+            original_fs = 1 / sensor_df_filtered['datetime'].diff().dt.total_seconds().mean()
 
-        # Downsample the data
-        def downsample(df, original_fs, target_fs):
-            if target_fs >= original_fs:
-                return df
-            conversion_factor = int(original_fs / target_fs)
-            return df.iloc[::conversion_factor, :]
+            # Downsample the data
+            def downsample(df, original_fs, target_fs):
+                if target_fs >= original_fs:
+                    return df
+                conversion_factor = int(original_fs / target_fs)
+                return df.iloc[::conversion_factor, :]
 
-        sensor_df_filtered = downsample(sensor_df_filtered, original_fs, target_sampling_rate)
+            sensor_df_filtered = downsample(sensor_df_filtered, original_fs, target_sampling_rate)
 
-        # Plot each channel
-        for channel in sensor_channels:
-            if channel in sensor_df_filtered.columns:
-                x_data = sensor_df_filtered['datetime']
-                y_data = sensor_df_filtered[channel]
+            # Plot each channel
+            for channel in sensor_channels:
+                if channel in sensor_df_filtered.columns:
+                    x_data = sensor_df_filtered['datetime']
+                    y_data = sensor_df_filtered[channel]
 
-                # Use the original name if available, else default to channel name
-                original_name = sensor_info['metadata'].get(channel, {}).get('original_name', channel)
-                unit = sensor_info['metadata'].get(channel, {}).get('unit', '')
-                y_label = f"{original_name} [{unit}]" if unit else original_name
+                    # Use the original name if available, else default to channel name
+                    original_name = sensor_info['metadata'].get(channel, {}).get('original_name', channel)
+                    unit = sensor_info['metadata'].get(channel, {}).get('unit', '')
+                    y_label = f"{original_name} [{unit}]" if unit else original_name
 
-                color = color_mapping.get(original_name, generate_random_color())
-                color_mapping[original_name] = color
+                    color = color_mapping.get(original_name, generate_random_color())
+                    color_mapping[original_name] = color
 
-                fig.add_trace(go.Scatter(
-                    x=x_data,
-                    y=y_data,
-                    mode='lines',
-                    name=y_label,
-                    line=dict(color=color)
-                ), row=row_counter, col=1)
+                    fig.add_trace(go.Scatter(
+                        x=x_data,
+                        y=y_data,
+                        mode='lines',
+                        name=y_label,
+                        line=dict(color=color)
+                    ), row=row_counter, col=1)
+
+        elif signal in data_pkl.derived_data:
+            # Plot derived data
+            derived_df = data_pkl.derived_data[signal]
+
+            # Filter data to the specified time range
+            if time_range:
+                start_time, end_time = time_range
+                derived_df_filtered = derived_df[(derived_df['datetime'] >= start_time) & (derived_df['datetime'] <= end_time)]
+            else:
+                derived_df_filtered = derived_df
+
+            # Plot each channel in derived data
+            for channel in derived_df_filtered.columns:
+                if channel != 'datetime':  # Skip datetime column
+                    x_data = derived_df_filtered['datetime']
+                    y_data = derived_df_filtered[channel]
+
+                    # Use channel name as the label
+                    y_label = f"{signal} - {channel}"
+
+                    color = color_mapping.get(y_label, generate_random_color())
+                    color_mapping[y_label] = color
+
+                    fig.add_trace(go.Scatter(
+                        x=x_data,
+                        y=y_data,
+                        mode='lines',
+                        name=y_label,
+                        line=dict(color=color)
+                    ), row=row_counter, col=1)
 
         if note_annotations:
             plotted_annotations = set()
@@ -270,7 +304,7 @@ def plot_tag_data_interactive4(data_pkl, sensors=None, channels=None, time_range
             y_offsets = {}
             for note_type, note_params in note_annotations.items():
                 note_channel = note_params['sensor']
-                if note_channel in sensor_df_filtered.columns:
+                if note_channel in data_pkl.sensor_data[signal].columns:
                     # Filter notes by the specified time range
                     filtered_notes = data_pkl.event_data[data_pkl.event_data['key'] == note_type]
                     filtered_notes = filtered_notes[(filtered_notes['datetime'] >= start_time) & 
@@ -281,7 +315,7 @@ def plot_tag_data_interactive4(data_pkl, sensors=None, channels=None, time_range
                         color = note_params.get('color', 'rgba(128, 128, 128, 0.5)')
                         
                         # Calculate the fixed y-value (half of the maximum y-value)
-                        y_fixed = (2/3)*sensor_df_filtered[note_channel].max()
+                        y_fixed = (2/3)*data_pkl.sensor_data[signal][note_channel].max()
                         scatter_x = []
                         scatter_y = []
 
@@ -294,7 +328,7 @@ def plot_tag_data_interactive4(data_pkl, sensors=None, channels=None, time_range
                             if close_times:
                                 # If there's a close datetime, apply an additional offset
                                 closest_time = max(close_times)  # Get the most recent close time
-                                y_current = y_offsets[closest_time] + 0.15 * sensor_df_filtered[note_channel].max()
+                                y_current = y_offsets[closest_time] + 0.15 * data_pkl.sensor_data[signal][note_channel].max()
                             else:
                                 y_current = y_fixed
 
@@ -318,77 +352,54 @@ def plot_tag_data_interactive4(data_pkl, sensors=None, channels=None, time_range
                             showlegend=showlegend
                         ), row=row_counter, col=1)
 
-        # Update y-axis label and move to the next row
-        fig.update_yaxes(title_text=sensor, row=row_counter, col=1)
+        # Update y-axis title
+        fig.update_yaxes(title_text=signal, row=row_counter, col=1)
         row_counter += 1
 
-    # Add all vertical line shapes at once
-    fig.update_layout(shapes=all_shapes)
-
-    # Plot event values in separate subplots if specified
+    # Handle event values
     if plot_event_values:
         for event_type in plot_event_values:
             event_data = data_pkl.event_data[data_pkl.event_data['key'] == event_type]
             if not event_data.empty:
                 fig.add_trace(go.Scatter(
                     x=event_data['datetime'],
-                    y=event_data['value'],
+                    y=[1] * len(event_data),
                     mode='markers',
-                    marker=dict(symbol='circle', color='orange', size=8),
-                    name=f"{event_type} value"
+                    name=f"{event_type} events"
                 ), row=row_counter, col=1)
-                fig.update_yaxes(title_text=f"{event_type} values", row=row_counter, col=1)
+                fig.update_yaxes(title_text=f"{event_type} events", row=row_counter, col=1)
                 row_counter += 1
 
-    # Set a minimum height for the figure
-    min_height_per_subplot = 600  # Minimum height for each subplot
-    fig_height = min_height_per_subplot * (len(sensors_sorted) + extra_rows)  # Adjust height based on the number of sensors and extra rows
+    # Handle initial zoom
+    if zoom_start_time and zoom_end_time:
+        fig.update_xaxes(range=[zoom_start_time, zoom_end_time])
 
+    # Configure layout with shared x-axis and range slider
     fig.update_layout(
-        height=fig_height,
-        width=800,
-        hovermode="x",  # Enables the vertical hover line across subplots
-        #title_text=f"{data_pkl.deployment_info['Deployment ID']}",
-        showlegend=True,
-        legend=dict(
-            orientation="h",  # Horizontal legend
-            yanchor="bottom"
-        )
+        title='Tag Data Visualization',
+        xaxis=dict(
+            rangeselector=dict(
+                buttons=[
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="YTD", step="year", stepmode="todate"),
+                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(step="all")
+                ]
+            ),
+            type="date"
+        ),
+        xaxis2=dict(
+            rangeslider=dict(visible=True),
+            type="date"
+        ),
+        height=600 + 50 * (len(signals_sorted) + extra_rows),
+        showlegend=True
     )
 
-    # Apply zoom if zoom_start_time and zoom_end_time are provided
-    if zoom_start_time and zoom_end_time:
-        fig.update_xaxes(range=[zoom_start_time, zoom_end_time], row=row_counter-1, col=1)
+    fig.show()
 
-    # Apply a single range selector only to the specified channel
-    if zoom_range_selector_channel:
-        for i, sensor in enumerate(sensors_sorted, 1):
-            if sensor == zoom_range_selector_channel:
-                fig.update_xaxes(
-                    rangeselector=dict(
-                        buttons=list([
-                            dict(count=30, label="30s", step="second", stepmode="backward"),
-                            dict(count=1, label="1m", step="minute", stepmode="backward"),
-                            dict(count=30, label="30m", step="minute", stepmode="backward"),
-                            dict(count=1, label="1h", step="hour", stepmode="backward"),
-                            dict(count=6, label="6h", step="hour", stepmode="backward"),
-                            dict(count=12, label="12h", step="hour", stepmode="backward"),
-                            dict(count=1, label="1d", step="day", stepmode="backward"),
-                            dict(step="all", label="Reset Zoom")
-                        ])
-                    ),
-                    rangeslider=dict(visible=True),
-                    row=i, col=1,
-                    type="date"
-                )
-            else:
-                # Shift all subplots below the range selector channel
-                domain_shift = 400 / fig_height  # Convert 200 pixels to a fraction of the total figure height
-                fig['layout']['yaxis{}'.format(i)].update(domain=[(i-1) / len(sensors_sorted) - domain_shift, i / len(sensors_sorted) - domain_shift])
-
-
-    return fig
-
+   
 def plot_tag_data_interactive2(data_pkl, imu_channels, ephys_channels=None, imu_logger=None, 
                               ephys_logger=None, imu_sampling_rate=10, ephys_sampling_rate=50, 
                               time_range=None, note_annotations=None, color_mapping_path=None):
