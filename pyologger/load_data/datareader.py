@@ -172,7 +172,13 @@ class DataReader:
                 elif pd.api.types.is_datetime64_any_dtype(df[col]):
                     df[col] = pd.to_datetime(df[col])
 
-            return df.apply(pd.to_numeric, errors='ignore').to_numpy()
+            # Check the number of columns in the DataFrame
+            if df.shape[1] == 1:
+                # If there is only one column, return a flat array
+                return df.iloc[:, 0].to_numpy()
+            else:
+                # If there are multiple columns, return nested arrays
+                return df.apply(pd.to_numeric, errors='ignore').to_numpy()
 
         def serialize_value(value):
             """Helper function to serialize values to be JSON-compatible."""
@@ -199,6 +205,24 @@ class DataReader:
                     ds.attrs[flattened_key] = "Invalid entry"
                     print(f"Invalid entry recognized and placed in {flattened_key}")
 
+        def create_data_array(data, datetime_coord, variables, name):
+            """Creates an xarray DataArray with appropriate dimensions and coordinates."""
+            if data.ndim == 1:
+                dims = [f"{name}_samples"]
+                coords = {f"{name}_samples": datetime_coord}
+            else:
+                dims = [f"{name}_samples", f"{name}_variables"]
+                coords = {f"{name}_samples": datetime_coord, f"{name}_variables": variables}
+            
+            return xr.DataArray(data, dims=dims, coords=coords)
+
+        def set_variables_attr(ds, var_name, variables):
+            """Sets the 'variables' or 'variable' attribute based on the type of 'variables'."""
+            if isinstance(variables, list):
+                ds[var_name].attrs['variables'] = variables
+            else:
+                ds[var_name].attrs['variable'] = variables
+
         # Create an empty xarray dataset
         ds = xr.Dataset()
 
@@ -208,14 +232,12 @@ class DataReader:
             # Saving datetime as timezone-aware
             datetime_coord = pd.to_datetime(sensor_data['datetime'])
             sensor_data = sensor_data.drop(columns=['datetime'])
-            variables = [col for col in df.columns]
-            data_array = xr.DataArray(
-                convert_to_compatible_array(sensor_data),
-                dims=[f"{sensor_name}_samples", f"{sensor_name}_variables"],
-                coords={f"{sensor_name}_samples": datetime_coord}
-            )
-            ds[f'sensor_data_{sensor_name}'] = data_array
-            ds[f'sensor_data_{sensor_name}'].attrs['variables'] = variables
+            variables = [col for col in sensor_data.columns]
+            print(variables)
+            data_array = convert_to_compatible_array(sensor_data)
+            var_name = f'sensor_data_{sensor_name}'
+            ds[var_name] = create_data_array(data_array, datetime_coord, variables, sensor_name)
+            set_variables_attr(ds, var_name, variables)
 
         for logger_id, df in self.logger_data.items():
             # Remove specified columns
@@ -228,27 +250,21 @@ class DataReader:
             # Remove string type columns
             logger_data = logger_data.select_dtypes(exclude=['object'])
             variables = [col for col in logger_data.columns]
-            data_array = xr.DataArray(
-                convert_to_compatible_array(logger_data),
-                dims=[f"{logger_id}_samples", f"{logger_id}_variables"],
-                coords={f"{logger_id}_samples": datetime_coord},
-            )
-            ds[f'logger_data_{logger_id}'] = data_array
-            ds[f'logger_data_{logger_id}'].attrs['variables'] = variables
+            data_array = convert_to_compatible_array(logger_data)
+            var_name = f'logger_data_{logger_id}'
+            ds[var_name] = create_data_array(data_array, datetime_coord, variables, logger_id)
+            set_variables_attr(ds, var_name, variables)
 
         for derived_name, df in self.derived_data.items():
             derived_data = df.copy()
             # Saving datetime as timezone-aware
             datetime_coord = pd.to_datetime(derived_data['datetime'])
             derived_data = derived_data.drop(columns=['datetime'])
-            variables = [col for col in df.columns]
-            data_array = xr.DataArray(
-                convert_to_compatible_array(derived_data),
-                dims=[f"{derived_name}_samples", f"{derived_name}_variables"],
-                coords={f"{derived_name}_samples": datetime_coord}
-            )
-            ds[f'derived_data_{derived_name}'] = data_array
-            ds[f'derived_data_{derived_name}'].attrs['variables'] = variables
+            variables = [col for col in derived_data.columns]
+            data_array = convert_to_compatible_array(derived_data)
+            var_name = f'derived_data_{derived_name}'
+            ds[var_name] = create_data_array(data_array, datetime_coord, variables, derived_name)
+            set_variables_attr(ds, var_name, variables)
 
         if isinstance(self.event_data, pd.DataFrame):
             event_data = self.event_data.copy()
@@ -257,13 +273,10 @@ class DataReader:
             vars_to_keep = ["type", "key", "short_description", "long_description"]
             event_data = event_data[vars_to_keep]
             variables = [col for col in event_data.columns]
-            event_data_array = xr.DataArray(
-                convert_to_compatible_array(event_data),
-                dims=["event_samples", "event_variables"],
-                coords={"event_samples": datetime_coord}
-            )
-            ds['event_data'] = event_data_array
-            ds['event_data'].attrs['variables'] = variables
+            data_array = convert_to_compatible_array(event_data)
+            var_name = 'event_data'
+            ds[var_name] = create_data_array(data_array, datetime_coord, variables, "event")
+            set_variables_attr(ds, var_name, variables)
 
         # Flatten and add global attributes
         flatten_dict('deployment_info', self.deployment_info)
