@@ -233,7 +233,6 @@ class DataReader:
             datetime_coord = pd.to_datetime(sensor_data['datetime'])
             sensor_data = sensor_data.drop(columns=['datetime'])
             variables = [col for col in sensor_data.columns]
-            print(variables)
             data_array = convert_to_compatible_array(sensor_data)
             var_name = f'sensor_data_{sensor_name}'
             ds[var_name] = create_data_array(data_array, datetime_coord, variables, sensor_name)
