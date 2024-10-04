@@ -20,11 +20,12 @@ dependencies = [
   "pytz",
   "python-dotenv",
   "notion-client",
+  "scikit-learn",
   "plotly",
   "nbformat",
   "sphinx",
   "sphinx-rtd-theme",
-  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB@feature/add-frequency-query",
+  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB",
   "EDFlib-Python",
   "openpyxl",
 ]
