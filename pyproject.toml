@@ -25,6 +25,7 @@ dependencies = [
   "nbformat",
   "sphinx",
   "sphinx-rtd-theme",
+  "magnetic_field_calculator",
   "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB",
   "EDFlib-Python",
   "openpyxl",
