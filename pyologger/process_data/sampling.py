@@ -1,6 +1,35 @@
 import numpy as np
 import pandas as pd
 
+def calculate_sampling_frequency(df):
+    """
+    Calculate the sampling frequency from a dataframe with a 'datetime' column, rounding up to the nearest integer.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        A dataframe that contains a 'datetime' column.
+
+    Returns
+    -------
+    int
+        The calculated sampling frequency as an integer, rounded up.
+    """
+    # Ensure the 'datetime' column is in datetime format
+    df['datetime'] = pd.to_datetime(df['datetime'])
+
+    # Calculate the time differences between consecutive rows in seconds
+    df['sec_diff'] = df['datetime'].diff().dt.total_seconds()
+
+    # Calculate the mean difference and sampling frequency
+    mean_diff = df['sec_diff'].mean()
+    sampling_frequency = 1 / mean_diff if mean_diff else None
+
+    # Round the sampling frequency up to the nearest integer
+    fs_integer = int(np.ceil(sampling_frequency)) if sampling_frequency else None
+
+    return fs_integer
+
 def upsample(data, upsampling_factor, original_length):
     """
     Upsamples the input data by repeating each value upsampling_factor times 
