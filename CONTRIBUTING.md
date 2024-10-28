@@ -9,7 +9,7 @@ Instructions for developers seeking to contribute to `pyologger`.
 ## Environment setup
 Install the package `pyologger` localling using: 
 
-`pip install -e .` 
+`pip install .` 
 
 Add any new packages used into the `pyproject.toml` file. 
 
