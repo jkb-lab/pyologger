@@ -27,6 +27,11 @@ class Metadata:
             if not db_id:
                 raise ValueError(f"Database ID for {db_name} not found in environment variables")
             print(f"Loaded database ID for {db_name}.")
+            try:
+                response = self.notion.databases.retrieve(database_id=os.getenv("databases.deployment_DB"))
+                print("Deployment DB Metadata:", response)
+            except Exception as e:
+                print("Error retrieving deployment DB metadata:", e)
 
         self.metadata = {}
 
@@ -95,9 +100,22 @@ class Metadata:
                 for page in db["results"]:
                     row_data = {"page_id": page["id"]}  # Store the page ID for each row
                     for prop_name, prop in page["properties"].items():
+                        # Check for NoneType properties and print debug information
+                        if prop is None:
+                            print(f"Property '{prop_name}' in {db_name} is None. Skipping.")
+                            continue
+                        
                         prop_type = prop.get("type")
-                        parsed_value = self.parse_metadata_value(prop, prop_type, prop_name)
-                        row_data[prop_name] = parsed_value
+                        if prop_type is None:
+                            print(f"Property type for '{prop_name}' in {db_name} is None. Skipping.")
+                            continue
+                        
+                        # Try parsing the metadata value and handle any errors
+                        try:
+                            parsed_value = self.parse_metadata_value(prop, prop_type, prop_name)
+                            row_data[prop_name] = parsed_value
+                        except Exception as parse_error:
+                            print(f"Error parsing '{prop_name}' in {db_name}: {parse_error}")
                     rows_list.append(row_data)
                 self.metadata[db_name] = pd.DataFrame(rows_list)
                 if verbose:
@@ -105,6 +123,7 @@ class Metadata:
             except Exception as e:
                 if verbose:
                     print(f"Error fetching data for {db_name}: {e}")
+
 
     def get_metadata(self, db_name):
         return self.metadata.get(db_name)

@@ -472,7 +472,8 @@ def plot_tag_data_interactive5(data_pkl, sensors=None, derived_data_signals=None
             signal_data_filtered = signal_data
 
         # Calculate original sampling rate
-        original_fs = 1 / signal_data_filtered['datetime'].diff().dt.total_seconds().mean()
+        original_fs = int(1 / signal_data_filtered['datetime'].diff().dt.total_seconds().mean())
+        print(f"Original sampling frequency for {signal} calculated as {original_fs} Hz.")
 
         # Downsample the data if needed
         signal_data_filtered = downsample(signal_data_filtered, original_fs, target_sampling_rate)

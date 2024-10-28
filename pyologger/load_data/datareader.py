@@ -281,7 +281,7 @@ class DataReader:
         flatten_dict('deployment_info', self.deployment_info)
         flatten_dict('files_info', self.files_info)
         flatten_dict('animal_info', self.animal_info)
-        flatten_dict('dataset_info', self.dataset_info)
+        flatten_dict('dataset_info', self.dataset_info[0] if self.dataset_info else {})
 
         for logger_id, logger_info in self.logger_info.items():
             flatten_dict(f'logger_info_{logger_id}', logger_info)
@@ -392,7 +392,7 @@ class DataReader:
                 max_timediff = np.max(df['sec_diff'])
                 formatted_fs = f"{sampling_frequency:.5g}"
                 print(f"Sampling frequency: {formatted_fs} Hz with a maximum time difference of {max_timediff} seconds")
-                metadata['fs'] = formatted_fs
+                metadata['fs'] = int(formatted_fs)
             else:
                 print("Insufficient data points to calculate sampling frequency.")
                 metadata['fs'] = None
@@ -432,7 +432,7 @@ class DataReader:
             max_timediff = np.max(df['sec_diff'])
             formatted_fs = f"{sampling_frequency:.5g}"
             print(f"Sampling frequency: {formatted_fs} Hz with a maximum time difference of {max_timediff} seconds")
-            metadata['fs'] = formatted_fs
+            metadata['fs'] = int(formatted_fs)
         else:
             print("Insufficient data points to calculate sampling frequency.")
             metadata['fs'] = None
@@ -985,7 +985,7 @@ class BaseManufacturer:
             expected_frequency = self.expected_frequencies.get(sensor_name)
             if not expected_frequency and sensor_name == 'ecg':
                 # For UFI ECG, use the overall frequency (e.g., determined earlier)
-                expected_frequency = float(self.data_reader.logger_info[logger_id]['datetime_metadata']['fs'])
+                expected_frequency = int((self.data_reader.logger_info[logger_id]['datetime_metadata']['fs']))
 
             if expected_frequency:
                 # Calculate the actual sampling frequency based on the 'datetime' column

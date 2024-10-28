@@ -1,34 +1,40 @@
 import numpy as np
 import pandas as pd
 
-def calculate_sampling_frequency(df):
+def calculate_sampling_frequency(datetime_series):
     """
-    Calculate the sampling frequency from a dataframe with a 'datetime' column, rounding up to the nearest integer.
+    Calculate the sampling frequency from a series of datetime values, rounding to the nearest integer.
 
     Parameters
     ----------
-    df : pandas.DataFrame
-        A dataframe that contains a 'datetime' column.
+    datetime_series : pandas.Series or numpy.array
+        A series or array containing datetime values.
 
     Returns
     -------
-    int
-        The calculated sampling frequency as an integer, rounded up.
+    int or None
+        The calculated sampling frequency as an integer, rounded to the nearest whole number,
+        or None if not enough valid data points.
     """
-    # Ensure the 'datetime' column is in datetime format
-    df['datetime'] = pd.to_datetime(df['datetime'])
+    # Ensure the input is in datetime format
+    datetime_series = pd.to_datetime(datetime_series)
 
-    # Calculate the time differences between consecutive rows in seconds
-    df['sec_diff'] = df['datetime'].diff().dt.total_seconds()
+    # Calculate the time differences between consecutive values in seconds
+    sec_diff = datetime_series.diff().dt.total_seconds().dropna()  # Drop NaNs here
 
     # Calculate the mean difference and sampling frequency
-    mean_diff = df['sec_diff'].mean()
+    if len(sec_diff) < 1:
+        print("Insufficient data points to calculate sampling frequency.")
+        return None
+    
+    mean_diff = sec_diff.mean()
     sampling_frequency = 1 / mean_diff if mean_diff else None
 
-    # Round the sampling frequency up to the nearest integer
-    fs_integer = int(np.ceil(sampling_frequency)) if sampling_frequency else None
+    # Round the sampling frequency to the nearest integer
+    fs_integer = int(round(sampling_frequency)) if sampling_frequency else None
 
     return fs_integer
+
 
 def upsample(data, upsampling_factor, original_length):
     """
@@ -55,6 +61,8 @@ def upsample(data, upsampling_factor, original_length):
     return upsampled_data
 
 def downsample(df, original_fs, target_fs):
+    original_fs = int(original_fs)
+    target_fs = int(target_fs)
     if target_fs >= original_fs:
         return df
     conversion_factor = int(original_fs / target_fs)
