@@ -268,8 +268,8 @@ class DataReader:
         if isinstance(self.event_data, pd.DataFrame):
             event_data = self.event_data.copy()
             # Saving datetime as timezone-aware
-            datetime_coord = pd.to_datetime(event_data['datetime_utc'])
-            vars_to_keep = ["type", "key", "short_description", "long_description"]
+            datetime_coord = pd.to_datetime(event_data['datetime'])
+            vars_to_keep = ["type", "key", "value", "duration", "short_description", "long_description"]
             event_data = event_data[vars_to_keep]
             variables = [col for col in event_data.columns]
             data_array = convert_to_compatible_array(event_data)
@@ -423,16 +423,15 @@ class DataReader:
             df['datetime'] = df['datetime'].dt.tz_localize(tz)
 
         print("Converting to UTC and Unix.")
-        df['datetime_utc'] = df['datetime'].dt.tz_convert('UTC')
-        df['time_unix_ms'] = df['datetime_utc'].astype(np.int64) // 10**6
-        df['sec_diff'] = df['datetime_utc'].diff().dt.total_seconds()
+        datetime_utc = df['datetime'].dt.tz_convert('UTC')
+        sec_diff = datetime_utc.diff().dt.total_seconds()
         if len(df) > 1:
-            mean_diff = df['sec_diff'].mean()
+            mean_diff = sec_diff.mean()
             sampling_frequency = 1 / mean_diff if mean_diff else None
-            max_timediff = np.max(df['sec_diff'])
+            max_timediff = np.max(sec_diff)
             formatted_fs = f"{sampling_frequency:.5g}"
             print(f"Sampling frequency: {formatted_fs} Hz with a maximum time difference of {max_timediff} seconds")
-            metadata['fs'] = int(formatted_fs)
+            metadata['fs'] = int(sampling_frequency)
         else:
             print("Insufficient data points to calculate sampling frequency.")
             metadata['fs'] = None
@@ -554,6 +553,19 @@ class DataReader:
             return event_df
 
         event_df = event_df.sort_values(by='datetime').reset_index(drop=True)
+        # Check if the 'duration' column exists; if not, create it
+        if 'duration' not in event_df.columns:
+            # Initialize duration as 0 by default
+            event_df['duration'] = 0
+
+        # Set duration to 0 for 'point' events only
+        event_df.loc[event_df['type'] == 'point', 'duration'] = 0
+
+        # Leave the duration unchanged for 'state' events
+        # (no need for additional action, as we want to retain existing values)
+
+        # Print the dataframe to confirm changes (optional)
+        print(event_df)
         print(f"Notes imported, processed, and sorted chronologically from {notes_filename}.")
         return event_df
 
