@@ -139,6 +139,7 @@ class DataReader:
                 print("Issue with file saving.")
 
         self.save_datareader_object()
+        self.add_deployment_to_log()
 
         # If export_edf is True, export the data to an EDF file
         if save_edf and edf_filename_template:
@@ -151,6 +152,41 @@ class DataReader:
         if save_netcdf:
             netcdf_filename = os.path.join(self.files_info['deployment_folder_path'], 'outputs', 'deployment_data.nc')
             self.save_to_netcdf(netcdf_filename)
+
+    def add_deployment_to_log(self):
+        # Check if json_log_path is a valid string path
+        deployment_id = self.deployment_info['Deployment ID']
+        logger_ids = list(self.logger_info.keys())
+        json_log_path = os.path.join(os.path.dirname(self.files_info['deployment_folder_path']), 'deployment_config_log.json')
+        
+        if not isinstance(json_log_path, (str, os.PathLike)):
+            raise TypeError("The 'json_log_path' argument must be a string or os.PathLike object.")
+
+        if os.path.exists(json_log_path):
+            with open(json_log_path, 'r') as file:
+                log_data = json.load(file)
+        else:
+            log_data = []
+
+        # Check if deployment ID already exists
+        for entry in log_data:
+            if entry.get("deployment_id") == deployment_id:
+                print(f"Deployment {deployment_id} already exists in the log.")
+                return
+
+        # If not, append the new deployment entry
+        new_deployment_entry = {
+            "deployment_id": deployment_id,
+            "logger_ids": logger_ids,
+            "settings": {}
+        }
+        log_data.append(new_deployment_entry)
+
+        # Save the updated log back to the JSON file
+        with open(json_log_path, 'w') as file:
+            json.dump(log_data, file, indent=4)
+
+        print(f"Deployment {deployment_id} added with loggers {logger_ids}.")
 
     def save_to_netcdf(self, filepath):
         """Saves the current state of the DataReader object to a NetCDF file."""
@@ -265,17 +301,16 @@ class DataReader:
             ds[var_name] = create_data_array(data_array, datetime_coord, variables, derived_name)
             set_variables_attr(ds, var_name, variables)
 
-        if isinstance(self.event_data, pd.DataFrame):
+        columns_to_keep = ["type", "key", "value", "duration", "short_description", "long_description"]
+            
+        for var in columns_to_keep:
             event_data = self.event_data.copy()
-            # Saving datetime as timezone-aware
             datetime_coord = pd.to_datetime(event_data['datetime'])
-            vars_to_keep = ["type", "key", "value", "duration", "short_description", "long_description"]
-            event_data = event_data[vars_to_keep]
-            variables = [col for col in event_data.columns]
+            event_data = event_data[[var]]
             data_array = convert_to_compatible_array(event_data)
-            var_name = 'event_data'
-            ds[var_name] = create_data_array(data_array, datetime_coord, variables, "event")
-            set_variables_attr(ds, var_name, variables)
+            var_name = f'event_data_{var}'
+            ds[var_name] = create_data_array(data_array, datetime_coord, var, var_name)
+            set_variables_attr(ds, var_name, var)
 
         # Flatten and add global attributes
         flatten_dict('deployment_info', self.deployment_info)
@@ -481,13 +516,15 @@ class DataReader:
         if 0 <= selected_index < len(deployment_db):
             selected_deployment = deployment_db.iloc[selected_index]
             self.deployment_info = selected_deployment  # Save selected deployment to self
-            print(f"Step 1: You selected the deployment: {selected_deployment['Deployment ID']}")
+            selected_deployment_id = selected_deployment['Deployment ID']
+            
+            print(f"Step 1: You selected the deployment: {selected_deployment_id}")
             print(f"Description: {selected_deployment['Notes']}")
         else:
             print("Invalid index selected.")
-            return None
+            return None, None
 
-        deployment_folder = os.path.join(data_dir, selected_deployment['Deployment ID'])
+        deployment_folder = os.path.join(data_dir, selected_deployment_id)
         print(f"Step 2: Deployment folder path: {deployment_folder}")
 
         if os.path.exists(deployment_folder):
@@ -495,7 +532,7 @@ class DataReader:
         else:
             print(f"Folder {deployment_folder} not found. Searching for folders with a similar name...")
             possible_folders = [folder for folder in os.listdir(data_dir) 
-                                if folder.startswith(selected_deployment['Deployment ID'])]
+                                if folder.startswith(selected_deployment_id)]
 
             if len(possible_folders) == 1:
                 deployment_folder = os.path.join(data_dir, possible_folders[0])
@@ -510,14 +547,17 @@ class DataReader:
                     print(f"Using the selected folder: {deployment_folder}")
                 else:
                     print("Invalid selection. Aborting.")
-                    return None
+                    return None, None
             else:
                 print("Error: Folder not found.")
-                return None
+                return None, None
 
         self.files_info['deployment_folder_path'] = deployment_folder
         print(f"Ready to process deployment folder: {self.files_info['deployment_folder_path']}")
-        return self.files_info['deployment_folder_path']
+        
+        # Return both the folder path and the selected deployment ID
+        return self.files_info['deployment_folder_path'], selected_deployment_id
+
 
     def import_notes(self):
         """Imports and processes notes associated with the selected deployment."""
@@ -961,7 +1001,7 @@ class BaseManufacturer:
 
         return df, column_metadata
 
-    def map_data_to_sensors(self, df, logger_id, column_metadata):
+    def group_data_by_sensors(self, df, logger_id, column_metadata):
         """Groups data columns to sensors and downsamples based on expected frequencies."""
         sensor_groups = {}
         sensor_info = {}
@@ -1088,7 +1128,6 @@ class BaseManufacturer:
         except Exception as e:
             print(f"Failed to parse {txt_file_path} due to: {e}")
 
-
     def process_files(self, files):
         """Process files in the subclass. This should be overridden."""
         raise NotImplementedError("This method should be implemented by subclasses.")
@@ -1129,7 +1168,69 @@ class CATSManufacturer(BaseManufacturer):
         self.data_reader.logger_info[self.logger_id]['datetime_metadata'] = datetime_metadata
 
         # Map data to sensors and return sensor information
-        sensor_groups, sensor_info = self.map_data_to_sensors(final_df, self.logger_id, column_metadata)
+        sensor_groups, sensor_info = self.group_data_by_sensors(final_df, self.logger_id, column_metadata)
+
+        return final_df, column_metadata, datetime_metadata, sensor_groups, sensor_info
+
+    def concatenate_and_save_csvs(self, csv_files):
+        """Concatenates multiple CSV files into one DataFrame."""
+        dfs = []
+        for file in csv_files:
+            file_path = os.path.join(self.data_reader.files_info['deployment_folder_path'], file)
+            try:
+                data = self.data_reader.read_csv(file_path)
+                dfs.append(data)
+                print(f"{self.logger_manufacturer} file: {file} - Successfully processed.")
+            except Exception as e:
+                print(f"Error processing file {file}: {e}")
+
+        if len(dfs) > 1:
+            concatenated_df = pd.concat(dfs, ignore_index=True)
+        else:
+            concatenated_df = dfs[0]
+
+        return concatenated_df
+
+    def print_txt_content(self, txt_file):
+        """Prints the content of a .txt file."""
+        file_path = os.path.join(self.data_reader.files_info['deployment_folder_path'], txt_file)
+        with open(file_path, 'r') as file:
+            print(file.read())
+
+# TODO: Finish writing Little Leonardo-specific methods for .TXT files (will require getting data from Gdrive)
+class LittleLeonardoManufacturer(BaseManufacturer):
+    """Little Leonardo-specific processing."""
+
+    def process_files(self, files):
+        """Process CATS files, specifically handling .txt, ignoring .ubx, .ubc, and .bin files."""
+        # Filter out .ubx, .ubc, and .bin files
+        files = [f for f in files if not f.endswith(('.ubc', '.bin', '.ubx'))]
+        
+        # Parse the .txt file for expected intervals
+        txt_file = next((f for f in files if f.endswith('.txt')), None)
+        if txt_file:
+            print(f"Parsing {txt_file} for expected sensor intervals.")
+            self.parse_txt_for_intervals(os.path.join(self.data_reader.files_info['deployment_folder_path'], txt_file))
+
+        if not files:
+            print(f"No valid files found for {self.logger_manufacturer} logger.")
+            return None, None, None, None  # Return four None values
+
+        # Remove the .txt files from the list after processing them
+        files = [f for f in files if not f.endswith('.txt')]
+
+        # Concatenate the remaining files into one DataFrame
+        final_df = self.concatenate_and_save_csvs(files)
+
+        # Rename columns
+        final_df, column_metadata = self.rename_columns(final_df, self.logger_id, self.logger_manufacturer)
+        
+        # Process datetime and return metadata
+        final_df, datetime_metadata = self.data_reader.process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
+        self.data_reader.logger_info[self.logger_id]['datetime_metadata'] = datetime_metadata
+
+        # Map data to sensors and return sensor information
+        sensor_groups, sensor_info = self.group_data_by_sensors(final_df, self.logger_id, column_metadata)
 
         return final_df, column_metadata, datetime_metadata, sensor_groups, sensor_info
 
@@ -1178,7 +1279,7 @@ class UFIManufacturer(BaseManufacturer):
             self.data_reader.logger_info[self.logger_id]['datetime_metadata'] = datetime_metadata
             
             # Map data to sensors and return sensor information
-            sensor_groups, sensor_info = self.map_data_to_sensors(final_df, self.logger_id, column_metadata)
+            sensor_groups, sensor_info = self.group_data_by_sensors(final_df, self.logger_id, column_metadata)
 
             return final_df, column_metadata, datetime_metadata, sensor_groups, sensor_info
         else:

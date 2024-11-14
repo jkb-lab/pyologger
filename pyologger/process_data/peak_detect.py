@@ -1,54 +1,35 @@
 import numpy as np
 import pandas as pd
-from scipy.signal import butter, filtfilt, bartlett, find_peaks
-import wfdb
-from wfdb import processing
+from scipy.signal import butter, filtfilt, find_peaks
+from scipy.signal.windows import bartlett
+from scipy import stats
+import plotly.graph_objs as go
 
-# Bandpass Filter Function
-def bandpass_filter(signal, lowcut, highcut, fs, order=2):
-    nyquist = 0.5 * fs
-    low = lowcut / nyquist
-    high = highcut / nyquist
-    b, a = butter(order, [low, high], btype='band')
-    return filtfilt(b, a, signal)
-
-# Spike Removal Function
-def remove_spikes(signal, threshold=400):
-    median = np.median(signal)
-    mad = np.median(np.abs(signal - median))
-    return np.where(np.abs(signal - median) > threshold * mad, median, signal)
-
-# Signal Smoothing Function
-def smooth_signal(signal, smooth_sec, fs):
-    window = int(smooth_sec * fs)
-    return np.convolve(np.abs(signal), bartlett(window), mode='same')
-
-# Sliding Window Normalization Function
-def sliding_window_normalization(signal, window_size, noise=1e-10):
-    half_window = window_size // 2
-    normalized_signal = np.array([(signal[i] - np.mean(signal[max(0, i - half_window):min(len(signal), i + half_window)])) / 
-                     (np.std(signal[max(0, i - half_window):min(len(signal), i + half_window)]) + noise) 
-                     for i in range(len(signal))])
-    return normalized_signal
-
-# Peak Refinement with WFDB
-def refine_peaks_with_wfdb(cleaned_signal, rpeaks, fs, search_radius=0.5, peak_dir="compare"):
-    return wfdb.processing.correct_peaks(cleaned_signal, rpeaks, smooth_window_size = int(0.5 * fs), 
-                                         search_radius=int(search_radius * fs), peak_dir=peak_dir)
-
-
-# Absolute Maxima Search Function
-def absolute_maxima_search(refined_peaks, original_signal, QRS_width, sample_rate):
-    QRS_samples = int(QRS_width * sample_rate)
-    return [np.argmax(original_signal[max(0, peak - QRS_samples):peak + 1]) + max(0, peak - QRS_samples) for peak in refined_peaks]
+# Configuration Section
+BROAD_LOW_CUTOFF = 1  # Hz for bandpass filter
+BROAD_HIGH_CUTOFF = 35  # Hz for bandpass filter
+NARROW_LOW_CUTOFF = 5  # Hz for bandpass filter
+NARROW_HIGH_CUTOFF = 20  # Hz for bandpass filter
+FILTER_ORDER = 2  # Order of the bandpass filter
+SPIKE_THRESHOLD = 400  # Threshold for spike removal
+SMOOTH_SEC_MULTIPLIER = 3  # Multiplier for smoothing window size
+WINDOW_SIZE_MULTIPLIER = 5  # Multiplier for sliding window normalization
+NORMALIZATION_NOISE = 1e-10  # Noise level for sliding window normalization
+PEAK_HEIGHT = -0.4  # Minimum peak height for detection
+PEAK_DISTANCE_SEC = 0.2  # Minimum distance between peaks in seconds
+SEARCH_RADIUS_SEC = 0.5  # Search radius for peak refinement in seconds
+MIN_PEAK_HEIGHT = 500  # Minimum acceptable peak height
+MAX_PEAK_HEIGHT = 12000  # Maximum acceptable peak height
 
 # Combined Peak Detection Function
 def peak_detect(signal, sampling_rate, QRS_width=0.200, 
-                lowcut=5, highcut=20, filter_order=2,
-                spike_threshold=400, smooth_sec_multiplier=3,
-                window_size_multiplier=5, normalization_noise=1e-10,
-                peak_height=-0.4, peak_distance_sec=0.2, search_radius_sec=0.5,
-                min_peak_height=500, max_peak_height=12000,
+                broad_lowcut= BROAD_LOW_CUTOFF, broad_highcut = BROAD_HIGH_CUTOFF,
+                narrow_lowcut=NARROW_LOW_CUTOFF, narrow_highcut=NARROW_HIGH_CUTOFF, 
+                filter_order=FILTER_ORDER,
+                spike_threshold=SPIKE_THRESHOLD, smooth_sec_multiplier=SMOOTH_SEC_MULTIPLIER,
+                window_size_multiplier=WINDOW_SIZE_MULTIPLIER, normalization_noise=NORMALIZATION_NOISE,
+                peak_height=PEAK_HEIGHT, peak_distance_sec=PEAK_DISTANCE_SEC, search_radius_sec=SEARCH_RADIUS_SEC,
+                min_peak_height=MIN_PEAK_HEIGHT, max_peak_height=MAX_PEAK_HEIGHT,
                 enable_bandpass=True, enable_spike_removal=True, enable_smoothing=True, 
                 enable_normalization=True, enable_refinement=True):
     
@@ -56,17 +37,19 @@ def peak_detect(signal, sampling_rate, QRS_width=0.200,
 
     # Bandpass filter
     if enable_bandpass:
-        bandpassed_signal = bandpass_filter(signal, lowcut=lowcut, highcut=highcut, fs=sampling_rate, order=filter_order)
-        results['bandpassed_signal'] = bandpassed_signal
+        broad_bandpassed_signal = bandpass_filter(signal, lowcut=broad_lowcut, highcut=broad_highcut, fs=sampling_rate, order=filter_order)
+        results['broad_bandpassed_signal'] = broad_bandpassed_signal
+        narrow_bandpassed_signal = bandpass_filter(signal, lowcut=narrow_lowcut, highcut=narrow_highcut, fs=sampling_rate, order=filter_order)
+        results['narrow_bandpassed_signal'] = narrow_bandpassed_signal
     else:
-        bandpassed_signal = signal
+        narrow_bandpassed_signal = signal
 
     # Spike removal
     if enable_spike_removal:
-        spike_removed_signal = remove_spikes(bandpassed_signal, threshold=spike_threshold)
+        spike_removed_signal = remove_spikes(narrow_bandpassed_signal, threshold=spike_threshold)
         results['spike_removed_signal'] = spike_removed_signal
     else:
-        spike_removed_signal = bandpassed_signal
+        spike_removed_signal = narrow_bandpassed_signal
 
     # Smoothing
     if enable_smoothing:
@@ -88,8 +71,8 @@ def peak_detect(signal, sampling_rate, QRS_width=0.200,
 
     # Peak Refinement
     if enable_refinement:
-        refined_peaks = refine_peaks_with_wfdb(spike_removed_signal, detected_peaks, fs = sampling_rate, search_radius=search_radius_sec, 
-                                               peak_dir = "compare")
+        refined_peaks = refine_peaks_with_wfdb(spike_removed_signal, detected_peaks, fs = sampling_rate, search_radius=search_radius_sec, sample_rate=sampling_rate,
+                                               peak_dir = "both")
         results['refined_peaks'] = refined_peaks
         refined_indices = refined_peaks
         #refined_indices = absolute_maxima_search(refined_peaks, spike_removed_signal, QRS_width * 2, sampling_rate)
