@@ -241,15 +241,19 @@ class DataReader:
                     ds.attrs[flattened_key] = "Invalid entry"
                     print(f"Invalid entry recognized and placed in {flattened_key}")
 
-        def create_data_array(data, datetime_coord, variables, name):
+        def create_coords(ndim, datetime_coord, variables, name):
             """Creates an xarray DataArray with appropriate dimensions and coordinates."""
-            if data.ndim == 1:
+            if ndim == 1:
                 dims = [f"{name}_samples"]
                 coords = {f"{name}_samples": datetime_coord}
             else:
                 dims = [f"{name}_samples", f"{name}_variables"]
                 coords = {f"{name}_samples": datetime_coord, f"{name}_variables": variables}
+
+            return dims, coords
             
+        def create_data_array(data, dims, coords):
+            """Creates an xarray DataArray with appropriate dimensions and coordinates."""
             return xr.DataArray(data, dims=dims, coords=coords)
 
         def set_variables_attr(ds, var_name, variables):
@@ -271,7 +275,9 @@ class DataReader:
             variables = [col for col in sensor_data.columns]
             data_array = convert_to_compatible_array(sensor_data)
             var_name = f'sensor_data_{sensor_name}'
-            ds[var_name] = create_data_array(data_array, datetime_coord, variables, sensor_name)
+            ndim = data_array.ndim
+            dims, coords = create_coords(ndim, datetime_coord, variables, sensor_name)
+            ds[var_name] = create_data_array(data_array, dims, coords)
             set_variables_attr(ds, var_name, variables)
 
         for logger_id, df in self.logger_data.items():
@@ -287,7 +293,9 @@ class DataReader:
             variables = [col for col in logger_data.columns]
             data_array = convert_to_compatible_array(logger_data)
             var_name = f'logger_data_{logger_id}'
-            ds[var_name] = create_data_array(data_array, datetime_coord, variables, logger_id)
+            ndim = data_array.ndim
+            dims, coords = create_coords(ndim, datetime_coord, variables, logger_id)
+            ds[var_name] = create_data_array(data_array, dims, coords)
             set_variables_attr(ds, var_name, variables)
 
         for derived_name, df in self.derived_data.items():
@@ -298,19 +306,25 @@ class DataReader:
             variables = [col for col in derived_data.columns]
             data_array = convert_to_compatible_array(derived_data)
             var_name = f'derived_data_{derived_name}'
-            ds[var_name] = create_data_array(data_array, datetime_coord, variables, derived_name)
+            ndim = data_array.ndim
+            dims, coords = create_coords(ndim, datetime_coord, variables, derived_name)
+            ds[var_name] = create_data_array(data_array, dims, coords)
             set_variables_attr(ds, var_name, variables)
 
         columns_to_keep = ["type", "key", "value", "duration", "short_description", "long_description"]
-            
-        for var in columns_to_keep:
-            event_data = self.event_data.copy()
-            datetime_coord = pd.to_datetime(event_data['datetime'])
-            event_data = event_data[[var]]
-            data_array = convert_to_compatible_array(event_data)
-            var_name = f'event_data_{var}'
-            ds[var_name] = create_data_array(data_array, datetime_coord, var, var_name)
-            set_variables_attr(ds, var_name, var)
+        
+        if isinstance(self.event_data, pd.DataFrame):
+            for var in columns_to_keep:
+                event_data = self.event_data.copy()
+                datetime_coord = pd.to_datetime(event_data['datetime'])
+                event_data = event_data[[var]]
+                data_array = convert_to_compatible_array(event_data)
+                var_name = f'event_data_{var}'
+                ndim = data_array.ndim
+                if var == columns_to_keep[0]:
+                    dims, coords = create_coords(ndim, datetime_coord, variables, 'event_data')
+                ds[var_name] = create_data_array(data_array, dims, coords)
+                set_variables_attr(ds, var_name, var)
 
         # Flatten and add global attributes
         flatten_dict('deployment_info', self.deployment_info)
