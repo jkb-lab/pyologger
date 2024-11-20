@@ -3,133 +3,272 @@ import pickle
 import streamlit as st
 import pandas as pd
 import numpy as np
-from pyologger.process_data.peak_detect import peak_detect
-from pyologger.plot_data.plotter import plot_tag_data_interactive4
+from datetime import datetime, timedelta
+# Import necessary pyologger utilities
+from pyologger.utils.config_manager import ConfigManager
+from pyologger.plot_data.plotter import plot_tag_data_interactive5
+from pyologger.process_data.peak_detect import *
+from pyologger.process_data.sampling import calculate_sampling_frequency
 
 # Define paths
 root_dir = "/Users/jessiekb/Documents/GitHub/pyologger"
 data_dir = os.path.join(root_dir, "data")
-deployment_folder = os.path.join(data_dir, "2024-01-16_oror-002a_Shuka-HR")
+deployment_folder = os.path.join(data_dir, "2024-01-16_oror-002a")
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
+color_mapping_path = os.path.join(root_dir, 'color_mappings.json')
 
 # Load the data_reader object from the pickle file
 with open(pkl_path, 'rb') as file:
     data_pkl = pickle.load(file)
 
-# Load color mappings
-color_mapping_path = os.path.join(root_dir, 'color_mappings.json')
+# Retrieve timezone
+timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
 
-OVERLAP_START_TIME = '2024-01-16 09:55:00'  # Start time for plotting
-OVERLAP_END_TIME = '2024-01-16 10:30:00'  # End time for plotting
-ZOOM_START_TIME = '2024-01-16 10:00:00'  # Start time for zooming
-ZOOM_END_TIME = '2024-01-16 10:02:30'  # End time for zooming
+# Load configuration manager
+config_manager = ConfigManager(deployment_folder=deployment_folder, deployment_id="2024-01-16_oror-002a")
 
-# Set up the layout with two columns
-col1, col2 = st.columns([1, 2])  # Adjust the ratio as needed (1:2 means sliders take 1/3, plot takes 2/3)
+# Load relevant configuration settings
+settings = config_manager.get_from_config(
+    variable_names=["earliest_common_start_time", "latest_common_end_time", "zoom_window_start_time", "zoom_window_end_time"],
+    section="settings"
+)
+OVERLAP_START_TIME = pd.Timestamp(settings["earliest_common_start_time"]).tz_convert(timezone)
+OVERLAP_END_TIME = pd.Timestamp(settings["latest_common_end_time"]).tz_convert(timezone)
+ZOOM_WINDOW_START_TIME = pd.Timestamp(settings["zoom_window_start_time"]).tz_convert(timezone)
+ZOOM_WINDOW_END_TIME = pd.Timestamp(settings["zoom_window_end_time"]).tz_convert(timezone)
 
-# Column 1: Sliders for parameter adjustment
-with col1:
-    st.title("ECG Peak Detection")
+# Function to get parameters for heart rate or stroke rate
+def get_params(mode):
+    section = "hr_peak_detection_settings" if mode == "heart_rate" else "stroke_peak_detection_settings"
+    return config_manager.get_from_config(variable_names=[
+        "BROAD_LOW_CUTOFF", "BROAD_HIGH_CUTOFF", "NARROW_LOW_CUTOFF", "NARROW_HIGH_CUTOFF",
+        "FILTER_ORDER", "SPIKE_THRESHOLD", "SMOOTH_SEC_MULTIPLIER", "WINDOW_SIZE_MULTIPLIER",
+        "NORMALIZATION_NOISE", "PEAK_HEIGHT", "PEAK_DISTANCE_SEC", "SEARCH_RADIUS_SEC",
+        "MIN_PEAK_HEIGHT", "MAX_PEAK_HEIGHT", "enable_bandpass", "enable_spike_removal",
+        "enable_absolute", "enable_smoothing", "enable_normalization", "enable_refinement"
+    ], section=section)
 
-    # Slider controls for each parameter
-    low_cutoff = st.slider("Low Cutoff Frequency (Hz)", 0.1, 50.0, 2.0)
-    high_cutoff = st.slider("High Cutoff Frequency (Hz)", 0.1, 50.0, 20.0)
-    filter_order = st.slider("Filter Order", 1, 10, 2)
-    spike_threshold = st.slider("Spike Threshold", 100, 1000, 400)
-    smooth_sec_multiplier = st.slider("Smoothing Window Multiplier", 1, 10, 5)
-    window_size_multiplier = st.slider("Window Size Multiplier", 1, 10, 5)
-    normalization_noise = st.slider("Normalization Noise", 1e-12, 1e-8, 1e-10, format="%.2e")
-    peak_height = st.slider("Peak Height", -1.0, 1.0, 0.1)
-    peak_distance_sec = st.slider("Peak Distance (s)", 0.01, 1.0, 0.2)
-    search_radius_sec = st.slider("Search Radius (s)", 0.1, 1.0, 0.5)
-    min_peak_height = st.slider("Minimum Peak Height", 100, 1000, 500)
-    max_peak_height = st.slider("Maximum Peak Height", 10000, 50000, 30000)
+# User selection for detection type
+st.sidebar.title("Detection Mode")
+detection_mode = st.sidebar.selectbox("Choose mode:", ["stroke_rate", "heart_rate"])
 
-# Column 2: Plot the ECG data with detected peaks
-with col2:
-    # Extract ECG signal and sampling frequency from the loaded data
-    ecg_signal = data_pkl.sensor_data['ecg']['ecg']
-    sampling_rate = data_pkl.sensor_info['ecg']['sampling_frequency']
+# Adjust parameters based on the selected mode
+params = get_params(detection_mode)
 
-    # Run the peak detection with the current slider values
-    results = peak_detect(
-        signal=ecg_signal,
-        sampling_rate=sampling_rate,
-        lowcut=low_cutoff,
-        highcut=high_cutoff,
-        filter_order=filter_order,
-        spike_threshold=spike_threshold,
-        smooth_sec_multiplier=smooth_sec_multiplier,
-        window_size_multiplier=window_size_multiplier,
-        normalization_noise=normalization_noise,
-        peak_height=peak_height,
-        peak_distance_sec=peak_distance_sec,
-        search_radius_sec=search_radius_sec,
-        min_peak_height=min_peak_height,
-        max_peak_height=max_peak_height
-    )
+# Select parent signal and channel
+st.sidebar.subheader("Signal Configuration")
+parent_signal_options = list(data_pkl.sensor_data.keys()) + list(data_pkl.derived_data.keys())
+default_parent_signal = "ecg" if detection_mode == "heart_rate" else "corrected_gyr"
+parent_signal = st.sidebar.selectbox("Parent Signal", parent_signal_options, index=parent_signal_options.index(default_parent_signal))
 
-    # Update the data_pkl with intermediate results for visualization
-    data_pkl.sensor_data['ecg']['bandpassed_signal'] = results.get('bandpassed_signal', None)
-    data_pkl.sensor_data['ecg']['spike_removed_signal'] = results.get('spike_removed_signal', None)
-    data_pkl.sensor_data['ecg']['smoothed_signal'] = results.get('smoothed_signal', None) / 10
-    data_pkl.sensor_data['ecg']['normalized_signal'] = results.get('normalized_signal', None) * 250 + 4000
+# Get available channels for the selected parent signal
+if parent_signal in data_pkl.sensor_data:
+    available_channels = list(data_pkl.sensor_data[parent_signal].columns)
+elif parent_signal in data_pkl.derived_data:
+    available_channels = list(data_pkl.derived_data[parent_signal].columns)
+else:
+    available_channels = []
 
-    # Calculate RR intervals (in seconds) between successive peaks and assign to hr_data
-    if len(results['peak_df']) > 1:
-        rr_intervals = np.diff(results['peak_df']['refined_index']) / sampling_rate
-        heart_rate = 60 / rr_intervals
-        hr_data = np.full(len(ecg_signal), np.nan)
-        for i in range(len(heart_rate)):
-            start_idx = results['peak_df']['refined_index'].iloc[i]
-            end_idx = results['peak_df']['refined_index'].iloc[i + 1]
-            hr_data[start_idx:end_idx] = heart_rate[i]
-        if len(results['peak_df']) > 0 and len(heart_rate) > 0:
-            hr_data[results['peak_df']['refined_index'].iloc[-1]:] = heart_rate[-1]
-        data_pkl.sensor_data['ecg']['hr_data'] = hr_data
+# Select specific channel
+default_channel = "ecg" if detection_mode == "heart_rate" else "gy"
+channel = st.sidebar.selectbox("Channel", available_channels, index=available_channels.index(default_channel) if default_channel in available_channels else 0)
 
-    # Convert refined indices to datetime for event annotations
-    matching_datetimes = data_pkl.sensor_data['ecg'].loc[results['peak_df']['refined_index'], 'datetime'].values
-    utc_datetimes = pd.to_datetime(matching_datetimes).tz_localize('UTC')
-    local_timezone = data_pkl.sensor_info['ecg']['sensor_start_datetime'].tz
-    results['peak_df']['datetime'] = utc_datetimes.tz_convert(local_timezone)
+# Configure signals
+signal_df = data_pkl.sensor_data[parent_signal] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal]
+signal = data_pkl.sensor_data[parent_signal][channel] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal][channel]
+datetime_signal = data_pkl.sensor_data[parent_signal]['datetime'] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal]['datetime']
+sampling_rate = data_pkl.sensor_info.get(parent_signal, {}).get('sampling_frequency', calculate_sampling_frequency(datetime_signal))
 
-    # Append detected peaks to the event data with heart rate values at each peak
-    hr_values = hr_data[results['peak_df']['refined_index']]
-    hr_events = pd.DataFrame({
-        'datetime': results['peak_df']['datetime'],
-        'key': results['peak_df']['key'],
-        'short_description': 'calculated heart rate from detected peaks',
-        'type': 'point',
-        'value': hr_values
-    })
+# Streamlit UI
+st.title(f"{detection_mode} Peak Detection")
 
-    # Clear any existing events with keys that start with 'heartbeat_auto_detect'
-    data_pkl.event_data['key'] = data_pkl.event_data['key'].astype(str)  # Ensure 'key' is string type
-    data_pkl.event_data = data_pkl.event_data[~data_pkl.event_data['key'].str.startswith('heartbeat_auto_detect', na=False)]
+# Convert datetime range to a list of allowable values with 10-second steps
+start_time = ZOOM_WINDOW_START_TIME.to_pydatetime()
+end_time = ZOOM_WINDOW_END_TIME.to_pydatetime()
+time_values = [start_time + timedelta(seconds=i) for i in range(0, int((end_time - start_time).total_seconds()) + 1, 10)]
 
-    # Concatenate with hr_events
-    data_pkl.event_data = pd.concat([data_pkl.event_data, hr_events], ignore_index=True)
+# Double-sided slider for time range selection
+time_range = st.sidebar.select_slider(
+    "Select Time Range",
+    options=time_values,
+    value=(ZOOM_WINDOW_START_TIME.to_pydatetime(), ZOOM_WINDOW_END_TIME.to_pydatetime()),
+    format_func=lambda x: x.strftime("%Y-%m-%d %H:%M:%S")
+)
 
-    # Visualization: Define Notes and Plot the Results
-    notes_to_plot = {
-        'heartbeat_manual_ok': {'sensor': 'ecg', 'symbol': 'triangle-down', 'color': 'blue'},
-        'heartbeat_auto_detect_accepted': {'sensor': 'ecg', 'symbol': 'triangle-up', 'color': 'green'},
-        'heartbeat_auto_detect_rejected': {'sensor': 'ecg', 'symbol': 'triangle-up', 'color': 'red'}
-    }
+# Extract start and end times from the slider
+start_datetime = time_range[0]
+end_datetime = time_range[1]
 
-    fig = plot_tag_data_interactive4(
+# Filter signal based on the selected time range
+time_mask = (datetime_signal >= start_datetime) & (datetime_signal <= end_datetime)
+signal_subset = signal[time_mask]
+datetime_subset = datetime_signal[time_mask]
+signal_subset_df = signal_df[
+    (signal_df['datetime'] >= start_datetime) & 
+    (signal_df['datetime'] <= end_datetime)
+]
+
+# Slider configurations
+slider_config = [
+    ("Broad Low Cutoff (Hz)", "BROAD_LOW_CUTOFF", 0.01, 25.0, float, 0.01),
+    ("Broad High Cutoff (Hz)", "BROAD_HIGH_CUTOFF", 0.01, 25.0, float, 0.01),
+    ("Narrow Low Cutoff (Hz)", "NARROW_LOW_CUTOFF", 0.01, 15.0, float, 0.01),
+    ("Narrow High Cutoff (Hz)", "NARROW_HIGH_CUTOFF", 0.01, 15.0, float, 0.01),
+    ("Filter Order", "FILTER_ORDER", 1, 10, int, 1),
+    ("Spike Threshold", "SPIKE_THRESHOLD", 100, 1000, int, 10),
+    ("Smoothing Window (s)", "SMOOTH_SEC_MULTIPLIER", 0.01, 2.0, float, 0.05),
+    ("Normalization Window Size (s)", "WINDOW_SIZE_MULTIPLIER", 0.1, 20.0, float, 0.05),
+    ("Normalization Noise", "NORMALIZATION_NOISE", 1e-12, 1e-8, float, 1e-12),
+    ("Peak Height", "PEAK_HEIGHT", -2.0, 2.0, float, 0.1),
+    ("Peak Distance (s)", "PEAK_DISTANCE_SEC", 0.01, 5.0, float, 0.05),
+    ("Search Radius (s)", "SEARCH_RADIUS_SEC", 0.1, 2.0, float, 0.05),
+    ("Minimum Peak Height", "MIN_PEAK_HEIGHT", 0.1, 1000, int, 10),
+    ("Maximum Peak Height", "MAX_PEAK_HEIGHT", 50, 50000, int, 10),
+]
+
+# Checkbox configurations
+checkbox_config = [
+    ("Enable Bandpass Filtering", "enable_bandpass"),
+    ("Enable Spike Removal", "enable_spike_removal"),
+    ("Enable Absolute Transformation", "enable_absolute"),
+    ("Enable Smoothing", "enable_smoothing"),
+    ("Enable Normalization", "enable_normalization"),
+    ("Enable Refinement", "enable_refinement"),
+]
+
+# Retrieve current parameters from the configuration file
+default_params = config_manager.get_from_config(
+    variable_names=[key for _, key, _, _, _, _ in slider_config] +
+                   [key for _, key in checkbox_config],
+    section="hr_peak_detection_settings" if detection_mode == "heart_rate" else "stroke_peak_detection_settings"
+)
+
+# Streamlit UI for sliders and checkboxes
+st.sidebar.subheader("Adjust Peak Detection Parameters")
+
+# Adjust sliders
+for label, key, min_val, max_val, dtype, step in slider_config:
+    default_value = default_params.get(key, dtype(min_val))
+    params[key] = st.sidebar.slider(label, dtype(min_val), dtype(max_val), dtype(default_value), step)
+
+# Adjust checkboxes
+for label, key in checkbox_config:
+    default_value = default_params.get(key, True)
+    params[key] = st.sidebar.checkbox(label, value=default_value)
+
+# Save updated configuration
+if st.sidebar.button("Save Configuration"):
+    section = "hr_peak_detection_settings" if detection_mode == "heart_rate" else "stroke_peak_detection_settings"
+    config_manager.add_to_config(entries=params, section=section)
+    st.success(f"{detection_mode} configuration saved successfully!")
+
+# Use the updated parameters in peak detection
+results = peak_detect(
+    signal=signal_subset,
+    sampling_rate=sampling_rate,
+    datetime_series=datetime_subset,
+    broad_lowcut=params["BROAD_LOW_CUTOFF"],
+    broad_highcut=params["BROAD_HIGH_CUTOFF"],
+    narrow_lowcut=params["NARROW_LOW_CUTOFF"],
+    narrow_highcut=params["NARROW_HIGH_CUTOFF"],
+    filter_order=params["FILTER_ORDER"],
+    spike_threshold=params["SPIKE_THRESHOLD"],
+    smooth_sec_multiplier=params["SMOOTH_SEC_MULTIPLIER"],
+    window_size_multiplier=params["WINDOW_SIZE_MULTIPLIER"],
+    normalization_noise=params["NORMALIZATION_NOISE"],
+    peak_height=params["PEAK_HEIGHT"],
+    peak_distance_sec=params["PEAK_DISTANCE_SEC"],
+    search_radius_sec=params["SEARCH_RADIUS_SEC"],
+    min_peak_height=params["MIN_PEAK_HEIGHT"],
+    max_peak_height=params["MAX_PEAK_HEIGHT"],
+    enable_bandpass=params["enable_bandpass"],
+    enable_spike_removal=params["enable_spike_removal"],
+    enable_absolute=params["enable_absolute"],
+    enable_smoothing=params["enable_smoothing"],
+    enable_normalization=params["enable_normalization"],
+    enable_refinement=params["enable_refinement"]
+)
+
+process_rate(data_pkl, results, signal_subset_df, parent_signal, 
+             params, sampling_rate, detection_mode)
+
+notes_to_plot = {
+    'heartbeat_manual_ok': {'signal': 'hr_narrow_bandpass', 'symbol': 'triangle-down', 'color': 'blue'},
+    'heartbeat_auto_detect_accepted': {'signal': 'hr_narrow_bandpass', 'symbol': 'triangle-up', 'color': 'green'},
+    'heartbeat_auto_detect_rejected': {'signal': 'hr_narrow_bandpass', 'symbol': 'triangle-up', 'color': 'red'},
+    'strokebeat_auto_detect_accepted': {'signal': 'sr_narrow_bandpass', 'symbol': 'triangle-up', 'color': 'green'},
+    'strokebeat_auto_detect_rejected': {'signal': 'sr_narrow_bandpass', 'symbol': 'triangle-up', 'color': 'red'}
+}
+
+TARGET_SAMPLING_RATE = 25 if detection_mode == "heart_rate" else 10
+
+if detection_mode == "heart_rate":
+    fig = plot_tag_data_interactive5(
         data_pkl=data_pkl,
         sensors=['ecg'],
-        channels={'ecg': ['bandpassed_signal', 'spike_removed_signal', 'smoothed_signal', 'normalized_signal', 'hr_data']},
+        derived_data_signals=['depth', 'prh', 'heart_rate', 'hr_broad_bandpass',
+                            'hr_narrow_bandpass', 'hr_smoothed',
+                            'hr_normalized'],
+        channels={}, #'corrected_gyr': ['broad_bandpassed_signal']
         time_range=(OVERLAP_START_TIME, OVERLAP_END_TIME),
         note_annotations=notes_to_plot,
         color_mapping_path=color_mapping_path,
-        target_sampling_rate=sampling_rate,
-        zoom_start_time=ZOOM_START_TIME,
-        zoom_end_time=ZOOM_END_TIME,
-        plot_event_values=['heartbeat_manual_ok', 'heartbeat_auto_detect_accepted']
+        target_sampling_rate=TARGET_SAMPLING_RATE,
+        zoom_start_time=start_datetime,
+        zoom_end_time=end_datetime,
+        zoom_range_selector_channel='depth',
+        plot_event_values=[],
     )
 
-    # Display the figure
-    st.plotly_chart(fig)
+    # Update the legend position
+    fig.update_layout(
+        legend=dict(
+            visible=False,
+            orientation="h",
+            yanchor="top",
+            y=0.99,
+            xanchor="right",
+            x=0.99
+        )
+    )
+else:
+    fig = plot_tag_data_interactive5(
+        data_pkl=data_pkl,
+        sensors=['ecg'],
+        derived_data_signals=['depth', 'prh', 'stroke_rate', 'sr_broad_bandpass',
+                            'sr_narrow_bandpass', 'sr_smoothed',
+                            'sr_normalized'],
+        channels={}, #'corrected_gyr': ['broad_bandpassed_signal']
+        time_range=(OVERLAP_START_TIME, OVERLAP_END_TIME),
+        note_annotations=notes_to_plot,
+        color_mapping_path=color_mapping_path,
+        target_sampling_rate=25,
+        zoom_start_time=start_datetime,
+        zoom_end_time=end_datetime,
+        zoom_range_selector_channel='depth',
+        plot_event_values=[],
+    )
+
+    # Update the legend position
+    fig.update_layout(
+        legend=dict(
+            visible=False,
+            orientation="h",
+            yanchor="top",
+            y=0.99,
+            xanchor="right",
+            x=0.99
+        )
+    )
+
+#fig.show()
+
+st.plotly_chart(fig)
+
+# Debugging: Display updated params
+st.write("Updated Parameters:", params)
+
+# Add a button to clear intermediate signals in the Streamlit UI
+if st.sidebar.button("Clear Intermediate Signals"):
+    clear_intermediate_signals(data_pkl)
+    st.sidebar.success("Intermediate signals cleared successfully!")

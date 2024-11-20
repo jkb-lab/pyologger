@@ -1,5 +1,6 @@
 import streamlit as st
 from pathlib import Path
+import os
 
 # Set the page config for the main app
 st.set_page_config(page_title="Pyologger", layout="wide")
