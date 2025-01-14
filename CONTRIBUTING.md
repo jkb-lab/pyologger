@@ -7,11 +7,21 @@ description of best practices for developing scientific packages.
 Instructions for developers seeking to contribute to `pyologger`.
 
 ## Environment setup
-Install the package `pyologger` localling using: 
+1. Create virtual environment from which to run your code:
 
-`pip install .` 
+```python -m venv venv``` 
 
-Add any new packages used into the `pyproject.toml` file. 
+This creates a folder `venv`, ignored by git by default, that contains all library-related files.
+
+2. Activate your virtual environment:
+
+```source venv/Scripts/activate```
+
+3. Install the package `pyologger` localling using: 
+
+```pip install .``` 
+
+4. As you develop, please remember to add any new packages used into the `pyproject.toml` file. 
 
 ## Updating the documentation
 For any new functions, please use the sphinx documentation syntax:
