@@ -21,6 +21,36 @@ class ConfigManager:
         with open(self.config_log_path, 'w') as f:
             json.dump(config_log, f, indent=4)
 
+    def add_deployment_to_log(self, logger_ids: list):
+        if not isinstance(self.config_log_path, (str, os.PathLike)):
+            raise TypeError("The 'config_log_path' argument must be a string or os.PathLike object.")
+
+        if os.path.exists(self.config_log_path):
+            with open(self.config_log_path, 'r') as file:
+                log_data = json.load(file)
+        else:
+            log_data = []
+
+        # Check if deployment ID already exists
+        for entry in log_data:
+            if entry.get("deployment_id") == self.deployment_id:
+                print(f"Deployment {self.deployment_id} already exists in the log.")
+                return
+
+        # If not, append the new deployment entry
+        new_deployment_entry = {
+            "deployment_id": self.deployment_id,
+            "logger_ids": logger_ids,
+            "settings": {}
+        }
+        log_data.append(new_deployment_entry)
+
+        # Save the updated log back to the JSON file
+        with open(self.config_log_path, 'w') as file:
+            json.dump(log_data, file, indent=4)
+
+        print(f"Deployment {self.deployment_id} added with loggers {logger_ids}.")
+
     def add_to_config(self, entries: Union[Dict[str, Any], str], value: Optional[Any] = None, section: Optional[str] = None, deployment_id: Optional[str] = None):
         """
         Adds or updates key-value pairs in the specified section of the config_log JSON file.

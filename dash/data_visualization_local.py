@@ -69,6 +69,7 @@ notes_to_plot = {
     'heartbeat_manual_ok': {'signal': 'hr_normalized', 'symbol': 'triangle-down', 'color': 'blue'},
     'heartbeat_auto_detect_accepted': {'signal': 'hr_normalized', 'symbol': 'triangle-up', 'color': 'green'},
     'strokebeat_auto_detect_accepted': {'signal': 'sr_smoothed', 'symbol': 'triangle-up', 'color': 'green'},
+    'exhalation_breath': {'signal': 'heart_rate', 'symbol': 'triangle-up', 'color': 'blue'}
 }
 
 fig = plot_tag_data_interactive5(
@@ -104,8 +105,8 @@ app.layout = html.Div(
                     id="three-d-model",
                     data=data_json,
                     activeTime=0,
-                    objFile="/assets/PenguinSwim.obj",
-                    textureFile="/assets/PenguinSwim.png",
+                    objFile="/assets/6_killerWhale_v017_LP.obj",
+                    textureFile="/assets/killerWhale_LP.png",
                     style={"width": "50vw", "height": "40vw"},
                 ),
                 video_preview.VideoPreview(
