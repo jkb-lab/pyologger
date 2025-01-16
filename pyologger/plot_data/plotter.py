@@ -24,7 +24,7 @@ def generate_random_color():
     r = lambda: random.randint(100, 255)
     return f'#{r():02x}{r():02x}{r():02x}'
 
-def plot_tag_data_interactive5(data_pkl, sensors=None, derived_data_signals=None, channels=None, 
+def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None, channels=None, 
                                time_range=None, note_annotations=None, color_mapping_path=None, 
                                target_sampling_rate=10, zoom_start_time=None, zoom_end_time=None, 
                                plot_event_values=None, zoom_range_selector_channel=None):

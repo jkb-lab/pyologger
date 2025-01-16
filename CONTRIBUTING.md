@@ -15,7 +15,8 @@ This creates a folder `venv`, ignored by git by default, that contains all libra
 
 2. Activate your virtual environment:
 
-```source venv/Scripts/activate```
+```source venv/Scripts/activate``` on PC
+```source venv/bin/activate``` on Mac
 
 3. Install the package `pyologger` localling using: 
 
