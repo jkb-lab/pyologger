@@ -5,6 +5,7 @@ import pytz
 import os
 import mne
 from datetime import datetime, date, time
+from pyologger.process_data.sampling import *
 
 class BaseExporter:
     """Handles exporting data from the DataReader object."""
