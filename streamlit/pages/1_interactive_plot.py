@@ -1,23 +1,26 @@
 import os
 import streamlit as st
 import pickle
-from pyologger.plot_data.plotter import plot_tag_data_interactive, save_color_mapping, load_color_mapping
 
-# Define paths
-root_dir = "/Users/jessiekb/Documents/GitHub/pyologger"
-data_dir = os.path.join(root_dir, "data")
-deployment_folder = os.path.join(data_dir, "2024-01-16_oror-002a_Shuka-HR")
-pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
+# Import pyologger utilities
+from pyologger.utils.event_manager import *
+from pyologger.utils.folder_manager import *
+from pyologger.plot_data.plotter import plot_tag_data_interactive
 
-# Load the data_reader object from the pickle file
-with open(pkl_path, 'rb') as file:
-    data_pkl = pickle.load(file)
+# Load configuration
+config, data_dir, color_mapping_path, channel_mapping_path = load_configuration()
 
-# Load color mappings
-color_mapping_path = os.path.join(root_dir, 'color_mappings.json')
+# **Step 1: Deployment Selection**
+st.sidebar.title("Deployment Selection")
 
-# Load the existing color mappings or initialize with default if not present
-color_mapping = load_color_mapping(color_mapping_path)
+# Load dataset & deployment
+animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment_streamlit(data_dir)
+
+if not dataset_id or not deployment_id:
+    st.sidebar.warning("⚠ Please select a dataset and deployment.")
+    st.stop()
+
+st.sidebar.write(f"📂 Selected Deployment: {deployment_id}")
 
 # Sidebar for time range selection
 imu_logger_to_use = 'CC-96'

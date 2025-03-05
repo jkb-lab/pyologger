@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+config.yaml
+
 data/*
 .vscode
 
@@ -30,6 +32,9 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+.snakemake/*
+dash/assets/*
 
 pyologger.egg-info/*
 

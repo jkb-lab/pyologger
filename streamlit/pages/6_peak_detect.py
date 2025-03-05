@@ -1,31 +1,26 @@
-import os
-import pickle
 import streamlit as st
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-# Import necessary pyologger utilities
-from pyologger.utils.config_manager import ConfigManager
-from pyologger.plot_data.plotter import plot_tag_data_interactive5
+from datetime import timedelta
+
+# Import pyologger utilities
+from pyologger.utils.folder_manager import *
+from pyologger.utils.data_manager import *
+from pyologger.calibrate_data.zoc import *
+from pyologger.plot_data.plotter import *
+from pyologger.process_data.sampling import *
 from pyologger.process_data.peak_detect import *
-from pyologger.process_data.sampling import calculate_sampling_frequency
 
-# Define paths
-root_dir = "/Users/jessiekb/Documents/GitHub/pyologger"
-data_dir = os.path.join(root_dir, "data")
-deployment_folder = os.path.join(data_dir, "2024-01-16_oror-002a")
-pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
-color_mapping_path = os.path.join(root_dir, 'color_mappings.json')
+# Load important file paths and configurations
+config, data_dir, color_mapping_path, channel_mapping_path = load_configuration()
 
-# Load the data_reader object from the pickle file
-with open(pkl_path, 'rb') as file:
-    data_pkl = pickle.load(file)
+# **Step 2: Deployment Selection (Dropdown Menus)**
+st.sidebar.title("Deployment Selection")
 
-# Retrieve timezone
+# Streamlit load data
+animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment_streamlit(data_dir)
 timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
 
-# Load configuration manager
-config_manager = ConfigManager(deployment_folder=deployment_folder, deployment_id="2024-01-16_oror-002a")
+st.sidebar.write(f"📂 Selected Deployment: {deployment_id}")
 
 # Load relevant configuration settings
 settings = config_manager.get_from_config(
@@ -203,7 +198,7 @@ notes_to_plot = {
 TARGET_SAMPLING_RATE = 25 if detection_mode == "heart_rate" else 10
 
 if detection_mode == "heart_rate":
-    fig = plot_tag_data_interactive5(
+    fig = plot_tag_data_interactive(
         data_pkl=data_pkl,
         sensors=['ecg'],
         derived_data_signals=['depth', 'prh', 'heart_rate', 'hr_broad_bandpass',
@@ -232,7 +227,7 @@ if detection_mode == "heart_rate":
         )
     )
 else:
-    fig = plot_tag_data_interactive5(
+    fig = plot_tag_data_interactive(
         data_pkl=data_pkl,
         sensors=['ecg'],
         derived_data_signals=['depth', 'prh', 'stroke_rate', 'sr_broad_bandpass',

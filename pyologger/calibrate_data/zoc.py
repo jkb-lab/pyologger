@@ -4,9 +4,10 @@ from scipy.signal import medfilt, decimate
 from sklearn.linear_model import LinearRegression
 from itertools import groupby
 
-def smooth_downsample_derivative(depth, original_sampling_rate, downsampled_sampling_rate=1):
+def smooth_downsample_derivative(depth, original_sampling_rate, downsampled_sampling_rate=1, baseline_adjust=0):
     """
     Downsamples, smooths, and calculates the first derivative of the depth signal.
+    Optionally applies a baseline adjustment to shift the depth data up or down.
 
     Parameters
     ----------
@@ -16,13 +17,15 @@ def smooth_downsample_derivative(depth, original_sampling_rate, downsampled_samp
         Original sampling rate of the depth data (in Hz).
     downsampled_sampling_rate : float, optional
         Desired downsampled sampling rate of the depth data (in Hz, default is 1 Hz).
+    baseline_adjust : float, optional
+        Baseline adjustment to shift the depth values up or down (in meters, default is 0).
 
     Returns
     -------
     tuple
         A tuple containing:
         - first_derivative (numpy.ndarray): First derivative of the smoothed and downsampled depth signal.
-        - downsampled_depth (numpy.ndarray): Smoothed and downsampled depth signal.
+        - downsampled_depth (numpy.ndarray): Smoothed, baseline-adjusted, and downsampled depth signal.
     """
     # Calculate the downsample factor based on the original and target sampling rates
     downsample_factor = int(original_sampling_rate / downsampled_sampling_rate)
@@ -33,10 +36,13 @@ def smooth_downsample_derivative(depth, original_sampling_rate, downsampled_samp
     # Apply median filtering for smoothing
     smoothed_depth = medfilt(downsampled_depth, kernel_size=5)
     
-    # Calculate the first derivative of the smoothed depth signal
-    first_derivative = np.gradient(smoothed_depth)
+    # Apply baseline adjustment
+    adjusted_depth = smoothed_depth + baseline_adjust
     
-    return first_derivative, downsampled_depth
+    # Calculate the first derivative of the adjusted depth signal
+    first_derivative = np.gradient(adjusted_depth)
+    
+    return first_derivative, adjusted_depth
 
 def run_length_encoding(binary_array):
     """
@@ -127,7 +133,7 @@ def detect_flat_chunks(depth, datetime_data, first_derivative, threshold=0.1,
 
 def apply_zero_offset_correction(depth, temp, flat_chunks):
     """
-    Apply zero offset correction to the depth signal by adjusting surface intervals and correcting based on temperature.
+    Apply zero offset correction to the depth signal by adjusting surface intervals.
 
     Parameters
     ----------
@@ -148,23 +154,29 @@ def apply_zero_offset_correction(depth, temp, flat_chunks):
     """
     corrected_depth = depth.copy()
     temp_correction = np.zeros_like(depth)
-    depth_correction = np.full_like(depth, np.nan)
-    
+    depth_correction = np.full_like(depth, np.nan)  # Store correction values
+
     for _, row in flat_chunks.iterrows():
-        start, end = row['start'], row['end']
-        depth_correction[start:end] = row['median_depth']
+        start, end = row["start"], row["end"]
+        depth_correction[start:end] = row["median_depth"]  # Normal correction
+
+        # Temperature-based correction
         if temp is not None:
             temp_chunk = temp[start:end] - 20  # Adjust for reference temperature (TREF)
             if len(temp_chunk) > 1:
                 reg = LinearRegression()
                 reg.fit(temp_chunk.reshape(-1, 1), depth[start:end])
                 temp_correction[start:end] = reg.coef_[0] * temp_chunk + reg.intercept_
-    
+
+    # Fill missing corrections
     depth_correction = pd.Series(depth_correction).interpolate().fillna(0).to_numpy()
+
+    # Apply corrections
     corrected_depth_temp = corrected_depth - depth_correction - temp_correction
     corrected_depth_no_temp = corrected_depth - depth_correction
-    
+
     return corrected_depth_temp, corrected_depth_no_temp, depth_correction
+
 
 def find_dives(depth_series, datetime_data, min_depth_threshold, sampling_rate, duration_threshold=10, smoothing_window=5, search_window=20):
     """
@@ -228,3 +240,40 @@ def find_dives(depth_series, datetime_data, min_depth_threshold, sampling_rate, 
         })
 
     return pd.DataFrame(dives)
+
+
+def enforce_surface_before_after_dives(depth_series, datetime_data, dives):
+    """
+    Enforce surface depth (0 meters) before the first dive and after the last dive.
+
+    Parameters
+    ----------
+    depth_series : numpy.ndarray
+        Array of depth measurements (in meters).
+    datetime_data : pandas.Series
+        Series of datetime objects corresponding to the depth measurements.
+    dives : pandas.DataFrame
+        DataFrame of detected dives with 'start' and 'end' indices.
+
+    Returns
+    -------
+    numpy.ndarray
+        Depth series with surface (0m) enforced before the first dive and after the last dive.
+    """
+    corrected_depth = depth_series.copy()
+
+    if dives.empty:
+        print("⚠ No dives detected. No surface enforcement needed.")
+        return corrected_depth
+
+    first_dive_start = dives.iloc[0]['start']
+    last_dive_end = dives.iloc[-1]['end']
+
+    # Set all data before the first dive to 0m
+    corrected_depth[:first_dive_start] = 0
+
+    # Set all data after the last dive to 0m
+    corrected_depth[last_dive_end:] = 0
+
+    return corrected_depth
+

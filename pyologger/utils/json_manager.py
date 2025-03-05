@@ -4,52 +4,67 @@ from typing import Any, Optional, List, Dict, Union
 
 class ConfigManager:
     def __init__(self, deployment_folder: str, deployment_id: str):
-        """Initializes ConfigManager with the path to config_log.json based on the deployment folder and deployment_id."""
-        self.config_log_path = os.path.join(os.path.dirname(deployment_folder), 'deployment_config_log.json')
+        """
+        Initializes ConfigManager with the path to config_log.json inside the dataset folder.
+        
+        The dataset folder is assumed to be the parent directory of the deployment folder.
+        """
+        self.deployment_folder = deployment_folder
         self.deployment_id = deployment_id
+        self.dataset_folder = os.path.dirname(deployment_folder)  # Parent directory as dataset folder
+        self.config_log_path = os.path.join(self.dataset_folder, "deployment_config_log.json")
+
+        # Ensure dataset folder exists
+        os.makedirs(self.dataset_folder, exist_ok=True)
+
+        # Initialize config log if it doesn't exist
+        if not os.path.exists(self.config_log_path):
+            self._initialize_config()
+        else:
+            # Ensure the deployment exists in the config log
+            self._ensure_deployment_entry()
+
+    def _initialize_config(self):
+        """Creates a new config file inside the dataset folder with the current deployment."""
+        initial_config = [{
+            "deployment_id": self.deployment_id,
+            "deployment_folder_path": self.deployment_folder,
+            "logger_ids": [],
+            "settings": {}
+        }]
+        with open(self.config_log_path, "w") as file:
+            json.dump(initial_config, file, indent=4)
+        print(f"Initialized new config log at {self.config_log_path}")
 
     def _load_config(self) -> List[Dict[str, Any]]:
         """Loads the config log from the JSON file."""
         if os.path.exists(self.config_log_path):
-            with open(self.config_log_path, 'r') as f:
+            with open(self.config_log_path, "r") as f:
                 return json.load(f)
-        else:
-            raise FileNotFoundError(f"Config log file not found at {self.config_log_path}")
+        return []
 
     def _save_config(self, config_log: List[Dict[str, Any]]):
         """Saves the provided config log back to the JSON file."""
-        with open(self.config_log_path, 'w') as f:
+        with open(self.config_log_path, "w") as f:
             json.dump(config_log, f, indent=4)
 
-    def add_deployment_to_log(self, logger_ids: list):
-        if not isinstance(self.config_log_path, (str, os.PathLike)):
-            raise TypeError("The 'config_log_path' argument must be a string or os.PathLike object.")
-
-        if os.path.exists(self.config_log_path):
-            with open(self.config_log_path, 'r') as file:
-                log_data = json.load(file)
-        else:
-            log_data = []
-
-        # Check if deployment ID already exists
-        for entry in log_data:
+    def _ensure_deployment_entry(self):
+        """Ensures the deployment exists in the config log. Adds it if missing."""
+        config_log = self._load_config()
+        for entry in config_log:
             if entry.get("deployment_id") == self.deployment_id:
-                print(f"Deployment {self.deployment_id} already exists in the log.")
-                return
-
-        # If not, append the new deployment entry
+                return  # Deployment already exists
+        
+        # Add the deployment if it was missing
         new_deployment_entry = {
             "deployment_id": self.deployment_id,
-            "logger_ids": logger_ids,
+            "deployment_folder_path": self.deployment_folder,
+            "logger_ids": [],
             "settings": {}
         }
-        log_data.append(new_deployment_entry)
-
-        # Save the updated log back to the JSON file
-        with open(self.config_log_path, 'w') as file:
-            json.dump(log_data, file, indent=4)
-
-        print(f"Deployment {self.deployment_id} added with loggers {logger_ids}.")
+        config_log.append(new_deployment_entry)
+        self._save_config(config_log)
+        print(f"Added missing deployment '{self.deployment_id}' to config log.")
 
     def add_to_config(self, entries: Union[Dict[str, Any], str], value: Optional[Any] = None, section: Optional[str] = None, deployment_id: Optional[str] = None):
         """
@@ -64,6 +79,10 @@ class ConfigManager:
         deployment_id = deployment_id or self.deployment_id
         config_log = self._load_config()
 
+        # Ensure the deployment exists before modifying
+        self._ensure_deployment_entry()
+        config_log = self._load_config()  # Reload after ensuring entry exists
+
         # Ensure entries is a dictionary if adding a single key-value pair
         if isinstance(entries, str) and value is not None:
             entries = {entries: value}
@@ -71,14 +90,10 @@ class ConfigManager:
         for entry in config_log:
             if entry["deployment_id"] == deployment_id:
                 if section:
-                    if section not in entry:
-                        entry[section] = {}
-                    entry[section].update(entries)
+                    entry.setdefault(section, {}).update(entries)
                 else:
                     entry.update(entries)
                 break
-        else:
-            raise ValueError(f"Deployment ID '{deployment_id}' not found in config log.")
         
         self._save_config(config_log)
         print(f"Updated entries in deployment '{deployment_id}' under '{section or 'top level'}'.")
@@ -104,9 +119,8 @@ class ConfigManager:
         
         for entry in config_log:
             if entry["deployment_id"] == deployment_id:
-                if section:
-                    if section in entry and key in entry[section]:
-                        del entry[section][key]
+                if section and section in entry and key in entry[section]:
+                    del entry[section][key]
                 elif key in entry:
                     del entry[key]
                 break

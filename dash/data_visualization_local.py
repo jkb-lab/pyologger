@@ -3,7 +3,7 @@ import dash
 from dash import dcc, html, Output, Input, State
 import pandas as pd
 import pickle
-from pyologger.utils.config_manager import ConfigManager
+from pyologger.utils.json_manager import ConfigManager
 from pyologger.load_data.datareader import DataReader
 from pyologger.load_data.metadata import Metadata
 from pyologger.plot_data.plotter import *

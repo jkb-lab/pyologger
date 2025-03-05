@@ -22,16 +22,19 @@ dependencies = [
   "python-dotenv",
   "notion-client",
   "scikit-learn",
+  "streamlit",
   "plotly",
   "nbformat",
+  "snakemake",
   "sphinx",
   "sphinx-rtd-theme",
   "magnetic_field_calculator",
   "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB",
   "EDFlib-Python",
   "openpyxl",
+  "ipykernel"
 ]
 
 [tool.setuptools.packages.find] # finds submodules
-exclude = ["build*", "media", "docs", "notebooks", "home", "data", "notes", "djangodb"]
-where = ["."]
+where = [""]
+include = ["pyologger*"]

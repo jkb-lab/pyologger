@@ -16,7 +16,7 @@ class MNImporter(BaseImporter):
         txt_file = next((f for f in files if f.endswith('.txt')), None)
         if txt_file:
             print(f"Parsing {txt_file} for expected sensor intervals.")
-            self.parse_txt_for_intervals(os.path.join(self.data_reader.files_info['deployment_folder_path'], txt_file))
+            self.parse_txt_for_intervals(os.path.join(self.data_reader.data_folder, txt_file))
 
         if not files:
             print(f"No valid files found for {self.logger_manufacturer} logger.")
@@ -44,7 +44,7 @@ class MNImporter(BaseImporter):
         """Concatenates multiple CSV files into one DataFrame."""
         dfs = []
         for file in csv_files:
-            file_path = os.path.join(self.data_reader.files_info['deployment_folder_path'], file)
+            file_path = os.path.join(self.data_reader.data_folder, file)
             try:
                 data = self.data_reader.read_csv(file_path)
                 dfs.append(data)
@@ -61,6 +61,6 @@ class MNImporter(BaseImporter):
 
     def print_txt_content(self, txt_file):
         """Prints the content of a .txt file."""
-        file_path = os.path.join(self.data_reader.files_info['deployment_folder_path'], txt_file)
+        file_path = os.path.join(self.data_reader.data_folder, txt_file)
         with open(file_path, 'r') as file:
             print(file.read())

@@ -35,7 +35,7 @@ class UFIImporter(BaseImporter):
 
     def process_ube_file(self, ube_file):
         """Processes a UBE file and extracts data."""
-        file_path = os.path.join(self.data_reader.files_info['deployment_folder_path'], ube_file)
+        file_path = os.path.join(self.data_reader.data_folder, ube_file)
         print(f"Processing UBE file: {file_path}")
 
         try:

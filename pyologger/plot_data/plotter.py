@@ -25,7 +25,7 @@ def generate_random_color():
     return f'#{r():02x}{r():02x}{r():02x}'
 
 def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None, channels=None, 
-                               time_range=None, note_annotations=None, color_mapping_path=None, 
+                               time_range=None, note_annotations=None, state_annotations=None, color_mapping_path=None, 
                                target_sampling_rate=10, zoom_start_time=None, zoom_end_time=None, 
                                plot_event_values=None, zoom_range_selector_channel=None):
     """
@@ -80,7 +80,7 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
             signal_data_filtered = signal_data
 
         # Calculate original sampling rate
-        original_fs = round(1 / signal_data_filtered['datetime'].diff().dt.total_seconds().mean())
+        original_fs = calculate_sampling_frequency(signal_data_filtered['datetime'])
         print(f"Original sampling frequency for {signal} calculated as {original_fs} Hz.")
 
         # Downsample the data if needed
@@ -140,40 +140,52 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
                 row_counter += 1  # Skip to the next row after the blank plot
 
         # Plot note annotations if available
-        if note_annotations:
+        if (note_annotations or 'event_data' in data_pkl) and hasattr(data_pkl, "event_data") and not data_pkl.event_data.empty:
             plotted_annotations = set()
 
-            for note_type, note_params in note_annotations.items():
+            # Ensure time_range is valid
+            if time_range and len(time_range) == 2:
+                start_time, end_time = time_range
+            else:
+                start_time, end_time = data_pkl.event_data["datetime"].min(), data_pkl.event_data["datetime"].max()
+
+            for note_type, note_params in (note_annotations or {}).items():
                 # Check if the annotation applies to the current signal
                 if signal != note_params['signal']:
                     continue  # Skip annotations not tied to this signal
 
-                symbol = note_params.get('symbol', 'circle')
-                color = note_params.get('color', 'rgba(128, 128, 128, 0.5)')
+                symbol = note_params.get("symbol", "circle")
+                color = note_params.get("color", "rgba(128, 128, 128, 0.5)")
 
                 # Filter annotations based on the specified time range
                 filtered_notes = data_pkl.event_data[
-                    (data_pkl.event_data['key'] == note_type) &
-                    (data_pkl.event_data['datetime'] >= time_range[0]) &
-                    (data_pkl.event_data['datetime'] <= time_range[1])
+                    (data_pkl.event_data["key"] == note_type) &
+                    (data_pkl.event_data["datetime"] >= start_time) &
+                    (data_pkl.event_data["datetime"] <= end_time)
                 ]
 
                 if not filtered_notes.empty:
-                    # Use the first channel's data to determine y-axis values for the annotations
-                    first_channel = signal_info['channels'][0]
+                    # Ensure we extract a valid first channel
+                    if "channels" in signal_info and signal_info["channels"]:
+                        first_channel = signal_info["channels"][0]
+                    else:
+                        print(f"⚠ Warning: No valid channels found for signal '{signal}'. Skipping annotation.")
+                        continue
+
+                    # Ensure the first_channel exists in signal_data
                     if first_channel not in signal_data.columns:
-                        print(f"Warning: First channel '{first_channel}' not found in data for signal '{signal}'.")
+                        print(f"⚠ Warning: First channel '{first_channel}' not found in data for signal '{signal}'.")
                         continue
 
                     y_fixed = signal_data[first_channel].max() if not signal_data[first_channel].empty else 1
-                    scatter_x = filtered_notes['datetime']
+                    scatter_x = filtered_notes["datetime"]
                     scatter_y = [y_fixed] * len(filtered_notes)
 
-                    # Add the marker trace for this annotation type
+                    # Add point event markers
                     fig.add_trace(go.Scatter(
                         x=scatter_x,
                         y=scatter_y,
-                        mode='markers',
+                        mode="markers",
                         marker=dict(symbol=symbol, color=color, size=10),
                         name=note_type,
                         opacity=0.5,
@@ -182,6 +194,51 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
 
                     # Mark the annotation as plotted to avoid duplicate legends
                     plotted_annotations.add(note_type)
+
+            # **Plot State Events (Rectangles for Continuous Events)**
+            if state_annotations:
+                for event_type, event_params in state_annotations.items():
+                    if signal != event_params["signal"]:
+                        continue
+                    # Find the row index corresponding to the signal
+                    signal_row = signals_sorted.index(signal) 
+
+                    # Check if signal is in `sensor_data` or `derived_data`
+                    if signal in data_pkl.sensor_data:
+                        signal_data = data_pkl.sensor_data[signal]
+                    elif signal in data_pkl.derived_data:
+                        signal_data = data_pkl.derived_data[signal]
+                    else:
+                        print(f"⚠ Warning: Signal '{signal}' not found in sensor or derived data.")
+                        continue  # Skip if signal not found 
+                    
+                    state_events = data_pkl.event_data[
+                        (data_pkl.event_data["key"] == event_type) &
+                        (data_pkl.event_data["datetime"] >= time_range[0]) &
+                        (data_pkl.event_data["datetime"] <= time_range[1])
+                    ]
+
+                    for _, event in state_events.iterrows():
+                        start_time = event["datetime"]
+                        end_time = start_time + pd.to_timedelta(event["duration"], unit="s")
+
+                        # Ensure the y-range is valid for the given signal
+                        y_min = signal_data.iloc[:, 1:].min().min()  # Min value across all channels
+                        y_max = signal_data.iloc[:, 1:].max().max()  # Max value across all channels
+
+                        # Draw a shaded rectangle on the specified signal
+                        fig.add_shape(
+                            type="rect",
+                            x0=start_time,
+                            x1=end_time,
+                            y0=y_min,
+                            y1=y_max,
+                            fillcolor=event_params.get("color", "rgba(150, 150, 150, 0.3)"),
+                            line=dict(width=0),
+                            row=signal_row +2,
+                            col=1,
+                            layer="below"
+                        )
 
         # Update y-axis label for each subplot
         if row_counter == 2:
@@ -236,3 +293,5 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
     )
 
     return fig
+
+

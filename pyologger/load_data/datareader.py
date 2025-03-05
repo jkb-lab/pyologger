@@ -3,10 +3,11 @@ import pickle
 import pytz
 import pandas as pd
 import numpy as np
+import argparse
 from datetime import datetime, timedelta, date, time
 from pyologger.process_data.sampling import *
 from pyologger.load_data.metadata import *
-from pyologger.utils.config_manager import ConfigManager
+from pyologger.utils.json_manager import ConfigManager
 from pyologger.io_operations import *
 from pyologger.io_operations.base_exporter import *
 from pyologger.io_operations.cats_importer import *
@@ -17,197 +18,264 @@ from pyologger.io_operations.ll_importer import *
 class DataReader:
     """A class for handling the reading and processing of deployment data files."""
     
-    def __init__(self, deployment_folder_path=None):
+    def __init__(self, dataset_folder: str, deployment_id: str, data_subfolder: str = None):
+        """
+        Initializes DataReader.
+
+        Parameters:
+        - dataset_folder: Path to the dataset folder containing deployments.
+        - deployment_id: Name of the deployment folder inside the dataset folder.
+        - data_subfolder: (Optional) Subfolder inside the deployment folder where data is stored.
+        """
+        self.deployment_id = deployment_id
+        self.deployment_folder = os.path.join(dataset_folder, deployment_id)
+        self.data_folder = os.path.join(self.deployment_folder, data_subfolder) if data_subfolder else self.deployment_folder
+
         self.deployment_info = {}  # Store selected deployment metadata here
-        self.files_info = {}
+        self.files_info = {'deployment_folder_path': self.deployment_folder}
         self.animal_info = {}
         self.dataset_info = {}
-        
+
         self.logger_data = {}  # Store data by logger ID
-        self.logger_info = {}  # Store info (metadata) by logger ID
+        self.logger_info = {}  # Store metadata by logger ID
         self.sensor_data = {}  
-        self.sensor_info = {}  # Initialize sensor_info to store sensor metadata
+        self.sensor_info = {}  # Store sensor metadata
         self.event_data = {}
         self.event_info = {}
 
-        self.derived_data = {} # Holds derived data like pitch, roll, heading, HR, Stroke Rate, track
+        self.derived_data = {}  # Holds derived data like pitch, roll, heading, HR, stroke rate, track
         self.derived_info = {}
-        
-        self.exporter = BaseExporter(self)  # Initialize the exporter with self
-        self.files_info['deployment_folder_path'] = deployment_folder_path
+
+        self.exporter = BaseExporter(self)  # Initialize exporter
+
+        print(f"DataReader initialized with deployment folder: {self.deployment_folder}")
+        print(f"Using data folder: {self.data_folder}")
 
     def read_files(self, metadata, save_csv=True, save_parq=True, save_edf=False, 
-                   custom_mapping_path=None, edf_filename_template=None, selected_sensors=None, 
-                   selected_channels=None, edf_save_from='sensor_data', save_netcdf=False):
+                custom_mapping_path=None, edf_filename_template=None, selected_sensors=None, 
+                selected_channels=None, edf_save_from='sensor_data', save_netcdf=False):
         """
-        Reads and processes the deployment data files based on manufacturer.
+        Reads and processes deployment data files from the specified folder.
 
         Parameters:
         - metadata: Metadata object containing deployment information.
-        - save_csv: Whether to save the processed data as CSV files.
-        - save_parq: Whether to save the processed data as Parquet files.
-        - save_edf: Whether to export the data to an EDF file.
-        - edf_filename_template: The file path template where the EDF files will be saved.
-        - selected_sensors: List of sensor names to include in the EDF file. If None, include all sensors.
-        - selected_channels: Dictionary specifying which channels to include for each sensor. If None, include all channels for the selected sensors.
-        - edf_save_from: Specifies whether to export EDF files from 'sensor_data' or 'data'.
-        - save_netcdf: Whether to save the processed data and metadata into a NetCDF file.
+        - save_csv, save_parq, save_edf, save_netcdf: Flags for saving output formats.
+        - custom_mapping_path: Optional path to a custom mapping file.
+        - edf_filename_template: File path template for EDF file saving.
+        - selected_sensors, selected_channels: Options to filter sensors/channels for EDF export.
+        - edf_save_from: Source data for EDF export ('sensor_data' or 'data').
         """
-        if not self.files_info['deployment_folder_path']:
-            print("No deployment folder set. Please use check_deployment_folder first.")
+        if not os.path.exists(self.data_folder):
+            print(f"❌ Error: The specified data folder '{self.data_folder}' does not exist.")
             return
 
-        print(f"Step 2: Deployment folder initialized at: {self.files_info['deployment_folder_path']}")
+        print(f"🔄 Reading files from: {self.data_folder}")
 
-        # Save databases
+        # Load metadata databases
         logger_db = metadata.get_metadata("logger_DB")
         recording_db = metadata.get_metadata("recording_DB")
-        animal_db = metadata.get_metadata("animal_DB")
         dataset_db = metadata.get_metadata("dataset_DB")
 
-        # Step 1: Fill in self.animal_info
-        self.animal_info = self.get_animal_info(animal_db)
+        # Restore deployment_info from metadata
+        deployment_db = metadata.get_metadata("deployment_DB")
+        if self.deployment_id in deployment_db["Deployment ID"].values:
+            self.deployment_info = deployment_db.loc[deployment_db["Deployment ID"] == self.deployment_id].to_dict("records")[0]
+            print(f"✅ Deployment info loaded for {self.deployment_id}.")
+        else:
+            print(f"⚠ Deployment ID '{self.deployment_id}' not found in deployment database.")
 
-        print(dataset_db)
-        # Step 2: Fill in self.dataset_info
+        # Step 1: Fill in self.dataset_info
         self.dataset_info = self.get_dataset_info(dataset_db)
 
-        event_data = self.import_notes()
-        if event_data is not None:
-            self.event_data = event_data
+        # Step 2: Import event notes from data subfolder
+        self.event_data = self.import_notes()
 
+        # Step 3: Organize files by logger ID
         logger_files = self.organize_files_by_logger_id(logger_db)
 
-        # Check if output files are already processed
+        # Step 4: Check if outputs exist to skip unnecessary processing
         if self.check_outputs_folder(logger_files.keys()):
-            print("All necessary files are already processed. Skipping further processing.")
+            print("✅ All necessary files are already processed. Skipping further processing.")
+            
+            # Attempt to load existing processed data
+            pkl_path = os.path.join(self.deployment_folder, "outputs", "data.pkl")
+            if os.path.exists(pkl_path):
+                with open(pkl_path, "rb") as file:
+                    data_pkl = pickle.load(file)
 
-            # Load the DataReader object from the pickle file
-            pkl_path = os.path.join(self.files_info['deployment_folder_path'], 'outputs', 'data.pkl')
-            with open(pkl_path, 'rb') as file:
-                data_pkl = pickle.load(file)
+                # Restore data from the saved pickle file
+                self.logger_data = data_pkl.logger_data
+                self.logger_info = data_pkl.logger_info
+                self.sensor_data = data_pkl.sensor_data
+                self.sensor_info = data_pkl.sensor_info
+                self.derived_data = data_pkl.derived_data
+                self.derived_info = data_pkl.derived_info
 
-            # Update self with loaded data
-            self.logger_data = data_pkl.logger_data
-            self.logger_info = data_pkl.logger_info
-            self.sensor_data = data_pkl.sensor_data
-            self.sensor_info = data_pkl.sensor_info
+                print(f"📦 Loaded previously processed data from {pkl_path}.")
+                
+                # If export options are selected, export from loaded data
+                if save_edf and edf_filename_template:
+                    if edf_save_from == 'sensor_data':
+                        self.exporter.export_to_edf(edf_filename_template, selected_sensors=selected_sensors, selected_channels=selected_channels)
+                    elif edf_save_from == 'data':
+                        self.exporter.export_to_edf_from_data(edf_filename_template)
 
-            # If export_edf is True, proceed to export the data to an EDF file
-            if save_edf and edf_filename_template:
-                if edf_save_from == 'sensor_data':
-                    self.exporter.export_to_edf(edf_filename_template, selected_sensors=selected_sensors, selected_channels=selected_channels)
-                elif edf_save_from == 'data':
-                    self.exporter.export_to_edf_from_data(edf_filename_template)
-            return
+                return
 
-        # Continue processing if files are not already present
+        # Step 5: Process each logger if not already processed
         for logger_id, files in logger_files.items():
             manufacturer = logger_db.loc[logger_db['Logger ID'] == logger_id, 'Manufacturer'].values[0]
 
             # Save logger metadata
-            self.logger_info[logger_id]['logger_metadata'] = logger_db.loc[logger_db['Logger ID'] == logger_id].to_dict('records')[0]
-            # Find matching rows in recording_db
-            deployment_id = self.deployment_info['Deployment ID'].split('_')[0]
-            recording_matches = recording_db[(recording_db['Recording ID'].str.startswith(deployment_id)) &
-                                            (recording_db['Recording ID'].str.contains(logger_id))]
+            self.logger_info[logger_id] = {
+                'logger_metadata': logger_db.loc[logger_db['Logger ID'] == logger_id].to_dict('records')[0]
+            }
+
+            # Step 6: Match recordings to deployment
+            deployment_id_prefix = self.deployment_id.split('_')[0]
+            recording_matches = recording_db[
+                (recording_db['Recording ID'].str.startswith(deployment_id_prefix)) &
+                (recording_db['Recording ID'].str.contains(logger_id))
+            ]
 
             if len(recording_matches) == 0:
-                print(f"No matching recording found for Logger ID {logger_id} in Deployment ID {deployment_id}.")
+                print(f"⚠ No matching recording found for Logger ID {logger_id} in Deployment ID {deployment_id_prefix}.")
             elif len(recording_matches) > 1:
-                raise ValueError(f"Multiple recordings found for Logger ID {logger_id} in Deployment ID {deployment_id}. This should not happen.")
+                raise ValueError(f"❌ Multiple recordings found for Logger ID {logger_id} in Deployment ID {deployment_id_prefix}. This should not happen.")
             else:
-                # Save the matching row of recording_db in self.logger_info[logger_id]['recording_info']
                 self.logger_info[logger_id]['recording_info'] = recording_matches.to_dict('records')[0]
 
-            if manufacturer == "CATS":
-                processor = CATSImporter(self, logger_id, manufacturer="CATS", custom_mapping_path=custom_mapping_path)
-            elif manufacturer == "UFI":
-                processor = UFIImporter(self, logger_id, manufacturer="UFI", custom_mapping_path=custom_mapping_path)
-            elif manufacturer == "LL":
-                processor = LLImporter(self, logger_id, manufacturer="LL", custom_mapping_path=custom_mapping_path)
-            elif manufacturer == "WC":
-                processor = WCImporter(self, logger_id, manufacturer="WC", custom_mapping_path=custom_mapping_path)
+            # Step 7: Select manufacturer-specific processor
+            processor_classes = {"CATS": CATSImporter, "UFI": UFIImporter, "LL": LLImporter, "WC": WCImporter}
+            processor_class = processor_classes.get(manufacturer)
+
+            if processor_class:
+                processor_instance = processor_class(self, logger_id, manufacturer=manufacturer, custom_mapping_path=custom_mapping_path)
+                result = processor_instance.process_files(files)
+
+                if result:
+                    final_df, column_metadata, datetime_metadata, sensor_groups, sensor_info = result
+
+                    if final_df is not None and 'datetime' in final_df.columns:
+                        # Store extracted metadata
+                        self.logger_info[logger_id]['datetime_metadata'] = datetime_metadata
+                        self.logger_info[logger_id]['channelinfo'] = column_metadata
+
+                        # Save data in requested formats
+                        self.exporter.save_data(final_df, logger_id, f"{logger_id}.csv", save_csv, save_parq)
+
+                        print(f"✅ Processed and saved files for logger {logger_id}.")
+                    else:
+                        print(f"⚠ Issue with file saving for logger {logger_id}.")
             else:
-                print(f"Manufacturer {manufacturer} is not supported.")
-                continue
+                print(f"⚠ Manufacturer {manufacturer} is not supported.")
 
-            result = processor.process_files(files)
-
-            final_df, column_metadata, datetime_metadata, sensor_groups, sensor_info = result
-
-            if final_df is not None and 'datetime' in final_df.columns:
-                self.logger_info[logger_id]['datetime_metadata'] = datetime_metadata
-                self.logger_info[logger_id]['channelinfo'] = column_metadata
-                self.exporter.save_data(final_df, logger_id, f"{logger_id}.csv", save_csv, save_parq)
-                print(f"Files saved for logger {logger_id}.")
-            else:
-                print("Issue with file saving.")
-
+        # Step 8: Save the DataReader object to a pickle file
         self.save_datareader_object()
-        
-        config_manager = ConfigManager(deployment_folder='deployment_folder_path', deployment_id=deployment_id)
-        config_manager.add_deployment_to_log(logger_ids = list(self.logger_info.keys()))
 
-        # If export_edf is True, export the data to an EDF file
+        # Step 9: Optionally export to EDF and NetCDF
         if save_edf and edf_filename_template:
             if edf_save_from == 'sensor_data':
                 self.exporter.export_to_edf(edf_filename_template, selected_sensors=selected_sensors, selected_channels=selected_channels)
             elif edf_save_from == 'data':
                 self.exporter.export_to_edf_from_data(edf_filename_template)
 
-        # If save_netcdf is True, save the data to a NetCDF file
         if save_netcdf:
-            netcdf_filename = os.path.join(self.files_info['deployment_folder_path'], 'outputs', 'deployment_data.nc')
+            netcdf_filename = os.path.join(self.deployment_folder, 'outputs', f'{self.deployment_id}_00_processed.nc')
             self.exporter.save_to_netcdf(self, netcdf_filename)
+            print(f"📊 Saved deployment data to NetCDF: {netcdf_filename}")
+
+    def check_outputs_folder(self, logger_ids):
+        """
+        Checks if the processed data files for the given loggers already exist.
+
+        Returns:
+            bool: True if all necessary files are found, False otherwise.
+        """
+        output_folder = os.path.join(self.deployment_folder, "outputs")
+
+        if not os.path.exists(output_folder):
+            print(f"❌ Outputs folder '{output_folder}' does not exist. Processing required.")
+            return False
+
+        existing_files = set(os.listdir(output_folder))
+        print(f"📂 Checking output folder: {output_folder}")
+        print(f"📝 Existing files: {existing_files}")
+
+        # Define expected file formats
+        required_extensions = {".csv", ".parquet", ".edf", ".nc"}
+
+        missing_loggers = []
+        for logger_id in logger_ids:
+            matching_files = [file for file in existing_files if logger_id in file]
+            if not matching_files:
+                print(f"⚠ No files found for Logger ID {logger_id} in {output_folder}. Processing required.")
+                missing_loggers.append(logger_id)
+            else:
+                # Check if all expected file types exist
+                found_extensions = {os.path.splitext(file)[1].lower() for file in matching_files}
+                missing_extensions = required_extensions - found_extensions
+
+                if missing_extensions:
+                    print(f"⚠ Logger ID {logger_id} is missing expected files: {missing_extensions}")
+                    missing_loggers.append(logger_id)
+                else:
+                    print(f"✅ All expected files found for Logger ID {logger_id}: {matching_files}")
+
+        if missing_loggers:
+            print(f"🚨 Missing processed files for loggers: {', '.join(missing_loggers)}. Processing required.")
+            return False
+
+        print("✅ All necessary files are already processed and available.")
+        return True
+
 
     def import_notes(self):
         """Imports and processes notes associated with the selected deployment."""
-        if self.deployment_info is None or self.deployment_info.empty:
-            print("Selected deployment metadata not found. Please ensure you have selected a deployment.")
+        
+        if not self.deployment_info:
+            print("❌ Selected deployment metadata not found. Please ensure you have selected a deployment.")
             return None
-        print("import_notes")
+
         notes_filename = f"{self.deployment_info['Deployment ID']}_00_Notes.xlsx"
-        time_zone = self.deployment_info.get('Time Zone')
+        time_zone = self.deployment_info.get("Time Zone")
 
         if not time_zone:
-            print(f"No time zone information found for the selected deployment.")
-            return None
+            print(f"⚠ No time zone information found for deployment {self.deployment_id}. Defaulting to UTC.")
+            time_zone = "UTC"  # Fallback to UTC
 
-        notes_filepath = os.path.join(self.files_info['deployment_folder_path'], notes_filename)
+        # Look in the data subfolder (self.data_folder) instead of deployment folder
+        notes_filepath = os.path.join(self.data_folder, notes_filename)
 
         if not os.path.exists(notes_filepath):
-            print(f"Notes file {notes_filename} not found in {self.files_info['deployment_folder_path']}.")
+            print(f"❌ Notes file '{notes_filename}' not found in {self.data_folder}. Skipping import.")
             return None
 
         try:
             event_df = pd.read_excel(notes_filepath)
+            print(f"📂 Successfully loaded notes file: {notes_filepath}")
         except Exception as e:
-            print(f"Error reading {notes_filename}: {e}")
+            print(f"❌ Error reading {notes_filename}: {e}")
             return None
 
+        # Process timestamps
         event_df, datetime_metadata = self.process_datetime(event_df, time_zone=time_zone)
+
+        if event_df["datetime"].isna().any():
+            print(f"⚠ WARNING: Some timestamps could not be parsed correctly.")
         
-        if event_df['datetime'].isna().any():
-            print(f"WARNING: Some timestamps could not be parsed.")
-            return event_df
+        # Ensure the dataframe is sorted by time
+        event_df = event_df.sort_values(by="datetime").reset_index(drop=True)
 
-        event_df = event_df.sort_values(by='datetime').reset_index(drop=True)
-        # Check if the 'duration' column exists; if not, create it
-        if 'duration' not in event_df.columns:
-            # Initialize duration as 0 by default
-            event_df['duration'] = 0
+        # Ensure 'duration' column exists and is properly set
+        if "duration" not in event_df.columns:
+            event_df["duration"] = 0
 
-        # Set duration to 0 for 'point' events only
-        event_df.loc[event_df['type'] == 'point', 'duration'] = 0
+        event_df.loc[event_df["type"] == "point", "duration"] = 0  # Set duration to 0 for 'point' events
 
-        # Leave the duration unchanged for 'state' events
-        # (no need for additional action, as we want to retain existing values)
-
-        # Print the dataframe to confirm changes (optional)
-        print(event_df)
-        print(f"Notes imported, processed, and sorted chronologically from {notes_filename}.")
+        print(f"✅ Notes imported and processed from {notes_filename}. Sorted chronologically.")
         return event_df
+
 
     def collect_file_info(self):
         """Collect information about the files in the outputs folder and store in self.files_info."""
@@ -265,27 +333,28 @@ class DataReader:
             return animal_info.to_dict('records')
 
     def get_dataset_info(self, dataset_db):
-        """Retrieve and store dataset information based on the matched Animal IDs."""
-        if not self.animal_info:
-            print("No animal information available.")
+        """Retrieve dataset information based on the deployment folder path."""
+        
+        # Extract parent directory name from deployment folder path
+        dataset_folder = os.path.basename(os.path.dirname(self.deployment_folder))
+
+        if not dataset_folder:
+            print("❌ Dataset folder could not be determined from deployment path.")
             return {}
 
-        # If animal_info is a list (multiple animals), flatten the list of Animal IDs
-        if isinstance(self.animal_info, list):
-            animal_ids = [animal['Animal ID'] for animal in self.animal_info]
-        else:
-            animal_ids = [self.animal_info['Animal ID']]
+        print(f"🔍 Searching for dataset matching folder: {dataset_folder}")
 
-        # Retrieve datasets associated with these Animal IDs, handling None/NaN values
-        dataset_info = dataset_db[dataset_db['Animal ID'].notna() &
-                                  dataset_db['Animal ID'].apply(lambda x: any(aid in x for aid in animal_ids) if x else False)]
+        # Find matching entry in dataset_db based on the 'Folder' column
+        dataset_info = dataset_db[dataset_db["Folder"].astype(str) == dataset_folder]
 
         if dataset_info.empty:
-            print("No matching datasets found for the animal(s).")
+            print(f"⚠ No matching dataset found for folder: {dataset_folder}")
             return {}
 
-        # Return the dataset info as a list of records
-        return dataset_info.to_dict('records')
+        print(f"✅ Found {len(dataset_info)} matching dataset(s) for folder: {dataset_folder}")
+
+        # Return dataset info as a dictionary
+        return dataset_info.to_dict("records")[0] if len(dataset_info) == 1 else dataset_info.to_dict("records")
 
     def process_datetime(self, df, time_zone=None):
         """Processes datetime columns in the DataFrame and calculates sampling frequency."""
@@ -359,7 +428,7 @@ class DataReader:
         logger_ids = set(logger_db['Logger ID'])
         logger_files = {logger_id: [] for logger_id in logger_ids}
 
-        for file in os.listdir(self.files_info['deployment_folder_path']):
+        for file in os.listdir(self.data_folder):
             for logger_id in logger_ids:
                 if logger_id in file:
                     logger_files[logger_id].append(file)
@@ -386,76 +455,3 @@ class DataReader:
         with open(pickle_filename, 'wb') as f:
             pickle.dump(self, f)
         print(f"DataReader object successfully saved to {pickle_filename}.")
-
-    def check_deployment_folder(self, deployment_db, data_dir):
-        """Checks the deployment folder and allows the user to select a deployment."""
-        print("Step 1: Displaying deployments to help you select one.")
-        print(deployment_db[['Deployment ID', 'Notes']])
-
-        selected_index = int(input("Enter the index of the deployment you want to work with: "))
-
-        if 0 <= selected_index < len(deployment_db):
-            selected_deployment = deployment_db.iloc[selected_index]
-            self.deployment_info = selected_deployment  # Save selected deployment to self
-            selected_deployment_id = selected_deployment['Deployment ID']
-            
-            print(f"Step 1: You selected the deployment: {selected_deployment_id}")
-            print(f"Description: {selected_deployment['Notes']}")
-        else:
-            print("Invalid index selected.")
-            return None, None
-
-        deployment_folder = os.path.join(data_dir, selected_deployment_id)
-        print(f"Step 2: Deployment folder path: {deployment_folder}")
-
-        if os.path.exists(deployment_folder):
-            print(f"Deployment folder found: {deployment_folder}")
-        else:
-            print(f"Folder {deployment_folder} not found. Searching for folders with a similar name...")
-            possible_folders = [folder for folder in os.listdir(data_dir) 
-                                if folder.startswith(selected_deployment_id)]
-
-            if len(possible_folders) == 1:
-                deployment_folder = os.path.join(data_dir, possible_folders[0])
-                print(f"Using the found folder: {deployment_folder}")
-            elif len(possible_folders) > 1:
-                print("Multiple matching folders found. Please select one:")
-                for i, folder in enumerate(possible_folders):
-                    print(f"{i}: {folder}")
-                selected_index = int(input("Enter the index of the folder you want to use: "))
-                if 0 <= selected_index < len(possible_folders):
-                    deployment_folder = os.path.join(data_dir, possible_folders[selected_index])
-                    print(f"Using the selected folder: {deployment_folder}")
-                else:
-                    print("Invalid selection. Aborting.")
-                    return None, None
-            else:
-                print("Error: Folder not found.")
-                return None, None
-
-        self.files_info['deployment_folder_path'] = deployment_folder
-        print(f"Ready to process deployment folder: {self.files_info['deployment_folder_path']}")
-        
-        # Return both the folder path and the selected deployment ID
-        return self.files_info['deployment_folder_path'], selected_deployment_id
-
-    def check_outputs_folder(self, logger_ids):
-        """Checks if the processed data files for the given loggers already exist in the outputs folder."""
-        output_folder = os.path.join(self.files_info['deployment_folder_path'], 'outputs')
-        if not os.path.exists(output_folder):
-            print("Outputs folder does not exist. Processing required.")
-            return False
-
-        existing_files = os.listdir(output_folder)
-        print(f"Existing files in output folder: {existing_files}")
-
-        for logger_id in logger_ids:
-            matching_files = [filename for filename in existing_files if logger_id in filename]
-            if not matching_files:
-                print(f"No files found for logger ID {logger_id} in the output folder. Processing required.")
-                return False
-            else:
-                print(f"Files found for logger ID {logger_id}: {matching_files}")
-
-        print("All necessary files are already processed and available in the outputs folder.")
-        return True

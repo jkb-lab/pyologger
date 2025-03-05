@@ -7,6 +7,63 @@ import mne
 from datetime import datetime, date, time
 from pyologger.process_data.sampling import *
 
+def collate_data(data_pkl, sensor_data_keys, derived_data_keys, output_frequency):
+    """
+    Collates specified sensor and derived data, resampling to a given output frequency.
+    
+    Parameters:
+        data_pkl: Data object containing sensor and derived data as DataFrames.
+        sensor_data_keys: List of sensor data keys to include.
+        derived_data_keys: List of derived data keys to include.
+        output_frequency: Desired output frequency in Hz (assumes datetime index).
+        
+    Returns:
+        A collated DataFrame with all specified data resampled to output_frequency.
+    """
+    # Initialize base DataFrame with datetime index from 'pressure' sensor
+    base_df = data_pkl.sensor_data['pressure'][['datetime']].copy()
+    base_df.set_index('datetime', inplace=True)
+
+    # Create a new time index based on the output frequency
+    start_time = base_df.index.min()
+    end_time = base_df.index.max()
+    time_index = pd.date_range(start=start_time, end=end_time, freq=f"{int(1/output_frequency * 1000)}ms")  # Convert Hz to ms
+    collated_df = pd.DataFrame(index=time_index)
+
+    def resample_data(df, frequency, original_frequency):
+        """Resamples data to the specified frequency using interpolation."""
+        df = df.set_index('datetime')
+
+        # Convert Hz to millisecond intervals
+        resample_interval = f"{int(1/frequency * 1000)}ms"
+        df_resampled = df.resample(resample_interval).mean()
+
+        # Interpolate missing values to match the new frequency
+        return df_resampled.interpolate()
+
+    # Process sensor data
+    for key in sensor_data_keys:
+        if key in data_pkl.sensor_data:
+            original_fs = calculate_sampling_frequency(data_pkl.sensor_data[key]['datetime'])
+            if original_fs:
+                resampled_data = resample_data(data_pkl.sensor_data[key], output_frequency, original_fs)
+                collated_df = collated_df.merge(resampled_data, left_index=True, right_index=True, how='left')
+
+    # Process derived data
+    for key in derived_data_keys:
+        if key in data_pkl.derived_data:
+            original_fs = calculate_sampling_frequency(data_pkl.derived_data[key]['datetime'])
+            if original_fs:
+                resampled_data = resample_data(data_pkl.derived_data[key], output_frequency, original_fs)
+                collated_df = collated_df.merge(resampled_data, left_index=True, right_index=True, how='left')
+
+    # Reset index to include datetime
+    collated_df.reset_index(inplace=True)
+    collated_df.rename(columns={'index': 'datetime'}, inplace=True)
+
+    return collated_df
+
+
 class BaseExporter:
     """Handles exporting data from the DataReader object."""
 
@@ -28,8 +85,22 @@ class BaseExporter:
 
         if save_parq:
             parq_path = os.path.join(output_folder, f"{os.path.splitext(filename)[0]}.parquet")
-            data.to_parquet(parq_path, index=False)
-            print(f"Data for {logger_id} saved as Parquet to: {parq_path}")
+
+            # Convert non-serializable attributes to strings
+            for key, value in data.attrs.items():
+                if isinstance(value, (datetime, date, time)):
+                    data.attrs[key] = value.isoformat()  # Convert to string format
+
+            try:
+                data.to_parquet(parq_path, index=False)
+                print(f"Data for {logger_id} saved as Parquet to: {parq_path}")
+            except Exception as e:
+                print(f"❌ Error saving Parquet file: {e}")
+                print(f"Attempting to remove all attributes and retry...")
+                data.attrs = {}  # Remove attributes entirely
+                data.to_parquet(parq_path, index=False)
+                print(f"✅ Parquet file saved without attributes: {parq_path}")
+
 
     def save_to_netcdf(self, datareader, filepath):
             """Saves the current state of the DataReader object to a NetCDF file."""
@@ -173,7 +244,7 @@ class BaseExporter:
             flatten_dict('deployment_info', self.datareader.deployment_info)
             flatten_dict('files_info', self.datareader.files_info)
             flatten_dict('animal_info', self.datareader.animal_info)
-            flatten_dict('dataset_info', self.datareader.dataset_info[0] if self.datareader.dataset_info else {})
+            flatten_dict('dataset_info', self.datareader.dataset_info if self.datareader.dataset_info else {})
 
             for logger_id, logger_info in self.datareader.logger_info.items():
                 flatten_dict(f'logger_info_{logger_id}', logger_info)
