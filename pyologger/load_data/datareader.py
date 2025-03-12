@@ -3,11 +3,9 @@ import pickle
 import pytz
 import pandas as pd
 import numpy as np
-import argparse
-from datetime import datetime, timedelta, date, time
+from datetime import datetime
 from pyologger.process_data.sampling import *
 from pyologger.load_data.metadata import *
-from pyologger.utils.json_manager import ConfigManager
 from pyologger.io_operations import *
 from pyologger.io_operations.base_exporter import *
 from pyologger.io_operations.cats_importer import *
@@ -132,16 +130,15 @@ class DataReader:
             }
 
             # Step 6: Match recordings to deployment
-            deployment_id_prefix = self.deployment_id.split('_')[0]
             recording_matches = recording_db[
-                (recording_db['Recording ID'].str.startswith(deployment_id_prefix)) &
+                (recording_db['Recording ID'].str.startswith(self.deployment_id)) &
                 (recording_db['Recording ID'].str.contains(logger_id))
             ]
 
             if len(recording_matches) == 0:
-                print(f"⚠ No matching recording found for Logger ID {logger_id} in Deployment ID {deployment_id_prefix}.")
+                print(f"⚠ No matching recording found for Logger ID {logger_id} in Deployment ID {self.deployment_id}.")
             elif len(recording_matches) > 1:
-                raise ValueError(f"❌ Multiple recordings found for Logger ID {logger_id} in Deployment ID {deployment_id_prefix}. This should not happen.")
+                raise ValueError(f"❌ Multiple recordings found for Logger ID {logger_id} in Deployment ID {self.deployment_id}. This should not happen.")
             else:
                 self.logger_info[logger_id]['recording_info'] = recording_matches.to_dict('records')[0]
 

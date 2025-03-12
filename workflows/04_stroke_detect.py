@@ -33,7 +33,7 @@ pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 # Retrieve values from config
 variables = ["calm_horizontal_start_time", "calm_horizontal_end_time", 
              "zoom_window_start_time", "zoom_window_end_time", 
-             "earliest_common_start_time", "latest_common_end_time"]
+             "overlap_start_time", "overlap_end_time"]
 settings = config_manager.get_from_config(variables, section="settings")
 
 # Assign retrieved values to variables
@@ -41,8 +41,8 @@ CALM_HORIZONTAL_START_TIME = settings.get("calm_horizontal_start_time")
 CALM_HORIZONTAL_END_TIME = settings.get("calm_horizontal_end_time")
 ZOOM_WINDOW_START_TIME = settings.get("zoom_window_start_time")
 ZOOM_WINDOW_END_TIME = settings.get("zoom_window_end_time")
-OVERLAP_START_TIME = settings.get("earliest_common_start_time")
-OVERLAP_END_TIME = settings.get("latest_common_end_time")
+OVERLAP_START_TIME = settings.get("overlap_start_time")
+OVERLAP_END_TIME = settings.get("overlap_end_time")
 
 if None in {OVERLAP_START_TIME, OVERLAP_END_TIME, ZOOM_WINDOW_START_TIME, ZOOM_WINDOW_END_TIME}:
     raise ValueError("One or more required time values were not found in the config file.")
@@ -54,8 +54,8 @@ config_manager.add_to_config("current_processing_step", current_processing_step)
 timezone = data_pkl.deployment_info['Time Zone']
 
 # Define placeholder timestamps for calm period in the retrieved timezone
-stroking_start_time = pd.Timestamp("2024-01-16 10:03:10").tz_localize(timezone)
-stroking_end_time = pd.Timestamp("2024-01-16 10:03:40").tz_localize(timezone)
+stroking_start_time = OVERLAP_START_TIME
+stroking_end_time = OVERLAP_END_TIME
 
 # Use ConfigManager to add both stroking start and end times to the config in the desired section
 config_manager.add_to_config(
@@ -69,15 +69,19 @@ config_manager.add_to_config(
 # CHANGE AS NEEDED
 
 detection_mode="stroke_rate"
+overwrite = False
 
 # Define parent signal options
 parent_signal_options = list(data_pkl.sensor_data.keys()) + list(data_pkl.derived_data.keys())
 default_parent_signal = "ecg" if detection_mode == "heart_rate" else "corrected_gyr"
 
 # User input for parent signal
-print(f"Available parent signals: {parent_signal_options}")
-parent_signal = input(f"Choose parent signal (default: {default_parent_signal}): ").strip()
-if not parent_signal or parent_signal not in parent_signal_options:
+if overwrite:
+    print(f"Available parent signals: {parent_signal_options}")
+    parent_signal = input(f"Choose parent signal (default: {default_parent_signal}): ").strip()
+    if not parent_signal or parent_signal not in parent_signal_options:
+        parent_signal = default_parent_signal
+else:
     parent_signal = default_parent_signal
 
 # Get available channels
@@ -92,9 +96,12 @@ else:
 default_channel = "ecg" if detection_mode == "heart_rate" else "gy"
 
 # User input for channel
-print(f"Available channels: {available_channels}")
-channel = input(f"Choose channel (default: {default_channel}): ").strip()
-if not channel or channel not in available_channels:
+if overwrite:
+    print(f"Available channels: {available_channels}")
+    channel = input(f"Choose channel (default: {default_channel}): ").strip()
+    if not channel or channel not in available_channels:
+        channel = default_channel
+else:
     channel = default_channel
 
 # Configure signals
@@ -107,15 +114,17 @@ sampling_rate = data_pkl.sensor_info.get(parent_signal, {}).get('sampling_freque
 signal_start = datetime_signal.min()
 signal_end = datetime_signal.max()
 
-# User input for time range
-print(f"Signal time range: {signal_start} to {signal_end}")
-start_time_input = input(f"Enter start time (default: {signal_start}): ").strip()
-end_time_input = input(f"Enter end time (default: {signal_end}): ").strip()
-
-# Determine time range based on user input
-start_datetime = pd.Timestamp(start_time_input) if start_time_input else signal_start
-end_datetime = pd.Timestamp(end_time_input) if end_time_input else signal_end
-
+# Determine time range based on user input if overwrite is True
+if overwrite:
+    print(f"Signal time range: {signal_start} to {signal_end}")
+    start_time_input = input(f"Enter start time (default: {signal_start}): ").strip()
+    end_time_input = input(f"Enter end time (default: {signal_end}): ").strip()
+    start_datetime = pd.Timestamp(start_time_input) if start_time_input else signal_start
+    end_datetime = pd.Timestamp(end_time_input) if end_time_input else signal_end
+else:
+    start_datetime = signal_start
+    end_datetime = signal_end
+    
 # Filter signal based on the selected time range
 time_mask = (datetime_signal >= start_datetime) & (datetime_signal <= end_datetime)
 signal_subset = signal[time_mask]
@@ -212,24 +221,24 @@ notes_to_plot = {
     'strokebeat_auto_detect_rejected': {'signal': 'sr_narrow_bandpass', 'symbol': 'triangle-up', 'color': 'red'}
 }
 
-fig = plot_tag_data_interactive(
-    data_pkl=data_pkl,
-    sensors=['ecg', 'gyroscope'],
-    derived_data_signals=['depth', 'corrected_gyr', 'prh','stroke_rate', 'sr_broad_bandpass',
-                          'sr_narrow_bandpass', 'sr_smoothed',
-                          'sr_normalized'],
-    channels={}, #'corrected_gyr': ['broad_bandpassed_signal']
-    time_range=(OVERLAP_START_TIME, OVERLAP_END_TIME),
-    note_annotations=notes_to_plot,
-    color_mapping_path=color_mapping_path,
-    target_sampling_rate=TARGET_SAMPLING_RATE,
-    zoom_start_time=stroking_start_time,
-    zoom_end_time=stroking_end_time,
-    zoom_range_selector_channel='depth',
-    plot_event_values=[],
-)
+# fig = plot_tag_data_interactive(
+#     data_pkl=data_pkl,
+#     sensors=['ecg', 'gyroscope'],
+#     derived_data_signals=['depth', 'corrected_gyr', 'prh','stroke_rate', 'sr_broad_bandpass',
+#                           'sr_narrow_bandpass', 'sr_smoothed',
+#                           'sr_normalized'],
+#     channels={}, #'corrected_gyr': ['broad_bandpassed_signal']
+#     time_range=(OVERLAP_START_TIME, OVERLAP_END_TIME),
+#     note_annotations=notes_to_plot,
+#     color_mapping_path=color_mapping_path,
+#     target_sampling_rate=TARGET_SAMPLING_RATE,
+#     zoom_start_time=stroking_start_time,
+#     zoom_end_time=stroking_end_time,
+#     zoom_range_selector_channel='depth',
+#     plot_event_values=[],
+# )
 
-fig.show()
+# fig.show()
 
 # Clear the specified keys
 keys_to_remove = ['sr_broad_bandpass','sr_narrow_bandpass', 'sr_normalized']
@@ -289,22 +298,22 @@ notes_to_plot = {
     'strokebeat_auto_detect_rejected': {'signal': 'sr_smoothed', 'symbol': 'triangle-up', 'color': 'red'}
 }
 
-fig = plot_tag_data_interactive(
-    data_pkl=data_pkl,
-    sensors=['ecg', 'gyroscope'],
-    derived_data_signals=['depth', 'corrected_gyr', 'prh', 'stroke_rate', 'sr_smoothed','odba'],
-    channels={}, #'corrected_gyr': ['broad_bandpassed_signal']
-    time_range=(OVERLAP_START_TIME, OVERLAP_END_TIME),
-    note_annotations=notes_to_plot,
-    color_mapping_path=color_mapping_path,
-    target_sampling_rate=TARGET_SAMPLING_RATE,
-    zoom_start_time=stroking_start_time,
-    zoom_end_time=stroking_end_time,
-    zoom_range_selector_channel='depth',
-    plot_event_values=[],
-)
+# fig = plot_tag_data_interactive(
+#     data_pkl=data_pkl,
+#     sensors=['ecg', 'gyroscope'],
+#     derived_data_signals=['depth', 'corrected_gyr', 'prh', 'stroke_rate', 'sr_smoothed','odba'],
+#     channels={}, #'corrected_gyr': ['broad_bandpassed_signal']
+#     time_range=(OVERLAP_START_TIME, OVERLAP_END_TIME),
+#     note_annotations=notes_to_plot,
+#     color_mapping_path=color_mapping_path,
+#     target_sampling_rate=TARGET_SAMPLING_RATE,
+#     zoom_start_time=stroking_start_time,
+#     zoom_end_time=stroking_end_time,
+#     zoom_range_selector_channel='depth',
+#     plot_event_values=[],
+# )
 
-fig.show()
+# fig.show()
 
 current_processing_step = "Processing Step 04. Stroke rate and ODBA calculation complete."
 print(current_processing_step)
@@ -316,3 +325,7 @@ config_manager.add_to_config("current_processing_step", current_processing_step)
 with open(pkl_path, 'wb') as file:
         pickle.dump(data_pkl, file)
 print("Pickle file updated.")
+
+exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
+netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step04.nc') # Define the export path
+exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format

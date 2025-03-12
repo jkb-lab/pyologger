@@ -24,11 +24,11 @@ st.sidebar.write(f"📂 Selected Deployment: {deployment_id}")
 
 # Load relevant configuration settings
 settings = config_manager.get_from_config(
-    variable_names=["earliest_common_start_time", "latest_common_end_time", "zoom_window_start_time", "zoom_window_end_time"],
+    variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],
     section="settings"
 )
-OVERLAP_START_TIME = pd.Timestamp(settings["earliest_common_start_time"]).tz_convert(timezone)
-OVERLAP_END_TIME = pd.Timestamp(settings["latest_common_end_time"]).tz_convert(timezone)
+OVERLAP_START_TIME = pd.Timestamp(settings["overlap_start_time"]).tz_convert(timezone)
+OVERLAP_END_TIME = pd.Timestamp(settings["overlap_end_time"]).tz_convert(timezone)
 ZOOM_WINDOW_START_TIME = pd.Timestamp(settings["zoom_window_start_time"]).tz_convert(timezone)
 ZOOM_WINDOW_END_TIME = pd.Timestamp(settings["zoom_window_end_time"]).tz_convert(timezone)
 

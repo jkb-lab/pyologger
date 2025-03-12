@@ -1,8 +1,12 @@
 import os
 import dash
+import argparse
 from dash import dcc, html, Output, Input, State
 import pandas as pd
 import pickle
+
+# Import pyologger utilities
+from pyologger.utils.folder_manager import *
 from pyologger.utils.json_manager import ConfigManager
 from pyologger.load_data.datareader import DataReader
 from pyologger.load_data.metadata import Metadata
@@ -12,20 +16,35 @@ from pyologger.utils.event_manager import *
 import three_js_orientation
 import video_preview
 
-# Define paths
-root_dir = "/Users/jessiekb/Documents/GitHub/pyologger"
-data_dir = os.path.join(root_dir, "data")
-color_mapping_path = os.path.join(root_dir, "color_mappings.json")
-deployment_id = "2024-01-16_oror-002a"
-deployment_folder = os.path.join(data_dir, deployment_id)
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description="Load data")
+parser.add_argument("--dataset", type=str, help="Dataset folder name")
+parser.add_argument("--deployment", type=str, help="Deployment ID")
+args = parser.parse_args()
+
+# Load important file paths and configurations
+config, data_dir, color_mapping_path, channel_mapping_path = load_configuration()
+
+# Load data with optional arguments
+if args.dataset and args.deployment:
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(
+        data_dir, dataset_id=args.dataset, deployment_id=args.deployment
+    )
+else:
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(data_dir)
+
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
-config_manager = ConfigManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
+
+# Define paths
+root_dir = config['paths']['local_repo_path']
+media_dir = config['paths']['local_private_media']
+
 
 
 # Retrieve values from config
 variables = ["calm_horizontal_start_time", "calm_horizontal_end_time", 
              "zoom_window_start_time", "zoom_window_end_time", 
-             "earliest_common_start_time", "latest_common_end_time",
+             "overlap_start_time", "overlap_end_time",
              "video_start_time", "video_end_time", "video_filename"]
 settings = config_manager.get_from_config(variables, section="settings")
 
@@ -34,8 +53,8 @@ CALM_HORIZONTAL_START_TIME = settings.get("calm_horizontal_start_time")
 CALM_HORIZONTAL_END_TIME = settings.get("calm_horizontal_end_time")
 ZOOM_START_TIME = settings.get("zoom_window_start_time")
 ZOOM_END_TIME = settings.get("zoom_window_end_time")
-OVERLAP_START_TIME = settings.get("earliest_common_start_time")
-OVERLAP_END_TIME = settings.get("latest_common_end_time")
+OVERLAP_START_TIME = settings.get("overlap_start_time")
+OVERLAP_END_TIME = settings.get("overlap_end_time")
 VIDEO_START_TIME = settings.get("video_start_time")
 VIDEO_END_TIME = settings.get("video_end_time")
 VIDEO_FILENAME = settings.get("video_filename")
@@ -72,7 +91,7 @@ notes_to_plot = {
     'exhalation_breath': {'signal': 'heart_rate', 'symbol': 'triangle-up', 'color': 'blue'}
 }
 
-fig = plot_tag_data_interactive5(
+fig = plot_tag_data_interactive(
     data_pkl=data_pkl,
     sensors=['ecg', 'hr_normalized'],
     derived_data_signals=['depth', 'prh', 'stroke_rate', 'heart_rate','sr_smoothed', 'odba'],

@@ -34,9 +34,9 @@ pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 
 # Load key time points
 timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
-settings = config_manager.get_from_config(variable_names=["earliest_common_start_time", "latest_common_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
-OVERLAP_START_TIME = pd.Timestamp(settings["earliest_common_start_time"]).tz_convert(timezone)
-OVERLAP_END_TIME = pd.Timestamp(settings["latest_common_end_time"]).tz_convert(timezone)
+settings = config_manager.get_from_config(variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
+OVERLAP_START_TIME = pd.Timestamp(settings["overlap_start_time"]).tz_convert(timezone)
+OVERLAP_END_TIME = pd.Timestamp(settings["overlap_end_time"]).tz_convert(timezone)
 ZOOM_WINDOW_START_TIME = pd.Timestamp(settings["zoom_window_start_time"]).tz_convert(timezone)
 ZOOM_WINDOW_END_TIME = pd.Timestamp(settings["zoom_window_end_time"]).tz_convert(timezone)
 if None in {OVERLAP_START_TIME, OVERLAP_END_TIME, ZOOM_WINDOW_START_TIME, ZOOM_WINDOW_END_TIME}:
@@ -257,13 +257,13 @@ data_pkl.derived_info['inclination_angle']["metadata"]['calibrated_inclination_a
 # Visualize results
 # Retrieve necessary time settings from the settings section
 time_settings = config_manager.get_from_config(
-    ["earliest_common_start_time", "latest_common_end_time", "zoom_window_start_time", "zoom_window_end_time"],
+    ["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],
     section="settings"
 )
 
 # Assign retrieved values to variables
-OVERLAP_START_TIME = time_settings.get("earliest_common_start_time")
-OVERLAP_END_TIME = time_settings.get("latest_common_end_time")
+OVERLAP_START_TIME = time_settings.get("overlap_start_time")
+OVERLAP_END_TIME = time_settings.get("overlap_end_time")
 ZOOM_START_TIME = time_settings.get("zoom_window_start_time")
 ZOOM_END_TIME = time_settings.get("zoom_window_end_time")
 TARGET_SAMPLING_RATE = int(10)
@@ -274,21 +274,21 @@ notes_to_plot = {
     'heartbeat_auto_detect_rejected': {'signal': 'ecg', 'symbol': 'triangle-up', 'color': 'red'}
 }
 
-fig = plot_tag_data_interactive(
-    data_pkl=data_pkl,
-    sensors=['accelerometer', 'magnetometer'],
-    derived_data_signals=['depth', 'calibrated_acc', 'calibrated_mag', 'inclination_angle', 'calibration_acc', 'calibration_mag'],
-    channels={},
-    time_range=(OVERLAP_START_TIME, OVERLAP_END_TIME),
-    note_annotations=notes_to_plot,
-    color_mapping_path=color_mapping_path,
-    target_sampling_rate=TARGET_SAMPLING_RATE,
-    zoom_start_time=ZOOM_START_TIME,
-    zoom_end_time=ZOOM_END_TIME,
-    zoom_range_selector_channel='depth',
-    plot_event_values=[],
-)
-fig.show()
+# fig = plot_tag_data_interactive(
+#     data_pkl=data_pkl,
+#     sensors=['accelerometer', 'magnetometer'],
+#     derived_data_signals=['depth', 'calibrated_acc', 'calibrated_mag', 'inclination_angle', 'calibration_acc', 'calibration_mag'],
+#     channels={},
+#     time_range=(OVERLAP_START_TIME, OVERLAP_END_TIME),
+#     note_annotations=notes_to_plot,
+#     color_mapping_path=color_mapping_path,
+#     target_sampling_rate=TARGET_SAMPLING_RATE,
+#     zoom_start_time=ZOOM_START_TIME,
+#     zoom_end_time=ZOOM_END_TIME,
+#     zoom_range_selector_channel='depth',
+#     plot_event_values=[],
+# )
+#fig.show()
 
 # Delete intermediate signals
 keys_to_remove = ["calibration_acc", "calibration_mag", "inclination_angle"]
@@ -306,3 +306,7 @@ config_manager.add_to_config("current_processing_step", current_processing_step)
 with open(pkl_path, 'wb') as file:
         pickle.dump(data_pkl, file)
 print("Pickle file updated.")
+
+exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
+netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step00.nc') # Define the export path
+exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format

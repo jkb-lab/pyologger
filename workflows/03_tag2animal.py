@@ -31,9 +31,9 @@ pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 
 # Load key time points
 timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
-settings = config_manager.get_from_config(variable_names=["earliest_common_start_time", "latest_common_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
-OVERLAP_START_TIME = pd.Timestamp(settings["earliest_common_start_time"]).tz_convert(timezone)
-OVERLAP_END_TIME = pd.Timestamp(settings["latest_common_end_time"]).tz_convert(timezone)
+settings = config_manager.get_from_config(variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
+OVERLAP_START_TIME = pd.Timestamp(settings["overlap_start_time"]).tz_convert(timezone)
+OVERLAP_END_TIME = pd.Timestamp(settings["overlap_end_time"]).tz_convert(timezone)
 ZOOM_WINDOW_START_TIME = pd.Timestamp(settings["zoom_window_start_time"]).tz_convert(timezone)
 ZOOM_WINDOW_END_TIME = pd.Timestamp(settings["zoom_window_end_time"]).tz_convert(timezone)
 if None in {OVERLAP_START_TIME, OVERLAP_END_TIME, ZOOM_WINDOW_START_TIME, ZOOM_WINDOW_END_TIME}:
@@ -79,7 +79,7 @@ sampling_rate = acc_fs
 # Retrieve values from config
 variables = ["calm_horizontal_start_time", "calm_horizontal_end_time", 
              "zoom_window_start_time", "zoom_window_end_time", 
-             "earliest_common_start_time", "latest_common_end_time"]
+             "overlap_start_time", "overlap_end_time"]
 settings = config_manager.get_from_config(variables, section="settings")
 
 # Assign retrieved values to variables
@@ -87,8 +87,8 @@ CALM_HORIZONTAL_START_TIME = settings.get("calm_horizontal_start_time")
 CALM_HORIZONTAL_END_TIME = settings.get("calm_horizontal_end_time")
 ZOOM_START_TIME = settings.get("zoom_window_start_time")
 ZOOM_END_TIME = settings.get("zoom_window_end_time")
-OVERLAP_START_TIME = settings.get("earliest_common_start_time")
-OVERLAP_END_TIME = settings.get("latest_common_end_time")
+OVERLAP_START_TIME = settings.get("overlap_start_time")
+OVERLAP_END_TIME = settings.get("overlap_end_time")
 
 # Check if manual update is required for CALM_HORIZONTAL_START_TIME and CALM_HORIZONTAL_END_TIME
 requires_manual_update = False
@@ -116,8 +116,8 @@ else:
 timezone = data_pkl.deployment_info['Time Zone']
 
 # Define placeholder timestamps for calm period in the retrieved timezone
-placeholder_start_time = pd.Timestamp("2024-01-16 09:58:10").tz_localize(timezone)
-placeholder_end_time = pd.Timestamp("2024-01-16 09:58:24").tz_localize(timezone)
+placeholder_start_time = ZOOM_WINDOW_START_TIME
+placeholder_end_time = ZOOM_WINDOW_END_TIME
 
 # Set this to True if we want to override the placeholders regardless of manual update status
 override_required = False
@@ -298,21 +298,21 @@ notes_to_plot = {
     'heartbeat_auto_detect_rejected': {'signal': 'ecg', 'symbol': 'triangle-up', 'color': 'red'}
 }
 
-fig = plot_tag_data_interactive(
-    data_pkl=data_pkl,
-    sensors=['ecg', 'accelerometer', 'magnetometer'],
-    derived_data_signals=['depth', 'corrected_acc', 'corrected_mag', 'prh'],
-    channels={},
-    time_range=(OVERLAP_START_TIME, OVERLAP_END_TIME),
-    note_annotations=notes_to_plot,
-    color_mapping_path=color_mapping_path,
-    target_sampling_rate=TARGET_SAMPLING_RATE,
-    zoom_start_time=ZOOM_START_TIME,
-    zoom_end_time=ZOOM_END_TIME,
-    zoom_range_selector_channel='depth',
-    plot_event_values=[],
-)
-fig.show()
+# fig = plot_tag_data_interactive(
+#     data_pkl=data_pkl,
+#     sensors=['ecg', 'accelerometer', 'magnetometer'],
+#     derived_data_signals=['depth', 'corrected_acc', 'corrected_mag', 'prh'],
+#     channels={},
+#     time_range=(OVERLAP_START_TIME, OVERLAP_END_TIME),
+#     note_annotations=notes_to_plot,
+#     color_mapping_path=color_mapping_path,
+#     target_sampling_rate=TARGET_SAMPLING_RATE,
+#     zoom_start_time=ZOOM_START_TIME,
+#     zoom_end_time=ZOOM_END_TIME,
+#     zoom_range_selector_channel='depth',
+#     plot_event_values=[],
+# )
+#fig.show()
 
 keys_to_remove = ['calibrated_acc','calibrated_mag']
 
@@ -330,3 +330,7 @@ config_manager.add_to_config("current_processing_step", current_processing_step)
 with open(pkl_path, 'wb') as file:
         pickle.dump(data_pkl, file)
 print("Pickle file updated.")
+
+exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
+netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step03.nc') # Define the export path
+exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format

@@ -140,7 +140,7 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
                 row_counter += 1  # Skip to the next row after the blank plot
 
         # Plot note annotations if available
-        if (note_annotations or 'event_data' in data_pkl) and hasattr(data_pkl, "event_data") and not data_pkl.event_data.empty:
+        if note_annotations:
             plotted_annotations = set()
 
             # Ensure time_range is valid

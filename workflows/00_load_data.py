@@ -12,6 +12,7 @@ from pyologger.utils.folder_manager import *
 from pyologger.utils.json_manager import ConfigManager
 from pyologger.load_data.datareader import DataReader
 from pyologger.load_data.metadata import Metadata
+from pyologger.io_operations.base_exporter import *
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Load data")
@@ -98,77 +99,90 @@ datareader.read_files(
     save_netcdf=True,
 )
 
+import pandas as pd
+from datetime import timedelta
+
 data_pkl = datareader
 # Get timezone
 timezone = data_pkl.deployment_info.get("Time Zone", "UTC")
 
 # Load time settings
 time_settings = config_manager.get_from_config(
-    ["latest_common_start_time", "earliest_common_end_time", "zoom_window_start_time", "zoom_window_end_time"],
+    ["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],
     section="settings"
 )
 
+if time_settings:
+    print("Time settings present.")
 # If any required time settings are missing, compute and update them
-if not time_settings or any(v is None for v in time_settings.values()):
+if not any(v is None for v in time_settings.values()):
+    print("Time settings not empty.")
+else:
+    print("Adding timestamps to config.")
     zoom_time_window = 5  # minutes
 
     # Extract start and end times for all sensors
-    start_times = [info["sensor_start_datetime"] for info in data_pkl.sensor_info.values()]
-    end_times = [info["sensor_end_datetime"] for info in data_pkl.sensor_info.values()]
+    start_times = [df['datetime'].min() for df in data_pkl.sensor_data.values()]
+    end_times = [df['datetime'].max() for df in data_pkl.sensor_data.values()]
 
     # Compute common start, end, and zoom window
-    earliest_common_start = max(start_times)
-    latest_common_end = min(end_times)
-    midpoint = earliest_common_start + (latest_common_end - earliest_common_start) / 2
+    overlap_start_time = max(start_times)
+    overlap_end_time = min(end_times)
+    midpoint = overlap_start_time + (overlap_end_time - overlap_start_time) / 2
     zoom_window_start, zoom_window_end = midpoint - timedelta(minutes=zoom_time_window / 2), midpoint + timedelta(minutes=zoom_time_window / 2)
 
     # Update settings
     time_settings = {
-        "earliest_common_start_time": str(earliest_common_start),
-        "latest_common_end_time": str(latest_common_end),
-        "zoom_time_window": zoom_time_window,
+        "overlap_start_time": str(overlap_start_time),
+        "overlap_end_time": str(overlap_end_time),
         "zoom_window_start_time": str(zoom_window_start),
         "zoom_window_end_time": str(zoom_window_end),
     }
     config_manager.add_to_config(entries=time_settings, section="settings")
 
-# Convert timestamps and validate
-try:
-    OVERLAP_START_TIME = pd.Timestamp(time_settings["earliest_common_start_time"]).tz_convert(timezone)
-    OVERLAP_END_TIME = pd.Timestamp(time_settings["latest_common_end_time"]).tz_convert(timezone)
-    ZOOM_WINDOW_START_TIME = pd.Timestamp(time_settings["zoom_window_start_time"]).tz_convert(timezone)
-    ZOOM_WINDOW_END_TIME = pd.Timestamp(time_settings["zoom_window_end_time"]).tz_convert(timezone)
-except KeyError as e:
-    raise ValueError(f"Missing time setting: {e}")
+if any(v is None for v in time_settings.values()):
+    print("YES")
+time_settings
 
-# Display values
-print(f"OVERLAP_START_TIME: {OVERLAP_START_TIME}")
-print(f"OVERLAP_END_TIME: {OVERLAP_END_TIME}")
-print(f"ZOOM_START_TIME: {ZOOM_WINDOW_START_TIME}")
-print(f"ZOOM_END_TIME: {ZOOM_WINDOW_END_TIME}")
+# Check if selected start and end times exist in the config file
+truncate_times = config_manager.get_from_config(
+    ["selected_start_time", "selected_end_time"],
+    section="settings"
+)
+
+if not any(v is None for v in truncate_times.values()):
+    print("Truncating with provided cropping times.")
+    # Update overlap window with selected range
+    OVERLAP_START_TIME = pd.Timestamp(truncate_times['selected_start_time']).tz_convert(timezone)
+    OVERLAP_END_TIME = pd.Timestamp(truncate_times['selected_end_time']).tz_convert(timezone)
+
+    # Truncate sensor data
+    for sensor, df in data_pkl.sensor_data.items():
+        # Truncate based on selected time range
+        truncated_df = df[(df.iloc[:, 0] >= OVERLAP_START_TIME) & (df.iloc[:, 0] <= OVERLAP_END_TIME)].copy()
+        data_pkl.sensor_data[sensor] = truncated_df  # Save truncated version to new variable
+
+    # Recalculate Zoom Window (5-minute window in the middle)
+    midpoint = OVERLAP_START_TIME + (OVERLAP_END_TIME - OVERLAP_START_TIME) / 2
+    ZOOM_WINDOW_START_TIME = midpoint - timedelta(minutes=2.5)
+    ZOOM_WINDOW_END_TIME = midpoint + timedelta(minutes=2.5)
+
+    # Save new time settings
+    time_settings_update = {
+        "overlap_start_time": str(OVERLAP_START_TIME),
+        "overlap_end_time": str(OVERLAP_END_TIME),
+        "zoom_window_start_time": str(ZOOM_WINDOW_START_TIME),
+        "zoom_window_end_time": str(ZOOM_WINDOW_END_TIME)
+    }
+    config_manager.add_to_config(entries=time_settings_update, section="settings")
+
+    pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
+    with open(pkl_path, "wb") as file:
+        pickle.dump(data_pkl, file)
 
 # Step 8: Update processing step
 config_manager.add_to_config("current_processing_step", "Processing Step 00: Data imported.")
 
-# Step 9: Open NetCDF file
-netcdf_path = os.path.join(deployment_folder, "outputs", f'{deployment_id}_00_processed.nc')
-if os.path.exists(netcdf_path):
-    data = xr.open_dataset(netcdf_path)
-    print(f"📊 NetCDF file loaded: {netcdf_path}")
-else:
-    print(f"⚠ NetCDF file not found at {netcdf_path}.")
-
-# Step 10: Inspect sampling frequencies from DataReader object
-pkl_path = os.path.join(deployment_folder, "outputs", "data.pkl")
-if os.path.exists(pkl_path):
-    with open(pkl_path, "rb") as file:
-        data_pkl = pickle.load(file)
-
-    for logger_id, info in data_pkl.logger_info.items():
-        sampling_frequency = info.get("datetime_metadata", {}).get("fs", None)
-        if sampling_frequency is not None:
-            print(f"📡 Sampling frequency for {logger_id}: {sampling_frequency:.5f} Hz")
-        else:
-            print(f"⚠ No sampling frequency available for {logger_id}")
-else:
-    print(f"⚠ Data pickle file not found at {pkl_path}.")
+exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
+netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step00.nc') # Define the export path
+exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format

@@ -33,9 +33,9 @@ pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 
 # Load key time points
 timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
-settings = config_manager.get_from_config(variable_names=["earliest_common_start_time", "latest_common_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
-OVERLAP_START_TIME = pd.Timestamp(settings["earliest_common_start_time"]).tz_convert(timezone)
-OVERLAP_END_TIME = pd.Timestamp(settings["latest_common_end_time"]).tz_convert(timezone)
+settings = config_manager.get_from_config(variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
+OVERLAP_START_TIME = pd.Timestamp(settings["overlap_start_time"]).tz_convert(timezone)
+OVERLAP_END_TIME = pd.Timestamp(settings["overlap_end_time"]).tz_convert(timezone)
 ZOOM_WINDOW_START_TIME = pd.Timestamp(settings["zoom_window_start_time"]).tz_convert(timezone)
 ZOOM_WINDOW_END_TIME = pd.Timestamp(settings["zoom_window_end_time"]).tz_convert(timezone)
 
@@ -202,30 +202,30 @@ data_pkl.derived_info["depth"] = derived_info
 
 # Load key time points
 timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
-settings = config_manager.get_from_config(variable_names=["earliest_common_start_time", "latest_common_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
-OVERLAP_START_TIME = pd.Timestamp(settings["earliest_common_start_time"]).tz_convert(timezone)
-OVERLAP_END_TIME = pd.Timestamp(settings["latest_common_end_time"]).tz_convert(timezone)
+settings = config_manager.get_from_config(variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
+OVERLAP_START_TIME = pd.Timestamp(settings["overlap_start_time"]).tz_convert(timezone)
+OVERLAP_END_TIME = pd.Timestamp(settings["overlap_end_time"]).tz_convert(timezone)
 ZOOM_WINDOW_START_TIME = pd.Timestamp(settings["zoom_window_start_time"]).tz_convert(timezone)
 ZOOM_WINDOW_END_TIME = pd.Timestamp(settings["zoom_window_end_time"]).tz_convert(timezone)
 
-fig = plot_tag_data_interactive(
-    data_pkl=data_pkl,
-    sensors=['pressure'],
-    derived_data_signals=['depth'],
-    time_range=(depth_downsampled_datetime.min(), depth_downsampled_datetime.max()),
-    note_annotations={"dive": {"signal": "depth", "symbol": "triangle-down", "color": "blue"}},
-    state_annotations={"dive": {"signal": "depth", "color": "rgba(150, 150, 150, 0.3)"}},
-    color_mapping_path=color_mapping_path,
-    target_sampling_rate=1
-)
-fig.show()
+# fig = plot_tag_data_interactive(
+#     data_pkl=data_pkl,
+#     sensors=['pressure'],
+#     derived_data_signals=['depth'],
+#     time_range=(depth_downsampled_datetime.min(), depth_downsampled_datetime.max()),
+#     note_annotations={"dive": {"signal": "depth", "symbol": "triangle-down", "color": "blue"}},
+#     state_annotations={"dive": {"signal": "depth", "color": "rgba(150, 150, 150, 0.3)"}},
+#     color_mapping_path=color_mapping_path,
+#     target_sampling_rate=1
+# )
+# fig.show()
 
 config_manager.add_to_config("current_processing_step", "Processing Step 01: Pressure sensor calibration complete.")
 with open(pkl_path, "wb") as file:
     pickle.dump(data_pkl, file)
 
-# exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
-# netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step01.nc') # Define the export path
-# exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format
+exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
+netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step01.nc') # Define the export path
+exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format
 
 print("✅ Data processing complete. Pickle file updated.")
