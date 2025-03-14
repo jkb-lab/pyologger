@@ -30,6 +30,7 @@ dependencies = [
   "streamlit-plotly-events",
   "sphinx-rtd-theme",
   "magnetic_field_calculator",
+  "pelicanfs",
   "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB",
   "EDFlib-Python",
   "openpyxl",

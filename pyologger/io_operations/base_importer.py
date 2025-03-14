@@ -142,7 +142,7 @@ class BaseImporter:
             sensor_df = df[['datetime'] + sensor_cols].copy()
 
             # Determine the data type of the sensor columns
-            data_type = sensor_df[sensor_cols].dtypes[0]  # Assuming all sensor columns have the same dtype
+            data_type = sensor_df[sensor_cols].dtypes.iloc[0]  # Assuming all sensor columns have the same dtype
             data_type_str = str(data_type)
 
             # Standardized metadata collection

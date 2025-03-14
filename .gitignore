@@ -35,7 +35,11 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-.snakemake/*
+# Pelican
+token.txt
+
+.snakemake
+
 dash/assets/*
 
 pyologger.egg-info/*
