@@ -167,7 +167,7 @@ metadata.find_relations(verbose=False)
 deployment_db = metadata.get_metadata("deployment_DB")
 
 # Initialize DataReader
-channel_mapping_path = os.path.join(root_dir, 'channel_mapping.json')
+montage_path = os.path.join(root_dir, 'channel_mapping.json')
 datareader = DataReader(deployment_folder_path=data_dir)
 
 # Process deployment data
@@ -175,7 +175,7 @@ deployment_folder, deployment_id = datareader.check_deployment_folder(deployment
 if deployment_folder:
     datareader.read_files(
         metadata, save_csv=False, save_parq=False, save_edf=False,
-        custom_mapping_path=channel_mapping_path, save_netcdf=True
+        montage_path=montage_path, save_netcdf=True
     )
 
 # Load processed data

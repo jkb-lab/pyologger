@@ -1,6 +1,7 @@
 import os
 import json
 from typing import Any, Optional, List, Dict, Union
+import pandas as pd
 
 class ConfigManager:
     def __init__(self, deployment_folder: str, deployment_id: str):
@@ -129,3 +130,42 @@ class ConfigManager:
         
         self._save_config(config_log)
         print(f"Removed {key} from deployment '{deployment_id}' under '{section or 'top level'}'.")
+        
+    def export_config(self):
+        """Exports the config log to a CSV file."""
+        json_path = self.config_log_path
+
+        # Load JSON data
+        with open(json_path, 'r') as file:
+            json_data = json.load(file)
+
+        # Flatten JSON into a structured DataFrame
+        data_list = []
+
+        for entry in json_data:
+            deployment_id = entry.get("deployment_id", None)
+            settings = entry.get("settings", {})
+            for key, value in settings.items():
+                if isinstance(value, str) and "time" in key.lower():
+                    try:
+                        value = pd.to_datetime(value).tz_localize(None)
+                    except Exception as e:
+                        print(f"Error converting {key}: {e}")
+                settings[key] = value
+            
+            row = {"deployment_id": deployment_id}
+            for key, value in settings.items():
+                row[key] = value
+            
+            data_list.append(row)
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data_list)
+
+        # Define the path to save the CSV file
+        csv_path = os.path.join(self.dataset_folder, 'deployment_config_log.csv')
+
+        # Save the DataFrame as a CSV file
+        df.to_csv(csv_path, index=False)
+
+        print(f"CSV file saved at: {csv_path}")

@@ -23,7 +23,7 @@ parser.add_argument("--deployment", type=str, help="Deployment ID")
 args = parser.parse_args()
 
 # Load important file paths and configurations
-config, data_dir, color_mapping_path, channel_mapping_path = load_configuration()
+config, data_dir, color_mapping_path, montage_path = load_configuration()
 
 # Load data with optional arguments
 if args.dataset and args.deployment:

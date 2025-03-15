@@ -1,23 +1,24 @@
-import xarray as xr
 import pandas as pd
 import numpy as np
 import re
 import json
 import pytz
 from datetime import datetime
+from pyologger.utils.time_manager import *
 
 class BaseImporter:
     """Base class for handling manufacturer-specific processing."""
 
-    def __init__(self, data_reader, logger_id, manufacturer, custom_mapping_path):
+    def __init__(self, data_reader, logger_id, manufacturer):
         self.logger_id = logger_id
         self.logger_manufacturer = manufacturer
         self.data_reader = data_reader
-        self.expected_frequencies = {}  # This will hold the expected frequencies parsed from the .txt file
+        self.expected_frequencies = {}  # This will hold the expected frequencies parsed from .txt file
+        montage_path = self.data_reader.montage_path
 
         # Load the custom JSON mapping for column names if deployment folder is provided
-        if custom_mapping_path:
-            self.load_custom_mapping(custom_mapping_path)
+        if montage_path:
+            self.load_custom_mapping(montage_path)
 
     def read_csv(self, csv_path):
         """Reads a CSV file with multiple encoding attempts."""
@@ -40,12 +41,12 @@ class BaseImporter:
             
             print(f"NetCDF file imported from {filepath} and returning pickle object.")
     
-    def load_custom_mapping(self, custom_mapping_path):
+    def load_custom_mapping(self, montage_path):
         """Loads custom JSON mapping for column names."""
         try:
-            with open(custom_mapping_path, 'r') as json_file:
+            with open(montage_path, 'r') as json_file:
                 self.column_mapping = json.load(json_file)
-                print(f"Custom column mapping loaded from {custom_mapping_path}")
+                print(f"Custom column mapping loaded from {montage_path}")
                 
                 # Check if the mapping contains expected keys
                 if not isinstance(self.column_mapping, dict):
@@ -54,10 +55,10 @@ class BaseImporter:
                     raise ValueError("Expected keys 'CATS' or 'UFI' are missing in the column mapping.")
                 print("Column mapping verified successfully.")
         except FileNotFoundError:
-            print(f"Custom mapping file not found at {custom_mapping_path}. Proceeding without it.")
+            print(f"Custom mapping file not found at {montage_path}. Proceeding without it.")
             self.column_mapping = None
         except (json.JSONDecodeError, ValueError) as e:
-            print(f"Error loading or verifying JSON from {custom_mapping_path}: {e}")
+            print(f"Error loading or verifying JSON from {montage_path}: {e}")
             self.column_mapping = None
 
     def rename_columns(self, df, logger_id, manufacturer):

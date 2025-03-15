@@ -9,7 +9,7 @@ from pyologger.calibrate_data.zoc import *
 from pyologger.plot_data.plotter import plot_tag_data_interactive
 
 # Load configuration
-config, data_dir, color_mapping_path, channel_mapping_path = load_configuration()
+config, data_dir, color_mapping_path, montage_path = load_configuration()
 
 # **Step 1: Deployment Selection**
 st.sidebar.title("Deployment Selection")

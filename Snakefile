@@ -2,14 +2,18 @@ configfile: "config.yaml"
 
 # Extract dataset and deployment names from the config file
 private_data_root = config["paths"]["local_private_data"]
-datasets = list(config["datasets"].keys())
-deployments = [deployment for dataset in datasets for deployment in config["datasets"][dataset]["deployments"]]
+
+# Generate a list of dataset-specific deployment paths
+dataset_deployment_pairs = []
+for dataset, details in config["datasets"].items():
+    for deployment in details["deployments"]:
+        dataset_deployment_pairs.append((dataset, deployment))
 
 # Define the final target rule
 rule all:
     input:
-        expand(f"{private_data_root}/{{dataset}}/{{deployment}}/outputs/{{deployment}}_output.nc",
-               dataset=datasets, deployment=deployments)
+        [f"{private_data_root}/{dataset}/{deployment}/outputs/{deployment}_output.nc"
+         for dataset, deployment in dataset_deployment_pairs]
 
 # Step 00: Load Data
 rule load_data:

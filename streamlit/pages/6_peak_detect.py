@@ -11,7 +11,7 @@ from pyologger.process_data.sampling import *
 from pyologger.process_data.peak_detect import *
 
 # Load important file paths and configurations
-config, data_dir, color_mapping_path, channel_mapping_path = load_configuration()
+config, data_dir, color_mapping_path, montage_path = load_configuration()
 
 # **Step 2: Deployment Selection (Dropdown Menus)**
 st.sidebar.title("Deployment Selection")

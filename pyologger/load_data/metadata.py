@@ -27,7 +27,9 @@ class Metadata:
             "location_DB": os.getenv("databases.location_DB"),
             "montage_DB": os.getenv("databases.montage_DB"),
             "sensor_DB": os.getenv("databases.sensor_DB"),
-            "sensorchannel_DB": os.getenv("databases.sensorchannel_DB"),
+            "attachment_DB": os.getenv("databases.attachment_DB"),
+            "originalchannel_DB": os.getenv("databases.originalchannel_DB"),
+            "standardizedchannel_DB": os.getenv("databases.standardizedchannel_DB"),
             "derivedsignal_DB": os.getenv("databases.derivedsignal_DB"),
             "derivedchannel_DB": os.getenv("databases.derivedchannel_DB")
         }
@@ -249,3 +251,108 @@ class Metadata:
             print(f"Dataframe: {db_name}")
             print(df)
             print()
+
+    def extract_essential_metadata(self, deployment_id):
+        """
+        Extracts essential metadata for a given deployment, including:
+        - Deployment latitude, longitude, and time zone
+        - Logger IDs, manufacturer names, and Montage IDs
+
+        Parameters:
+        - deployment_id (str): The ID of the deployment to extract metadata for.
+
+        Returns:
+        - dict: Deployment metadata including latitude, longitude, and time zone.
+        - list: List of logger details (Logger ID, Manufacturer, Montage ID).
+        """
+        print(f"🔍 Extracting essential metadata for Deployment ID: {deployment_id}")
+
+        # Load metadata tables
+        deployment_db = self.get_metadata("deployment_DB")
+        recording_db = self.get_metadata("recording_DB")
+        logger_db = self.get_metadata("logger_DB")
+        procedure_db = self.get_metadata("procedure_DB")
+        location_db = self.get_metadata("location_DB")
+
+        # Step 1: Get recording IDs for this deployment
+        deployment_recordings = deployment_db.loc[
+            deployment_db["Deployment ID"] == deployment_id, "Recordings"
+        ].dropna()
+
+        if deployment_recordings.empty:
+            print(f"⚠ No recordings found for Deployment ID: {deployment_id}")
+            return None, None
+
+        # Convert to list
+        recording_ids = deployment_recordings.iloc[0].split(", ")
+
+        # Step 2: Extract Logger IDs from Recording IDs
+        logger_ids = [rec_id.split("_")[2] for rec_id in recording_ids if len(rec_id.split("_")) > 2]
+
+        # Step 3: Retrieve Montage IDs for each recording
+        montage_map = recording_db.set_index("Recording ID")["Montage ID"].to_dict()
+
+        # Step 4: Retrieve Logger details and include Montage ID
+        loggers_used = []
+        for logger_id in logger_ids:
+            logger_info = logger_db.loc[
+                logger_db["Logger ID"] == logger_id, ["Logger ID", "Manufacturer"]
+            ]
+
+            if not logger_info.empty:
+                logger_entry = logger_info.iloc[0].to_dict()
+                # Find montage associated with this logger's recording
+                logger_entry["Montage ID"] = next((montage_map.get(rid) for rid in recording_ids if logger_id in rid), None)
+                loggers_used.append(logger_entry)
+
+        # Step 5: Find procedure with "_attachment"
+        procedures = deployment_db.loc[
+            deployment_db["Deployment ID"] == deployment_id, "Procedures"
+        ].dropna()
+
+        procedure_id = None
+        if not procedures.empty:
+            # Get list of procedures
+            procedure_list = procedures.iloc[0].split(", ")
+            # Find the first procedure that ends in "_attachment"
+            procedure_id = next((p for p in procedure_list if p.endswith("_attachment")), None)
+
+        # Step 6: Get Location ID from procedure_DB using Procedure ID
+        location_id = None
+        if procedure_id:
+            location_id = procedure_db.loc[
+                procedure_db["Procedure ID"] == procedure_id, "Location ID"
+            ].dropna()
+
+            location_id = location_id.iloc[0] if not location_id.empty else None
+
+        # Step 7: Get Latitude, Longitude, and Time Zone from location_DB
+        deployment_latitude = None
+        deployment_longitude = None
+        time_zone = None
+
+        if location_id:
+            location_data = location_db.loc[
+                location_db["Location ID"] == location_id, ["Latitude", "Longitude", "Time Zone"]
+            ]
+
+            if not location_data.empty:
+                deployment_latitude = float(location_data["Latitude"].iloc[0])  # Convert to float
+                deployment_longitude = float(location_data["Longitude"].iloc[0])  # Convert to float
+                time_zone = location_data["Time Zone"].iloc[0]
+
+        # Step 8: Structure the output
+        deployment_date = deployment_id.split("_")[0] if "_" in deployment_id else None
+
+        deployment_info = {
+            "Deployment Date": deployment_date,
+            "Deployment Latitude": deployment_latitude,
+            "Deployment Longitude": deployment_longitude,
+            "Time Zone": time_zone,
+        }
+
+        print(f"📍 Deployment Metadata: {deployment_info}")
+        print(f"📟 Loggers Used: {loggers_used}")
+
+        return deployment_info, loggers_used
+

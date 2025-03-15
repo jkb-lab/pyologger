@@ -72,11 +72,8 @@ class BaseExporter:
 
     def save_data(self, data, logger_id, filename, save_csv=True, save_parq=False):
         """Saves the processed data to disk in CSV and/or Parquet format."""
-        self.datareader.logger_data[logger_id] = {}
-        output_folder = os.path.join(self.datareader.files_info['deployment_folder_path'], 'outputs')
+        output_folder = self.datareader.output_folder
         os.makedirs(output_folder, exist_ok=True)
-
-        self.datareader.logger_data[logger_id] = data
 
         if save_csv:
             csv_path = os.path.join(output_folder, filename)
@@ -230,12 +227,51 @@ class BaseExporter:
 
             # Flatten and add global attributes
             flatten_dict('deployment_info', self.datareader.deployment_info)
-            flatten_dict('files_info', self.datareader.files_info)
             flatten_dict('animal_info', self.datareader.animal_info)
             flatten_dict('dataset_info', self.datareader.dataset_info if self.datareader.dataset_info else {})
 
+            def recursive_flatten_dict(prefix, d):
+                """Recursively flattens a dictionary and adds it to dataset attributes."""
+                if isinstance(d, dict):  # Ensure 'd' is a dictionary
+                    for key, value in d.items():
+                        flattened_key = f"{prefix}_{key}"
+                        if isinstance(value, dict):
+                            recursive_flatten_dict(flattened_key, value)  # Recurse for dictionaries
+                        elif isinstance(value, list):
+                            for i, item in enumerate(value):
+                                if isinstance(item, dict):
+                                    recursive_flatten_dict(f"{flattened_key}_{i}", item)  # Recurse for dict items
+                                else:
+                                    try:
+                                        serialized_value = serialize_value(item)
+                                        if isinstance(serialized_value, (str, int, float, list, tuple, np.ndarray)):
+                                            ds.attrs[f"{flattened_key}_{i}"] = serialized_value
+                                        else:
+                                            raise TypeError("Invalid value type for NetCDF serialization")
+                                    except (TypeError, ValueError):
+                                        ds.attrs[f"{flattened_key}_{i}"] = "Invalid entry"
+                                        print(f"⚠️ Invalid entry recognized and placed in {flattened_key}_{i}")
+                else:
+                    # If it's not a dictionary, just store the value
+                    try:
+                        serialized_value = serialize_value(d)
+                        if isinstance(serialized_value, (str, int, float, list, tuple, np.ndarray)):
+                            ds.attrs[prefix] = serialized_value
+                        else:
+                            raise TypeError("Invalid value type for NetCDF serialization")
+                    except (TypeError, ValueError):
+                        ds.attrs[prefix] = "Invalid entry"
+                        print(f"⚠️ Invalid entry recognized and placed in {prefix}")
+
             for sensor_name, sensor_info in self.datareader.sensor_info.items():
-                flatten_dict(f'sensor_info_{sensor_name}', sensor_info)
+                recursive_flatten_dict(f'sensor_info_{sensor_name}', sensor_info)
+                if 'metadata' in sensor_info:
+                    recursive_flatten_dict(f'sensor_info_{sensor_name}_metadata', sensor_info['metadata'])
+
+            for derived_name, derived_info in self.datareader.derived_info.items():
+                recursive_flatten_dict(f'derived_info_{derived_name}', derived_info)
+                if 'metadata' in derived_info:
+                    recursive_flatten_dict(f'derived_info_{derived_name}_metadata', derived_info['metadata'])
 
             # Store the Dataset as a NetCDF file
             ds.to_netcdf(filepath)

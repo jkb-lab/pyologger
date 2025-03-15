@@ -2,6 +2,7 @@ from pyologger.io_operations.base_importer import BaseImporter
 import os
 import pandas as pd
 from datetime import datetime
+from pyologger.utils.time_manager import process_datetime
 
 class CATSImporter(BaseImporter):
     """CATS-specific processing."""
@@ -31,7 +32,7 @@ class CATSImporter(BaseImporter):
         final_df, column_metadata = self.rename_columns(final_df, self.logger_id, self.logger_manufacturer)
         
         # Process datetime and return metadata
-        final_df, datetime_metadata = self.data_reader.process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
+        final_df, datetime_metadata = process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
         self.data_reader.logger_info[self.logger_id]['datetime_metadata'] = datetime_metadata
 
         # Map data to sensors and return sensor information

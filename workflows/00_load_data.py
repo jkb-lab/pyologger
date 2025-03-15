@@ -21,7 +21,7 @@ parser.add_argument("--deployment", type=str, help="Deployment ID")
 args = parser.parse_args()
 
 # Load important file paths and configurations
-config, data_dir, color_mapping_path, channel_mapping_path = load_configuration()
+config, data_dir, color_mapping_path, montage_path = load_configuration()
 
 # Step 1: Select dataset folder
 if args.dataset:
@@ -35,8 +35,6 @@ if not os.path.exists(dataset_folder):
 
 # Step 2: Load metadata
 metadata = Metadata()
-metadata.fetch_databases(verbose=False)
-metadata.find_relations(verbose=False)
 
 # Fetch databases
 deployment_db = metadata.get_metadata("deployment_DB")
@@ -44,6 +42,17 @@ logger_db = metadata.get_metadata("logger_DB")
 recording_db = metadata.get_metadata("recording_DB")
 animal_db = metadata.get_metadata("animal_DB")
 dataset_db = metadata.get_metadata("dataset_DB")
+procedure_db = metadata.get_metadata("procedure_DB")
+observation_db = metadata.get_metadata("observation_DB")
+collaborator_db = metadata.get_metadata("collaborator_DB")
+location_db = metadata.get_metadata("location_DB")
+montage_db = metadata.get_metadata("montage_DB")
+sensor_db = metadata.get_metadata("sensor_DB")
+attachment_db = metadata.get_metadata("attachment_DB")
+originalchannel_db = metadata.get_metadata("originalchannel_DB")
+standardizedchannel_db = metadata.get_metadata("standardizedchannel_DB")
+derivedsignal_db = metadata.get_metadata("derivedsignal_DB")
+derivedchannel_db = metadata.get_metadata("derivedchannel_DB")
 
 # Combine DataFrames into a dictionary
 metadata_databases = {
@@ -51,7 +60,18 @@ metadata_databases = {
     'logger_db': logger_db,
     'recording_db': recording_db,
     'animal_db': animal_db,
-    'dataset_db': dataset_db
+    'dataset_db': dataset_db,
+    'procedure_db': procedure_db,
+    'observation_db': observation_db,
+    'collaborator_db': collaborator_db,
+    'location_db': location_db,
+    'montage_db': montage_db,
+    'sensor_db': sensor_db,
+    'attachment_db': attachment_db,
+    'originalchannel_db': originalchannel_db,
+    'standardizedchannel_db': standardizedchannel_db,
+    'derivedsignal_db': derivedsignal_db,
+    'derivedchannel_db': derivedchannel_db
 }
 
 # Save metadata snapshot
@@ -82,27 +102,25 @@ if match:
 else:
     raise ValueError(f"❌ Unable to extract deployment ID from folder: {deployment_folder}")
 
+deployment_info, loggers_used = metadata.extract_essential_metadata(deployment_id)
+
 # Step 5: Initialize DataReader with dataset folder, deployment ID, and optional data subfolder
-datareader = DataReader(dataset_folder=dataset_folder, deployment_id=deployment_id, data_subfolder="01_raw-data")
+data_pkl = DataReader(dataset_folder=dataset_folder, deployment_id=deployment_id, data_subfolder="01_raw-data", montage_path=montage_path)
 
 # Step 6: Initialize config manager
 config_manager = ConfigManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
 config_manager.add_to_config("current_processing_step", "Processing Step 00: Data import pending.")
+config_manager.export_config()
 
-# Step 7: Read deployment files
-datareader.read_files(
-    metadata,
-    save_csv=False,
-    save_parq=True,
-    save_edf=False,
-    custom_mapping_path=channel_mapping_path,
-    save_netcdf=True,
+# Pass it to DataReader
+data_pkl.read_files(
+    deployment_info= deployment_info,
+    loggers_used= loggers_used,
+    save_parq= False,
+    overwrite= False,
+    save_netcdf= False
 )
 
-import pandas as pd
-from datetime import timedelta
-
-data_pkl = datareader
 # Get timezone
 timezone = data_pkl.deployment_info.get("Time Zone", "UTC")
 

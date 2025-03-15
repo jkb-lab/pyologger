@@ -4,6 +4,7 @@ import pytz
 import struct
 import pandas as pd
 from datetime import datetime, timedelta
+from pyologger.utils.time_manager import *
 
 class UFIImporter(BaseImporter):
     """UFI-specific processing."""
@@ -22,7 +23,7 @@ class UFIImporter(BaseImporter):
             final_df, column_metadata = self.rename_columns(final_df, self.logger_id, self.logger_manufacturer)
             
             # Process datetime and return metadata
-            final_df, datetime_metadata = self.data_reader.process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
+            final_df, datetime_metadata = process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
             self.data_reader.logger_info[self.logger_id]['datetime_metadata'] = datetime_metadata
             
             # Map data to sensors and return sensor information
@@ -31,7 +32,7 @@ class UFIImporter(BaseImporter):
             return final_df, column_metadata, datetime_metadata, sensor_groups, sensor_info
         else:
             print(f"No .ube file found for UFI logger.")
-            return None, None, None, None  # Return four None values
+            return None, None, None, None, None  # Return four None values
 
     def process_ube_file(self, ube_file):
         """Processes a UBE file and extracts data."""
@@ -67,11 +68,11 @@ class UFIImporter(BaseImporter):
             if timezone:
                 tz = pytz.timezone(timezone)
                 record_start = tz.localize(record_start)
-                print(f"Recording start time (localized): {record_start}")
+                print(f"Deployment start time (localized): {record_start}")
 
-            rec_date = pd.to_datetime(self.data_reader.deployment_info['Recording Date']).date()
+            rec_date = pd.to_datetime(self.data_reader.deployment_info['Deployment Date']).date()
             if record_start.date() != rec_date:
-                print(f"Error: Recording start date {record_start.date()} does not match Recording Date {rec_date}.")
+                print(f"Error: Deployment start date {record_start.date()} does not match Deployment Date {rec_date}.")
                 return pd.DataFrame(), {}
 
             # Extract data after the header

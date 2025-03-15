@@ -13,8 +13,8 @@ def load_configuration():
         config = yaml.safe_load(f)
     data_dir = config["paths"]["local_private_data"]
     color_mapping_path = os.path.join(config["paths"]["local_repo_path"], "color_mappings.json")
-    channel_mapping_path = os.path.join(config["paths"]["local_repo_path"], "channel_mapping.json")
-    return config, data_dir, color_mapping_path, channel_mapping_path
+    montage_path = os.path.join(config["paths"]["local_repo_path"], "channel_mapping.json")
+    return config, data_dir, color_mapping_path, montage_path
 
 def select_folder(base_dir, prompt="Select a folder:"):
     """Prompts the user to select a dataset or deployment folder."""
