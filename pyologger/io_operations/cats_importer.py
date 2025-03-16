@@ -1,44 +1,57 @@
 from pyologger.io_operations.base_importer import BaseImporter
 import os
+import re
 import pandas as pd
-from datetime import datetime
 from pyologger.utils.time_manager import process_datetime
 
 class CATSImporter(BaseImporter):
     """CATS-specific processing."""
 
-    def process_files(self, files):
-        """Process CATS files, specifically handling .txt, ignoring .ubx, .ubc, and .bin files."""
-        # Filter out .ubx, .ubc, and .bin files
-        files = [f for f in files if not f.endswith(('.ubc', '.bin', '.ubx'))]
+    def process_files(self, files, enforce_frequency=True):
+        """
+        Process CATS files, handling .txt separately and ignoring .ubx, .ubc, .bin, .cfg files.
         
-        # Parse the .txt file for expected intervals
+        Args:
+            files (list): List of files to process.
+            enforce_frequency (bool): Whether to enforce expected frequencies. Default is True.
+        """
+        # Filter out unwanted files
+        files = [f for f in files if not f.endswith(('.ubc', '.bin', '.ubx', '.cfg'))]
+
+        # Step 1: Parse .txt file for sensor intervals
         txt_file = next((f for f in files if f.endswith('.txt')), None)
+        parsed_sensors = {}
         if txt_file:
-            print(f"Parsing {txt_file} for expected sensor intervals.")
-            self.parse_txt_for_intervals(os.path.join(self.data_reader.data_folder, txt_file))
+            print(f"🔍 Parsing {txt_file} for expected sensor intervals.")
+            parsed_sensors = self.parse_txt_file(os.path.join(self.data_reader.data_folder, txt_file))
 
-        if not files:
-            print(f"No valid files found for {self.logger_manufacturer} logger.")
-            return None, None, None, None  # Return four None values
+        # Step 2: Set expected frequencies (can be overridden)
+        self.set_expected_frequencies(parsed_sensors, enforce_frequency=enforce_frequency)
 
-        # Remove the .txt files from the list after processing them
+        # Remove .txt files from the list after processing them
         files = [f for f in files if not f.endswith('.txt')]
 
-        # Concatenate the remaining files into one DataFrame
-        final_df = self.concatenate_and_save_csvs(files)
+        if not files:
+            print(f"⚠ No valid files found for {self.logger_manufacturer} logger.")
+            return None, None, None, None, None  # Return five None values
 
-        # Rename columns
-        final_df, column_metadata = self.rename_columns(final_df, self.logger_id, self.logger_manufacturer)
+        # Step 3: Concatenate remaining files into one DataFrame
+        final_df = self.concatenate_and_save_csvs(files)
         
-        # Process datetime and return metadata
+        # Step 4: Rename columns
+        original_channel_names = final_df.columns.tolist()
+        new_channel_names, channel_metadata = self.rename_channels(original_channel_names)
+        final_df.rename(columns=new_channel_names, inplace=True)
+        print(f"✅ Renamed columns: {new_channel_names}")
+
+        # Step 5: Process datetime and return metadata
         final_df, datetime_metadata = process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
         self.data_reader.logger_info[self.logger_id]['datetime_metadata'] = datetime_metadata
 
-        # Map data to sensors and return sensor information
-        sensor_groups, sensor_info = self.group_data_by_sensors(final_df, self.logger_id, column_metadata)
+        # Step 6: Map data to sensors and return sensor information
+        sensor_groups, sensor_info = self.group_data_by_sensors(final_df, self.logger_id, channel_metadata)
 
-        return final_df, column_metadata, datetime_metadata, sensor_groups, sensor_info
+        return final_df, channel_metadata, datetime_metadata, sensor_groups, sensor_info
 
     def concatenate_and_save_csvs(self, csv_files):
         """Concatenates multiple CSV files into one DataFrame."""
@@ -64,3 +77,35 @@ class CATSImporter(BaseImporter):
         file_path = os.path.join(self.data_reader.data_folder, txt_file)
         with open(file_path, 'r') as file:
             print(file.read())
+
+    def parse_txt_file(self, txt_file_path):
+        """Parses the .txt file to extract sensor names and sampling intervals."""
+        print(f"🔍 Attempting to parse intervals from {txt_file_path}")
+
+        try:
+            with open(txt_file_path, 'r') as file:
+                content = file.read()
+
+            # Extract sensor information from the '[activated sensors]' section
+            activated_sensors_section = re.search(r'\[activated sensors\](.*?)\n\n', content, re.DOTALL)
+            if not activated_sensors_section:
+                print("⚠ No 'activated sensors' section found in the file.")
+                return {}
+
+            activated_sensors_content = activated_sensors_section.group(1)
+
+            # Find all sensors' names and their corresponding intervals
+            sensor_info = re.findall(r'(\d{2})_name=(.*?)\n.*?\1_interval=(\d+)', activated_sensors_content, re.DOTALL)
+            if not sensor_info:
+                print("⚠ No sensor information found in the file. Please check the file format.")
+                return {}
+
+            print(f"✅ Parsed sensor info from txt: {sensor_info}")
+
+            # Convert to dictionary {sensor_name: interval}
+            parsed_sensors = {sensor_name.strip().lower(): int(interval) for _, sensor_name, interval in sensor_info}
+            return parsed_sensors
+
+        except Exception as e:
+            print(f"❌ Failed to parse {txt_file_path} due to: {e}")
+            return {}

@@ -20,16 +20,21 @@ class UFIImporter(BaseImporter):
 
             # Rename columns
             print(final_df)
-            final_df, column_metadata = self.rename_columns(final_df, self.logger_id, self.logger_manufacturer)
+
+            # Step 4: Rename columns
+            original_channel_names = final_df.columns.tolist()
+            new_channel_names, channel_metadata = self.rename_channels(original_channel_names)
+            final_df.rename(columns=new_channel_names, inplace=True)
+            print(f"✅ Renamed columns: {new_channel_names}")
             
             # Process datetime and return metadata
             final_df, datetime_metadata = process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
             self.data_reader.logger_info[self.logger_id]['datetime_metadata'] = datetime_metadata
             
             # Map data to sensors and return sensor information
-            sensor_groups, sensor_info = self.group_data_by_sensors(final_df, self.logger_id, column_metadata)
+            sensor_groups, sensor_info = self.group_data_by_sensors(final_df, self.logger_id, channel_metadata)
 
-            return final_df, column_metadata, datetime_metadata, sensor_groups, sensor_info
+            return final_df, channel_metadata, datetime_metadata, sensor_groups, sensor_info
         else:
             print(f"No .ube file found for UFI logger.")
             return None, None, None, None, None  # Return four None values

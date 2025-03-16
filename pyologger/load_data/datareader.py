@@ -132,13 +132,6 @@ class DataReader:
             if logger_id in loggers_with_files:
                 files = loggers_with_files[logger_id]
 
-                # Save logger metadata
-                self.logger_info[logger_id]['logger_metadata'] = {
-                    'Logger ID': logger_id,
-                    'Manufacturer': manufacturer,
-                    'Montage ID': logger.get("Montage ID", "Unknown")
-                }
-
                 # Step 6: Select manufacturer-specific processor
                 processor_classes = {
                     "CATS": CATSImporter,
@@ -150,16 +143,13 @@ class DataReader:
                 processor_class = processor_classes.get(manufacturer)
 
                 if processor_class:
-                    processor_instance = processor_class(self, logger_id, manufacturer=manufacturer)
+                    processor_instance = processor_class(self, logger_id)
                     result = processor_instance.process_files(files)
 
                     if result:
-                        final_df, column_metadata, datetime_metadata, sensor_groups, sensor_info = result
+                        final_df, channel_metadata, datetime_metadata, sensor_groups, sensor_info = result
 
                         if final_df is not None and 'datetime' in final_df.columns:
-                            # Store extracted metadata
-                            self.logger_info[logger_id]['datetime_metadata'] = datetime_metadata
-                            self.logger_info[logger_id]['channelinfo'] = column_metadata
 
                             # Save data in requested formats
                             self.exporter.save_data(final_df, logger_id, f"{logger_id}.csv", save_parq)
@@ -217,7 +207,7 @@ class DataReader:
         notes_filepath = os.path.join(self.data_folder, notes_filename)
 
         if not os.path.exists(notes_filepath):
-            print(f"❌ Notes file '{notes_filename}' not found in {self.data_folder}. Skipping import.")
+            print(f"⚠️ Notes file '{notes_filename}' not found in {self.data_folder}. Skipping import.")
             return None
 
         try:
@@ -231,7 +221,7 @@ class DataReader:
         event_df, _ = process_datetime(event_df, time_zone=time_zone)
 
         if event_df["datetime"].isna().any():
-            print(f"⚠ WARNING: Some timestamps could not be parsed correctly.")
+            print(f"⚠️ WARNING: Some timestamps could not be parsed correctly.")
         
         # Ensure the dataframe is sorted by time
         event_df = event_df.sort_values(by="datetime").reset_index(drop=True)
