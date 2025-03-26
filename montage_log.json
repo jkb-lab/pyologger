@@ -1,0 +1,248 @@
+{
+    "CATS": {
+        "cats-video-montage_V1": {
+            "date_utc": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "date_utc",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "time_utc": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "time_utc",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "date_local": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "date",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "time_local": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "time",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "accelerometer_x": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Accelerometer",
+                "standardized_channel_id": "ax",
+                "standardized_unit": null,
+                "standardized_sensor_type": "accelerometer"
+            },
+            "accelerometer_y": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Accelerometer",
+                "standardized_channel_id": "ay",
+                "standardized_unit": null,
+                "standardized_sensor_type": "accelerometer"
+            },
+            "accelerometer_z": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Accelerometer",
+                "standardized_channel_id": "az",
+                "standardized_unit": null,
+                "standardized_sensor_type": "accelerometer"
+            },
+            "gyroscope_x": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Gyroscope",
+                "standardized_channel_id": "gx",
+                "standardized_unit": null,
+                "standardized_sensor_type": "gyroscope"
+            },
+            "gyroscope_y": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Gyroscope",
+                "standardized_channel_id": "gy",
+                "standardized_unit": null,
+                "standardized_sensor_type": "gyroscope"
+            },
+            "gyroscope_z": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Gyroscope",
+                "standardized_channel_id": "gz",
+                "standardized_unit": null,
+                "standardized_sensor_type": "gyroscope"
+            },
+            "magnetometer_x": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Magnetometer",
+                "standardized_channel_id": "mx",
+                "standardized_unit": null,
+                "standardized_sensor_type": "magnetometer"
+            },
+            "magnetometer_y": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Magnetometer",
+                "standardized_channel_id": "my",
+                "standardized_unit": null,
+                "standardized_sensor_type": "magnetometer"
+            },
+            "magnetometer_z": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Magnetometer",
+                "standardized_channel_id": "mz",
+                "standardized_unit": null,
+                "standardized_sensor_type": "magnetometer"
+            },
+            "temperature_imu": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Temperature (imu)",
+                "standardized_channel_id": "temp",
+                "standardized_unit": null,
+                "standardized_sensor_type": "temperature"
+            },
+            "temp_magnet": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Temp. (magnet.)",
+                "standardized_channel_id": "temp",
+                "standardized_unit": null,
+                "standardized_sensor_type": "temperature"
+            },
+            "depth_100bar": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Depth (100bar)",
+                "standardized_channel_id": "pressure",
+                "standardized_unit": null,
+                "standardized_sensor_type": "pressure"
+            },
+            "temperature_depth": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Depth (temp)",
+                "standardized_channel_id": "pressure2",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "depth_100bar_1": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Depth (100bar)",
+                "standardized_channel_id": "pressure",
+                "standardized_unit": null,
+                "standardized_sensor_type": "pressure"
+            },
+            "depth_100bar_2": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "pressure2",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "light_intensity_1": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "Light intensity",
+                "standardized_channel_id": "light",
+                "standardized_unit": null,
+                "standardized_sensor_type": "light"
+            },
+            "light_intensity_2": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "light2",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "system_error": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "syserror",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "batt": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "battv",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "batt_ma": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "batta",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "batt_mah": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "battah",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "camera": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "camera",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "flags": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "flags",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "led": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "led",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "camera_time": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "cameratime",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "gps": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "gps",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "cc_status": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "ccstatus",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            },
+            "cc_vid_size": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "ccvidsize",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            }
+        }
+    },
+    "UFI": {
+        "hr-montage_V1": {
+            "ecg": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "ecg",
+                "standardized_channel_id": "ecg",
+                "standardized_unit": null,
+                "standardized_sensor_type": "ecg"
+            },
+            "datetime": {
+                "original_unit": null,
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "datetime",
+                "standardized_unit": null,
+                "standardized_sensor_type": "extra"
+            }
+        }
+    }
+}

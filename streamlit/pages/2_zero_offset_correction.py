@@ -15,7 +15,7 @@ config, data_dir, color_mapping_path, montage_path = load_configuration()
 st.sidebar.title("Deployment Selection")
 
 # Load dataset & deployment
-animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment_streamlit(data_dir)
+animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment_streamlit(data_dir)
 
 if not dataset_id or not deployment_id:
     st.sidebar.warning("⚠ Please select a dataset and deployment.")
@@ -24,7 +24,7 @@ if not dataset_id or not deployment_id:
 st.sidebar.write(f"📂 Selected Deployment: {deployment_id}")
 
 # **Step 2: Load Configuration Parameters**
-dive_detection_settings = config_manager.get_from_config(
+dive_detection_settings = param_manager.get_from_config(
     variable_names=[
         "first_deriv_threshold", "min_duration", "depth_threshold",
         "apply_temp_correction", "min_depth_threshold", "dive_duration_threshold",
@@ -49,7 +49,7 @@ elif any(v is None for v in dive_detection_settings.values()):
     dive_detection_settings = {k: v if dive_detection_settings.get(k) is not None else default_settings[k] for k, v in dive_detection_settings.items()}
 
 # Save if changes were made
-config_manager.add_to_config(entries=dive_detection_settings, section="dive_detection_settings")
+param_manager.add_to_config(entries=dive_detection_settings, section="dive_detection_settings")
 
 # **Step 3: Store Parameters in Session State**
 if "calibration_params" not in st.session_state:
@@ -164,5 +164,5 @@ if st.sidebar.button("Update pickle"):
 
 # **Step 12: Update Configuration JSON**
 if st.sidebar.button("Update configuration JSON"):
-    config_manager.add_to_config(entries=st.session_state.calibration_params, section="dive_detection_settings")
+    param_manager.add_to_config(entries=st.session_state.calibration_params, section="dive_detection_settings")
     st.success("✅ Configuration JSON updated.")

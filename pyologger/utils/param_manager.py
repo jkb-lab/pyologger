@@ -3,17 +3,17 @@ import json
 from typing import Any, Optional, List, Dict, Union
 import pandas as pd
 
-class ConfigManager:
+class ParamManager:
     def __init__(self, deployment_folder: str, deployment_id: str):
         """
-        Initializes ConfigManager with the path to config_log.json inside the dataset folder.
+        Initializes ParamManager with the path to config_log.json inside the dataset folder.
         
         The dataset folder is assumed to be the parent directory of the deployment folder.
         """
         self.deployment_folder = deployment_folder
         self.deployment_id = deployment_id
         self.dataset_folder = os.path.dirname(deployment_folder)  # Parent directory as dataset folder
-        self.config_log_path = os.path.join(self.dataset_folder, "deployment_config_log.json")
+        self.config_log_path = os.path.join(self.dataset_folder, "parameter_log.json")
 
         # Ensure dataset folder exists
         os.makedirs(self.dataset_folder, exist_ok=True)
@@ -163,7 +163,7 @@ class ConfigManager:
         df = pd.DataFrame(data_list)
 
         # Define the path to save the CSV file
-        csv_path = os.path.join(self.dataset_folder, 'deployment_config_log.csv')
+        csv_path = os.path.join(self.dataset_folder, 'parameter_log.csv')
 
         # Save the DataFrame as a CSV file
         df.to_csv(csv_path, index=False)

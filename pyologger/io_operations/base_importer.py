@@ -162,9 +162,9 @@ class BaseImporter:
 
             # Get sampling frequency for each sensor (logger-specific methods or default)
             expected_frequency = self.expected_frequencies.get(sensor_name)
-            if not expected_frequency and sensor_name == 'ecg':
+            if not expected_frequency and self.logger_manufacturer == ['UFI']:
                 # For UFI ECG, use the overall frequency (e.g., determined earlier)
-                expected_frequency = int((self.data_reader.logger_info[logger_id]['datetime_metadata']['fs']))
+                expected_frequency = int((self.data_reader.logger_info[logger_id]['fs']))
 
             if expected_frequency:
                 # Calculate the actual sampling frequency based on the 'datetime' column

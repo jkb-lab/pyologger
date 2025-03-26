@@ -5,11 +5,11 @@ import pickle
 import argparse
 import pandas as pd
 import xarray as xr
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 # Import pyologger utilities
 from pyologger.utils.folder_manager import *
-from pyologger.utils.json_manager import ConfigManager
+from pyologger.utils.param_manager import ParamManager
 from pyologger.load_data.datareader import DataReader
 from pyologger.load_data.metadata import Metadata
 from pyologger.io_operations.base_exporter import *
@@ -33,53 +33,76 @@ else:
 if not os.path.exists(dataset_folder):
     raise ValueError(f"❌ Dataset folder {dataset_folder} not found!")
 
-# Step 2: Load metadata
-metadata = Metadata()
+overwrite_metadata = False
+# Define the path to the metadata pickle file
+metadata_pickle_path = os.path.join(data_dir, "00_Metadata/metadata_snapshot.pkl")
 
-# Fetch databases
-deployment_db = metadata.get_metadata("deployment_DB")
-logger_db = metadata.get_metadata("logger_DB")
-recording_db = metadata.get_metadata("recording_DB")
-animal_db = metadata.get_metadata("animal_DB")
-dataset_db = metadata.get_metadata("dataset_DB")
-procedure_db = metadata.get_metadata("procedure_DB")
-observation_db = metadata.get_metadata("observation_DB")
-collaborator_db = metadata.get_metadata("collaborator_DB")
-location_db = metadata.get_metadata("location_DB")
-montage_db = metadata.get_metadata("montage_DB")
-sensor_db = metadata.get_metadata("sensor_DB")
-attachment_db = metadata.get_metadata("attachment_DB")
-originalchannel_db = metadata.get_metadata("originalchannel_DB")
-standardizedchannel_db = metadata.get_metadata("standardizedchannel_DB")
-derivedsignal_db = metadata.get_metadata("derivedsignal_DB")
-derivedchannel_db = metadata.get_metadata("derivedchannel_DB")
+# Check if the metadata pickle file exists and is more than 5 days old
+if overwrite_metadata or not os.path.exists(metadata_pickle_path) or (datetime.now() - datetime.fromtimestamp(os.path.getmtime(metadata_pickle_path))) > timedelta(days=14):
+    
+    metadata = Metadata()
 
-# Combine DataFrames into a dictionary
-metadata_databases = {
-    'deployment_db': deployment_db,
-    'logger_db': logger_db,
-    'recording_db': recording_db,
-    'animal_db': animal_db,
-    'dataset_db': dataset_db,
-    'procedure_db': procedure_db,
-    'observation_db': observation_db,
-    'collaborator_db': collaborator_db,
-    'location_db': location_db,
-    'montage_db': montage_db,
-    'sensor_db': sensor_db,
-    'attachment_db': attachment_db,
-    'originalchannel_db': originalchannel_db,
-    'standardizedchannel_db': standardizedchannel_db,
-    'derivedsignal_db': derivedsignal_db,
-    'derivedchannel_db': derivedchannel_db
-}
+    # Save database variables
+    deployment_db = metadata.get_metadata("deployment_DB")
+    logger_db = metadata.get_metadata("logger_DB")
+    recording_db = metadata.get_metadata("recording_DB")
+    animal_db = metadata.get_metadata("animal_DB")
+    dataset_db = metadata.get_metadata("dataset_DB")
+    procedure_db = metadata.get_metadata("procedure_DB")
+    observation_db = metadata.get_metadata("observation_DB")
+    collaborator_db = metadata.get_metadata("collaborator_DB")
+    location_db = metadata.get_metadata("location_DB")
+    montage_db = metadata.get_metadata("montage_DB")
+    sensor_db = metadata.get_metadata("sensor_DB")
+    attachment_db = metadata.get_metadata("attachment_DB")
+    originalchannel_db = metadata.get_metadata("originalchannel_DB")
+    standardizedchannel_db = metadata.get_metadata("standardizedchannel_DB")
+    derivedsignal_db = metadata.get_metadata("derivedsignal_DB")
+    derivedchannel_db = metadata.get_metadata("derivedchannel_DB")
 
-# Save metadata snapshot
-metadata_pickle_path = os.path.join(dataset_folder, "metadata_snapshot.pkl")
-with open(metadata_pickle_path, "wb") as file:
-    pickle.dump(metadata_databases, file)
+    # Get the relations map
+    relations_map = metadata.relations_map
 
-print(f"📂 Metadata snapshot saved at: {metadata_pickle_path}")
+    # Define the path to save the relations map
+    relations_map_path = os.path.join(config['paths']['local_repo_path'], 'relations_map.json')
+
+    # Save the relations map as a JSON file
+    with open(relations_map_path, 'w') as file:
+        json.dump(relations_map, file, indent=4)
+
+    print(f"Relations map saved at: {relations_map_path}")
+
+    ## OPTIONAL: Save metadata snapshot as a pickle file
+    metadata.notion = None  # Temporarily remove the Notion client
+    # Save metadata snapshot as a pickle file
+    with open(metadata_pickle_path, "wb") as file:
+        pickle.dump(metadata, file)
+
+    print(f"Metadata snapshot saved at: {metadata_pickle_path}")
+else:
+    print(f"Recent metadata snapshot loaded, already present at: {metadata_pickle_path}")
+    
+    # Load the metadata snapshot from the pickle file
+    with open(metadata_pickle_path, "rb") as file:
+        metadata = pickle.load(file)
+    
+    # Save database variables
+    deployment_db = metadata.get_metadata("deployment_DB")
+    logger_db = metadata.get_metadata("logger_DB")
+    recording_db = metadata.get_metadata("recording_DB")
+    animal_db = metadata.get_metadata("animal_DB")
+    dataset_db = metadata.get_metadata("dataset_DB")
+    procedure_db = metadata.get_metadata("procedure_DB")
+    observation_db = metadata.get_metadata("observation_DB")
+    collaborator_db = metadata.get_metadata("collaborator_DB")
+    location_db = metadata.get_metadata("location_DB")
+    montage_db = metadata.get_metadata("montage_DB")
+    sensor_db = metadata.get_metadata("sensor_DB")
+    attachment_db = metadata.get_metadata("attachment_DB")
+    originalchannel_db = metadata.get_metadata("originalchannel_DB")
+    standardizedchannel_db = metadata.get_metadata("standardizedchannel_DB")
+    derivedsignal_db = metadata.get_metadata("derivedsignal_DB")
+    derivedchannel_db = metadata.get_metadata("derivedchannel_DB")
 
 # Step 3: Select deployment folder
 if args.deployment:
@@ -108,24 +131,38 @@ deployment_info, loggers_used = metadata.extract_essential_metadata(deployment_i
 data_pkl = DataReader(dataset_folder=dataset_folder, deployment_id=deployment_id, data_subfolder="01_raw-data", montage_path=montage_path)
 
 # Step 6: Initialize config manager
-config_manager = ConfigManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
-config_manager.add_to_config("current_processing_step", "Processing Step 00: Data import pending.")
-config_manager.export_config()
+param_manager = ParamManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
+param_manager.add_to_config("current_processing_step", "Processing Step 00: Data import pending.")
+param_manager.export_config()
 
-# Pass it to DataReader
-data_pkl.read_files(
-    deployment_info= deployment_info,
-    loggers_used= loggers_used,
-    save_parq= False,
-    overwrite= False,
-    save_netcdf= False
-)
+overwrite_data = False
+pkl_path = os.path.join(deployment_folder, "outputs", "data.pkl")
+if os.path.exists(pkl_path) and not overwrite_data:
+    with open(pkl_path, "rb") as f:
+        data_pkl = pickle.load(f)
+    print(f"📦 Loaded processed DataReader object from: {pkl_path}")
+else:
+    data_pkl = DataReader(
+        dataset_folder=dataset_folder,
+        deployment_id=deployment_id,
+        data_subfolder="01_raw-data",
+        montage_path=montage_path
+    )
+    param_manager = ParamManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
+    param_manager.add_to_config("current_processing_step", "Processing Step 00: Data import pending.")
+
+    data_pkl.read_files(
+        deployment_info=deployment_info,
+        loggers_used=loggers_used,
+        save_parq=False,
+        save_netcdf=True
+    )
 
 # Get timezone
 timezone = data_pkl.deployment_info.get("Time Zone", "UTC")
 
 # Load time settings
-time_settings = config_manager.get_from_config(
+time_settings = param_manager.get_from_config(
     ["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],
     section="settings"
 )
@@ -156,14 +193,14 @@ else:
         "zoom_window_start_time": str(zoom_window_start),
         "zoom_window_end_time": str(zoom_window_end),
     }
-    config_manager.add_to_config(entries=time_settings, section="settings")
+    param_manager.add_to_config(entries=time_settings, section="settings")
 
 if any(v is None for v in time_settings.values()):
     print("YES")
 time_settings
 
 # Check if selected start and end times exist in the config file
-truncate_times = config_manager.get_from_config(
+truncate_times = param_manager.get_from_config(
     ["selected_start_time", "selected_end_time"],
     section="settings"
 )
@@ -192,14 +229,14 @@ if not any(v is None for v in truncate_times.values()):
         "zoom_window_start_time": str(ZOOM_WINDOW_START_TIME),
         "zoom_window_end_time": str(ZOOM_WINDOW_END_TIME)
     }
-    config_manager.add_to_config(entries=time_settings_update, section="settings")
+    param_manager.add_to_config(entries=time_settings_update, section="settings")
 
     pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
     with open(pkl_path, "wb") as file:
         pickle.dump(data_pkl, file)
 
 # Step 8: Update processing step
-config_manager.add_to_config("current_processing_step", "Processing Step 00: Data imported.")
+param_manager.add_to_config("current_processing_step", "Processing Step 00: Data imported.")
 
 exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
 netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step00.nc') # Define the export path

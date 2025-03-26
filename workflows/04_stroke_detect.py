@@ -22,11 +22,11 @@ config, data_dir, color_mapping_path, montage_path = load_configuration()
 
 # Load data with optional arguments
 if args.dataset and args.deployment:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(
         data_dir, dataset_id=args.dataset, deployment_id=args.deployment
     )
 else:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(data_dir)
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(data_dir)
 
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 
@@ -34,7 +34,7 @@ pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 variables = ["calm_horizontal_start_time", "calm_horizontal_end_time", 
              "zoom_window_start_time", "zoom_window_end_time", 
              "overlap_start_time", "overlap_end_time"]
-settings = config_manager.get_from_config(variables, section="settings")
+settings = param_manager.get_from_config(variables, section="settings")
 
 # Assign retrieved values to variables
 CALM_HORIZONTAL_START_TIME = settings.get("calm_horizontal_start_time")
@@ -48,7 +48,7 @@ if None in {OVERLAP_START_TIME, OVERLAP_END_TIME, ZOOM_WINDOW_START_TIME, ZOOM_W
     raise ValueError("One or more required time values were not found in the config file.")
 
 current_processing_step = "Processing Step 04 IN PROGRESS."
-config_manager.add_to_config("current_processing_step", current_processing_step)
+param_manager.add_to_config("current_processing_step", current_processing_step)
 
 # Retrieve timezone from deployment info
 timezone = data_pkl.deployment_info['Time Zone']
@@ -57,8 +57,8 @@ timezone = data_pkl.deployment_info['Time Zone']
 stroking_start_time = OVERLAP_START_TIME
 stroking_end_time = OVERLAP_END_TIME
 
-# Use ConfigManager to add both stroking start and end times to the config in the desired section
-config_manager.add_to_config(
+# Use ParamManager to add both stroking start and end times to the config in the desired section
+param_manager.add_to_config(
     entries={
         "stroking_start_time": str(stroking_start_time),
         "stroking_end_time": str(stroking_end_time)
@@ -108,7 +108,7 @@ else:
 signal_df = data_pkl.sensor_data[parent_signal] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal]
 signal = data_pkl.sensor_data[parent_signal][channel] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal][channel]
 datetime_signal = data_pkl.sensor_data[parent_signal]['datetime'] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal]['datetime']
-sampling_rate = data_pkl.sensor_info.get(parent_signal, {}).get('sampling_frequency', calculate_sampling_frequency(datetime_signal))
+sampling_rate = calculate_sampling_frequency(datetime_signal)
 
 # Define the default time range based on the signal's datetime column
 signal_start = datetime_signal.min()
@@ -139,7 +139,7 @@ print(f"Time range selected: {start_datetime} to {end_datetime}")
 print(f"Signal subset size: {len(signal_subset)}")
 
 # Retrieve parameters for peak detection
-params = config_manager.get_from_config(
+params = param_manager.get_from_config(
     variable_names=[
         "BROAD_LOW_CUTOFF", "BROAD_HIGH_CUTOFF", "NARROW_LOW_CUTOFF", "NARROW_HIGH_CUTOFF",
         "FILTER_ORDER", "SPIKE_THRESHOLD", "SMOOTH_SEC_MULTIPLIER", "WINDOW_SIZE_MULTIPLIER",
@@ -177,7 +177,7 @@ if overwrite | any(value is None for value in params.values()):
         "enable_normalization": True,  # Enable/disable sliding window normalization
         "enable_refinement": True,  # Enable/disable peak refinement
     }
-    config_manager.add_to_config(entries=params, section="stroke_peak_detection_settings")
+    param_manager.add_to_config(entries=params, section="stroke_peak_detection_settings")
 else:
     print("Settings loaded from config file, not overwritten.")
 
@@ -319,7 +319,7 @@ current_processing_step = "Processing Step 04. Stroke rate and ODBA calculation 
 print(current_processing_step)
 
 # Add or update the current_processing_step for the specified deployment
-config_manager.add_to_config("current_processing_step", current_processing_step)
+param_manager.add_to_config("current_processing_step", current_processing_step)
 
 # Optional: save new pickle file
 with open(pkl_path, 'wb') as file:

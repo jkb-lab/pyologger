@@ -4,7 +4,7 @@ import pickle
 import streamlit as st
 from dotenv import load_dotenv
 
-from pyologger.utils.json_manager import ConfigManager
+from pyologger.utils.param_manager import ParamManager
 
 def load_configuration():
     load_dotenv()
@@ -13,7 +13,7 @@ def load_configuration():
         config = yaml.safe_load(f)
     data_dir = config["paths"]["local_private_data"]
     color_mapping_path = os.path.join(config["paths"]["local_repo_path"], "color_mappings.json")
-    montage_path = os.path.join(config["paths"]["local_repo_path"], "channel_mapping.json")
+    montage_path = os.path.join(config["paths"]["local_repo_path"], "montage_log.json")
     return config, data_dir, color_mapping_path, montage_path
 
 def select_folder(base_dir, prompt="Select a folder:"):
@@ -75,10 +75,10 @@ def select_and_load_deployment_streamlit(data_dir):
     with open(pkl_path, "rb") as file:
         data_pkl = pickle.load(file)
 
-    # Initialize ConfigManager
-    config_manager = ConfigManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
+    # Initialize ParamManager
+    param_manager = ParamManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
 
-    return animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager
+    return animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager
 
 def select_and_load_deployment(data_dir, dataset_id=None, deployment_id=None):
     """Command-line or function-based deployment selection. Allows selection via index or folder name."""
@@ -139,7 +139,7 @@ def select_and_load_deployment(data_dir, dataset_id=None, deployment_id=None):
     with open(pkl_path, "rb") as file:
         data_pkl = pickle.load(file)
 
-    # Initialize ConfigManager
-    config_manager = ConfigManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
+    # Initialize ParamManager
+    param_manager = ParamManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
 
-    return animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager
+    return animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager

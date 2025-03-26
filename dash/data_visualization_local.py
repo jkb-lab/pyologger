@@ -7,9 +7,6 @@ import pickle
 
 # Import pyologger utilities
 from pyologger.utils.folder_manager import *
-from pyologger.utils.json_manager import ConfigManager
-from pyologger.load_data.datareader import DataReader
-from pyologger.load_data.metadata import Metadata
 from pyologger.plot_data.plotter import *
 from pyologger.utils.data_manager import *
 from pyologger.utils.event_manager import *
@@ -27,11 +24,11 @@ config, data_dir, color_mapping_path, montage_path = load_configuration()
 
 # Load data with optional arguments
 if args.dataset and args.deployment:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(
         data_dir, dataset_id=args.dataset, deployment_id=args.deployment
     )
 else:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(data_dir)
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(data_dir)
 
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 
@@ -46,7 +43,7 @@ variables = ["calm_horizontal_start_time", "calm_horizontal_end_time",
              "zoom_window_start_time", "zoom_window_end_time", 
              "overlap_start_time", "overlap_end_time",
              "video_start_time", "video_end_time", "video_filename"]
-settings = config_manager.get_from_config(variables, section="settings")
+settings = param_manager.get_from_config(variables, section="settings")
 
 # Assign retrieved values to variables
 CALM_HORIZONTAL_START_TIME = settings.get("calm_horizontal_start_time")

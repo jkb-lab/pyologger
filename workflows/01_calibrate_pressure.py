@@ -23,17 +23,17 @@ config, data_dir, color_mapping_path, montage_path = load_configuration()
 
 # Load data with optional arguments
 if args.dataset and args.deployment:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(
         data_dir, dataset_id=args.dataset, deployment_id=args.deployment
     )
 else:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(data_dir)
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(data_dir)
 
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 
 # Load key time points
 timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
-settings = config_manager.get_from_config(variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
+settings = param_manager.get_from_config(variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
 OVERLAP_START_TIME = pd.Timestamp(settings["overlap_start_time"]).tz_convert(timezone)
 OVERLAP_END_TIME = pd.Timestamp(settings["overlap_end_time"]).tz_convert(timezone)
 ZOOM_WINDOW_START_TIME = pd.Timestamp(settings["zoom_window_start_time"]).tz_convert(timezone)
@@ -44,7 +44,7 @@ if None in {OVERLAP_START_TIME, OVERLAP_END_TIME, ZOOM_WINDOW_START_TIME, ZOOM_W
     raise ValueError("One or more required time values were not found in the config file.")
 
 current_processing_step = "Processing Step 01 IN PROGRESS."
-config_manager.add_to_config("current_processing_step", current_processing_step)
+param_manager.add_to_config("current_processing_step", current_processing_step)
 
 # Print sampling frequency info
 for logger_id, info in data_pkl.logger_info.items():
@@ -59,7 +59,7 @@ temp_data = data_pkl.sensor_data['temperature']['temp']
 temp_fs = data_pkl.sensor_info['temperature']['sampling_frequency']
 
 # **Step 2: Load Configuration Parameters**
-dive_detection_settings = config_manager.get_from_config(
+dive_detection_settings = param_manager.get_from_config(
     variable_names=[
         "first_deriv_threshold", "min_duration", "depth_threshold",
         "apply_temp_correction", "min_depth_threshold", "dive_duration_threshold",
@@ -84,7 +84,7 @@ elif any(v is None for v in dive_detection_settings.values()):
     dive_detection_settings = {k: v if dive_detection_settings.get(k) is not None else default_settings[k] for k, v in dive_detection_settings.items()}
 
 # Save if changes were made
-config_manager.add_to_config(entries=dive_detection_settings, section="dive_detection_settings")
+param_manager.add_to_config(entries=dive_detection_settings, section="dive_detection_settings")
 
 # Print to confirm
 print(f"✅ Loaded downsampled_sampling_rate: {dive_detection_settings['downsampled_sampling_rate']}")
@@ -202,7 +202,7 @@ data_pkl.derived_info["depth"] = derived_info
 
 # Load key time points
 timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
-settings = config_manager.get_from_config(variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
+settings = param_manager.get_from_config(variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
 OVERLAP_START_TIME = pd.Timestamp(settings["overlap_start_time"]).tz_convert(timezone)
 OVERLAP_END_TIME = pd.Timestamp(settings["overlap_end_time"]).tz_convert(timezone)
 ZOOM_WINDOW_START_TIME = pd.Timestamp(settings["zoom_window_start_time"]).tz_convert(timezone)
@@ -220,7 +220,7 @@ ZOOM_WINDOW_END_TIME = pd.Timestamp(settings["zoom_window_end_time"]).tz_convert
 # )
 # fig.show()
 
-config_manager.add_to_config("current_processing_step", "Processing Step 01: Pressure sensor calibration complete.")
+param_manager.add_to_config("current_processing_step", "Processing Step 01: Pressure sensor calibration complete.")
 with open(pkl_path, "wb") as file:
     pickle.dump(data_pkl, file)
 

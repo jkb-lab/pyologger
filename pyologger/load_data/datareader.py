@@ -32,7 +32,6 @@ class DataReader:
         self.deployment_info = {}  # Store selected deployment metadata here
         self.output_folder = os.path.join(self.deployment_folder, 'outputs')
         
-        self.deployment_info = {'Deployment Date': deployment_id.split('_', 1)[0] if '_' in deployment_id else None}
         self.animal_info = {'Animal_ID': self.deployment_id.split('_', 1)[1] if '_' in self.deployment_id else None}
         self.dataset_info = {'Dataset_ID': os.path.basename(os.path.normpath(dataset_folder))}
 
@@ -49,9 +48,9 @@ class DataReader:
 
         print(f"DataReader initialized with deployment folder: {self.deployment_folder}")
         print(f"Using data folder: {self.data_folder}")
-
+    
     def read_files(self, deployment_info, loggers_used, save_parq=True,
-                overwrite=False, save_netcdf=False):
+                save_netcdf=False):
         """
         Reads and processes deployment data files from the specified folder.
 
@@ -59,34 +58,13 @@ class DataReader:
         - deployment_info: Dict containing "Deployment Latitude", "Deployment Longitude", and "Time Zone".
         - loggers_used: List of dictionaries, each containing "Logger ID", "Manufacturer", and "Montage ID".
         - save_parq, save_netcdf: Flags for saving output formats.
-        - overwrite: If True, reprocess files even if outputs already exist.
         """
-
-        # Step 4: Check if outputs exist to skip unnecessary processing
-        if not overwrite and self.check_outputs_folder():
-            print("✅ Outputs folder exists. Skipping further processing.")
-            
-            # Attempt to load existing processed data
-            pkl_path = os.path.join(self.output_folder, "data.pkl")
-            if os.path.exists(pkl_path):
-                with open(pkl_path, "rb") as file:
-                    data_pkl = pickle.load(file)
-
-            # Restore data from the saved pickle file
-            self.logger_info = data_pkl.logger_info
-            self.sensor_data = data_pkl.sensor_data
-            self.sensor_info = data_pkl.sensor_info
-            self.derived_data = data_pkl.derived_data
-            self.derived_info = data_pkl.derived_info
-
-            print(f"📦 Loaded previously processed data from {pkl_path}.")
-
-            return
 
         print(f"🔄 Reading files from: {self.data_folder}")
         print(f"📁 Created data folder: {self.output_folder}")
 
         # Store minimal metadata explicitly instead of update()
+        self.deployment_info["Deployment Date"] = deployment_info.get("Deployment Date")
         self.deployment_info["Deployment Latitude"] = deployment_info.get("Deployment Latitude")
         self.deployment_info["Deployment Longitude"] = deployment_info.get("Deployment Longitude")
         self.deployment_info["Time Zone"] = deployment_info.get("Time Zone")
@@ -120,9 +98,6 @@ class DataReader:
 
         print("📟 Loggers with files:", ", ".join(loggers_with_files.keys()))
         print("⚠ Loggers without files:", ", ".join(loggers_without_files) if loggers_without_files else "None")
-
-        for logger_id in loggers_with_files:
-            self.logger_info[logger_id]["channelinfo"] = {}
 
         # Step 5: Process each logger if not already processed
         for logger in loggers_used:

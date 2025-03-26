@@ -46,7 +46,8 @@ class CATSImporter(BaseImporter):
 
         # Step 5: Process datetime and return metadata
         final_df, datetime_metadata = process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
-        self.data_reader.logger_info[self.logger_id]['datetime_metadata'] = datetime_metadata
+        self.data_reader.logger_info[self.logger_id]['datetime_created_from'] = datetime_metadata.get('datetime_created_from', None)
+        self.data_reader.logger_info[self.logger_id]['fs'] = [datetime_metadata.get('fs', None)]
 
         # Step 6: Map data to sensors and return sensor information
         sensor_groups, sensor_info = self.group_data_by_sensors(final_df, self.logger_id, channel_metadata)

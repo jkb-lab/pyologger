@@ -17,11 +17,11 @@ config, data_dir, color_mapping_path, montage_path = load_configuration()
 
 # Load data with optional arguments
 if args.dataset and args.deployment:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(
         data_dir, dataset_id=args.dataset, deployment_id=args.deployment
     )
 else:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(data_dir)
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(data_dir)
 
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 
@@ -41,8 +41,9 @@ collated_df = collate_data(data_pkl, sensor_data_keys, derived_data_keys, output
 # Retrieve values from config
 variables = ["calm_horizontal_start_time", "calm_horizontal_end_time", 
              "zoom_window_start_time", "zoom_window_end_time", 
-             "overlap_start_time", "overlap_end_time"]
-settings = config_manager.get_from_config(variables, section="settings")
+             "overlap_start_time", "overlap_end_time",
+             "analysis_start_time", "analysis_end_time"]
+settings = param_manager.get_from_config(variables, section="settings")
 
 # Assign retrieved values to variables
 CALM_HORIZONTAL_START_TIME = settings.get("calm_horizontal_start_time")
@@ -51,6 +52,8 @@ ZOOM_START_TIME = settings.get("zoom_window_start_time")
 ZOOM_END_TIME = settings.get("zoom_window_end_time")
 OVERLAP_START_TIME = settings.get("overlap_start_time")
 OVERLAP_END_TIME = settings.get("overlap_end_time")
+ANALYSIS_START_TIME = settings.get("analysis_start_time")
+ANALYSIS_END_TIME = settings.get("analysis_end_time")
 
 # Add another 'datetime' column without the timezone information
 collated_df['datetime'] = collated_df['datetime'].dt.tz_localize(None)
@@ -80,6 +83,25 @@ filtered_event_data
 csv_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_event_data.csv')
 filtered_event_data.to_csv(csv_file_path, index=False)
 print(f"Filtered event data saved to {csv_file_path}")
+
+# Crop all derived dataframes to analysis time window if defined
+if ANALYSIS_START_TIME and ANALYSIS_END_TIME:
+    analysis_start = pd.Timestamp(ANALYSIS_START_TIME)
+    analysis_end = pd.Timestamp(ANALYSIS_END_TIME)
+    for key, df in data_pkl.derived_data.items():
+        if 'datetime' in df.columns:
+            data_pkl.derived_data[key] = df[
+                (df['datetime'] >= analysis_start) &
+                (df['datetime'] <= analysis_end)
+            ]
+    print(f"Cropped derived_data to analysis window: {analysis_start} to {analysis_end}")
+else:
+    print("No analysis window defined; skipping cropping of derived_data.")
+
+# Save the updated data_pkl with cropped derived_data
+with open(pkl_path, 'wb') as f:
+    pickle.dump(data_pkl, f)
+print(f"Updated data.pkl saved to {pkl_path}")
 
 exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
 current_date = datetime.now().strftime("%Y-%m-%d") # Get the current date in YYYY-MM-DD format

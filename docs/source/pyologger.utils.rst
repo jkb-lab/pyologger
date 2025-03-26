@@ -7,7 +7,7 @@ Submodules
 pyologger.utils.config\_manager module
 --------------------------------------
 
-.. automodule:: pyologger.utils.config_manager
+.. automodule:: pyologger.utils.param_manager
    :members:
    :undoc-members:
    :show-inheritance:

@@ -18,7 +18,7 @@ config, data_dir, color_mapping_path, montage_path = load_configuration()
 st.sidebar.title("Deployment Selection")
 
 # Load dataset & deployment
-animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment_streamlit(data_dir)
+animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment_streamlit(data_dir)
 
 if not dataset_id or not deployment_id:
     st.sidebar.warning("⚠ Please select a dataset and deployment.")
@@ -30,7 +30,7 @@ st.sidebar.write(f"📂 Selected Deployment: {deployment_id}")
 timezone = data_pkl.deployment_info.get("Time Zone", "UTC")
 
 # Load time settings
-time_settings = config_manager.get_from_config(
+time_settings = param_manager.get_from_config(
     ["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],
     section="settings"
 )
@@ -77,7 +77,7 @@ notes_to_plot = {
 }
 
 
-TARGET_SAMPLING_RATE = 5
+TARGET_SAMPLING_RATE = 25
 # **Step 2: Interactive Plot with Zoom**
 fig = plot_tag_data_interactive(
     data_pkl=data_pkl,
@@ -96,7 +96,7 @@ st.plotly_chart(fig, use_container_width=True)
 
 # **Step 6: Update Configuration JSON**
 if st.button("Update configuration JSON"):
-    config_manager.add_to_config(entries={"selected_start_time": str(selected_start_time),
+    param_manager.add_to_config(entries={"selected_start_time": str(selected_start_time),
                                           "selected_end_time": str(selected_end_time)}, 
                                  section="settings")
     st.success("✅ Configuration JSON updated.")
@@ -126,7 +126,7 @@ if st.button("Truncate Data and Save Pickle"):
         "zoom_window_start_time": str(ZOOM_WINDOW_START_TIME),
         "zoom_window_end_time": str(ZOOM_WINDOW_END_TIME)
     }
-    config_manager.add_to_config(entries=time_settings_update, section="settings")
+    param_manager.add_to_config(entries=time_settings_update, section="settings")
 
     pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
     with open(pkl_path, "wb") as file:

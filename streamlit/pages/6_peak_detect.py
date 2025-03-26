@@ -17,13 +17,13 @@ config, data_dir, color_mapping_path, montage_path = load_configuration()
 st.sidebar.title("Deployment Selection")
 
 # Streamlit load data
-animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment_streamlit(data_dir)
+animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment_streamlit(data_dir)
 timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
 
 st.sidebar.write(f"📂 Selected Deployment: {deployment_id}")
 
 # Load relevant configuration settings
-settings = config_manager.get_from_config(
+settings = param_manager.get_from_config(
     variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],
     section="settings"
 )
@@ -35,7 +35,7 @@ ZOOM_WINDOW_END_TIME = pd.Timestamp(settings["zoom_window_end_time"]).tz_convert
 # Function to get parameters for heart rate or stroke rate
 def get_params(mode):
     section = "hr_peak_detection_settings" if mode == "heart_rate" else "stroke_peak_detection_settings"
-    return config_manager.get_from_config(variable_names=[
+    return param_manager.get_from_config(variable_names=[
         "BROAD_LOW_CUTOFF", "BROAD_HIGH_CUTOFF", "NARROW_LOW_CUTOFF", "NARROW_HIGH_CUTOFF",
         "FILTER_ORDER", "SPIKE_THRESHOLD", "SMOOTH_SEC_MULTIPLIER", "WINDOW_SIZE_MULTIPLIER",
         "NORMALIZATION_NOISE", "PEAK_HEIGHT", "PEAK_DISTANCE_SEC", "SEARCH_RADIUS_SEC",
@@ -132,7 +132,7 @@ checkbox_config = [
 ]
 
 # Retrieve current parameters from the configuration file
-default_params = config_manager.get_from_config(
+default_params = param_manager.get_from_config(
     variable_names=[key for _, key, _, _, _, _ in slider_config] +
                    [key for _, key in checkbox_config],
     section="hr_peak_detection_settings" if detection_mode == "heart_rate" else "stroke_peak_detection_settings"
@@ -154,7 +154,7 @@ for label, key in checkbox_config:
 # Save updated configuration
 if st.sidebar.button("Save Configuration"):
     section = "hr_peak_detection_settings" if detection_mode == "heart_rate" else "stroke_peak_detection_settings"
-    config_manager.add_to_config(entries=params, section=section)
+    param_manager.add_to_config(entries=params, section=section)
     st.success(f"{detection_mode} configuration saved successfully!")
 
 # Use the updated parameters in peak detection

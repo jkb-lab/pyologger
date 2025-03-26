@@ -21,17 +21,17 @@ config, data_dir, color_mapping_path, montage_path = load_configuration()
 
 # Load data with optional arguments
 if args.dataset and args.deployment:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(
         data_dir, dataset_id=args.dataset, deployment_id=args.deployment
     )
 else:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, config_manager = select_and_load_deployment(data_dir)
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(data_dir)
 
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 
 # Load key time points
 timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
-settings = config_manager.get_from_config(variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
+settings = param_manager.get_from_config(variable_names=["overlap_start_time", "overlap_end_time", "zoom_window_start_time", "zoom_window_end_time"],section="settings")
 OVERLAP_START_TIME = pd.Timestamp(settings["overlap_start_time"]).tz_convert(timezone)
 OVERLAP_END_TIME = pd.Timestamp(settings["overlap_end_time"]).tz_convert(timezone)
 ZOOM_WINDOW_START_TIME = pd.Timestamp(settings["zoom_window_start_time"]).tz_convert(timezone)
@@ -40,7 +40,7 @@ if None in {OVERLAP_START_TIME, OVERLAP_END_TIME, ZOOM_WINDOW_START_TIME, ZOOM_W
     raise ValueError("One or more required time values were not found in the config file.")
 
 current_processing_step = "Processing Step 03 IN PROGRESS."
-config_manager.add_to_config("current_processing_step", current_processing_step)
+param_manager.add_to_config("current_processing_step", current_processing_step)
 
 acc_df = data_pkl.derived_data['calibrated_acc']
 mag_df = data_pkl.derived_data['calibrated_mag']
@@ -80,7 +80,7 @@ sampling_rate = acc_fs
 variables = ["calm_horizontal_start_time", "calm_horizontal_end_time", 
              "zoom_window_start_time", "zoom_window_end_time", 
              "overlap_start_time", "overlap_end_time"]
-settings = config_manager.get_from_config(variables, section="settings")
+settings = param_manager.get_from_config(variables, section="settings")
 
 # Assign retrieved values to variables
 CALM_HORIZONTAL_START_TIME = settings.get("calm_horizontal_start_time")
@@ -127,12 +127,12 @@ if requires_manual_update or override_required:
     CALM_HORIZONTAL_START_TIME = str(placeholder_start_time)
     CALM_HORIZONTAL_END_TIME = str(placeholder_end_time)
     
-    # Use ConfigManager to add placeholders to the config
-    config_manager.add_to_config("calm_horizontal_start_time",
+    # Use ParamManager to add placeholders to the config
+    param_manager.add_to_config("calm_horizontal_start_time",
         value=CALM_HORIZONTAL_START_TIME,
         section="settings"
     )
-    config_manager.add_to_config("calm_horizontal_end_time",
+    param_manager.add_to_config("calm_horizontal_end_time",
         value=CALM_HORIZONTAL_END_TIME,
         section="settings"
     )
@@ -179,7 +179,7 @@ settings_to_add = {
 }
 
 # Add the settings under a specific section
-config_manager.add_to_config(entries=settings_to_add, section="03_tagtoanimal_settings")
+param_manager.add_to_config(entries=settings_to_add, section="03_tagtoanimal_settings")
 
 print(f"Tag to animal correction settings saved and added to config file.")
 
@@ -324,7 +324,7 @@ print(current_processing_step)
 
 # Add or update the current_processing_step for the specified deployment
 print(current_processing_step)
-config_manager.add_to_config("current_processing_step", current_processing_step)
+param_manager.add_to_config("current_processing_step", current_processing_step)
 
 # Optional: save new pickle file
 with open(pkl_path, 'wb') as file:
