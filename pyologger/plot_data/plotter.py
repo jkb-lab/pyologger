@@ -1,11 +1,15 @@
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
+from plotly_resampler import FigureWidgetResampler, FigureResampler, register_plotly_resampler
 from pyologger.process_data.sampling import *
-from datetime import timedelta
+from datetime import timedelta, datetime
 import json
 import os
 import pandas as pd
 import numpy as np
+import pytz
+
+
 
 def load_color_mapping(path):
     if os.path.exists(path):
@@ -32,7 +36,7 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
     Function to plot tag data interactively using Plotly with optional initial zooming into a specific time range.
     Includes both sensor_data and derived_data.
     """
-    
+    register_plotly_resampler(mode='auto')
     # Default sensor and derived data order
     default_order = ['ecg', 'pressure', 'accelerometer', 'magnetometer', 'gyroscope', 
                      'prh', 'temperature', 'light']
@@ -60,8 +64,10 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
     # Add subplots: One row per signal, plus extra row for the blank plot and event values if needed
     extra_rows = len(plot_event_values) if plot_event_values else 0
     total_rows = len(signals_sorted) + extra_rows + 1  # +1 for the blank plot
-    fig = make_subplots(rows=total_rows, cols=1, shared_xaxes=True, vertical_spacing=0.03)
-
+    fig = FigureResampler(
+        make_subplots(rows=total_rows, cols=1, shared_xaxes=True, vertical_spacing=0.03)
+        # Specify the subplot rows that will be used for the overview axis of each column
+    )
     row_counter = 1
 
     def plot_signal_data(signal, signal_data, signal_info):
@@ -88,8 +94,8 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
 
         for channel in signal_channels:
             if channel in signal_data_filtered.columns:
-                x_data = signal_data_filtered['datetime']
-                y_data = signal_data_filtered[channel]
+                x_data = np.ascontiguousarray(signal_data_filtered['datetime'].to_numpy())
+                y_data = np.ascontiguousarray(signal_data_filtered[channel].to_numpy())
 
                 # Set labels and line properties
                 original_name = signal_info['metadata'].get(channel, {}).get('original_name', channel)
@@ -98,13 +104,9 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
                 color = color_mapping.get(channel, generate_random_color())
                 color_mapping[channel] = color
 
-                fig.add_trace(go.Scatter(
-                    x=x_data,
-                    y=y_data,
-                    mode='lines',
-                    name=y_label,
-                    line=dict(color=color)
-                ), row=row_counter, col=1)
+                fig.add_trace(go.Scattergl(name=y_label, mode='lines', line=dict(color=color)),
+                              hf_x=x_data, hf_y=y_data,
+                              row=row_counter, col=1)
 
     # Iterate through both sensor data and derived data and plot
     for signal in signals_sorted:
@@ -293,5 +295,3 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
     )
 
     return fig
-
-

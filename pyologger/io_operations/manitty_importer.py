@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 
 # TODO: Finish writing Manitty-specific methods for .EDF files
-class MNImporter(BaseImporter):
+class ManittyImporter(BaseImporter):
     """Manitty-specific processing."""
 
     def process_files(self, files):

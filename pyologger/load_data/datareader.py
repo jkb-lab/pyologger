@@ -11,7 +11,8 @@ from pyologger.io_operations.cats_importer import *
 from pyologger.io_operations.ufi_importer import *
 from pyologger.io_operations.wc_importer import *
 from pyologger.io_operations.ll_importer import *
-from pyologger.io_operations.nl_importer import *
+from pyologger.io_operations.evolocus_importer import *
+from pyologger.io_operations.manitty_importer import *
 
 class DataReader:
     """A class for handling the reading and processing of deployment data files."""
@@ -113,8 +114,10 @@ class DataReader:
                     "UFI": UFIImporter,
                     "LL": LLImporter,
                     "WC": WCImporter,
-                    "NL": NLImporter
+                    "Evolocus": EvolocusImporter,
+                    "Manitty": ManittyImporter  # if/when implemented
                 }
+
                 processor_class = processor_classes.get(manufacturer)
 
                 if processor_class:
@@ -122,18 +125,29 @@ class DataReader:
                     result = processor_instance.process_files(files)
 
                     if result:
-                        final_df, channel_metadata, datetime_metadata, sensor_groups, sensor_info = result
+                        if manufacturer in ['Evolocus', 'Manitty']:
+                            # Expecting dictionaries by frequency
+                            final_dfs_dict, channel_metadata_dict, datetime_metadata_dict, sensor_groups_dict, sensor_info_dict = result
 
-                        if final_df is not None and 'datetime' in final_df.columns:
+                            for freq in final_dfs_dict:
+                                df = final_dfs_dict[freq]
+                                if df is not None and 'datetime' in df.columns:
+                                    filename = f"{logger_id}_{freq}Hz.csv"
+                                    self.exporter.save_data(df, logger_id, filename, save_parq)
 
-                            # Save data in requested formats
-                            self.exporter.save_data(final_df, logger_id, f"{logger_id}.csv", save_parq)
-
-                            print(f"✅ Processed and saved files for logger {logger_id}.")
+                            print(f"✅ Processed and saved multi-frequency data for logger {logger_id}.")
                         else:
-                            print(f"⚠ Issue with file saving for logger {logger_id}.")
+                            # Standard single final_df path
+                            final_df, channel_metadata, datetime_metadata, sensor_groups, sensor_info = result
+
+                            if final_df is not None and 'datetime' in final_df.columns:
+                                self.exporter.save_data(final_df, logger_id, f"{logger_id}.csv", save_parq)
+                                print(f"✅ Processed and saved files for logger {logger_id}.")
+                            else:
+                                print(f"⚠ Issue with file saving for logger {logger_id}.")
                 else:
                     print(f"⚠ Manufacturer {manufacturer} is not supported.")
+
 
         # Step 7: Save the DataReader object to a pickle file
         self.save_datareader_object()

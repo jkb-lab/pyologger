@@ -244,5 +244,212 @@
                 "standardized_sensor_type": "extra"
             }
         }
+    },
+    "Evolocus": {
+        "juv-nese-sleep-montage_V1": {
+            "ch12": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "eeg_p3",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "eeg"
+            },
+            "ch8": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "eeg_f4",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "eeg"
+            },
+            "ch4": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "eeg_f3",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "eeg"
+            },
+            "ch16": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "eeg_p4",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "eeg"
+            },
+            "ch7": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "emg_r",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "emg"
+            },
+            "ch6": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "emg_l",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "emg"
+            },
+            "ch15": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "extra_exg",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "exg"
+            },
+            "ch14": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "extra_exg",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "exg"
+            },
+            "ch13": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "extra_exg",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "exg"
+            },
+            "ch11": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "extra_exg",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "exg"
+            },
+            "ch10": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "extra_exg",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "exg"
+            },
+            "ch9": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "extra_exg",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "exg"
+            },
+            "ch5": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "extra_exg",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "exg"
+            },
+            "ch3": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "eog_r",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "eog"
+            },
+            "ch2": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "eog_l",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "eog"
+            },
+            "ch1": {
+                "original_unit": "uV",
+                "manufacturer_sensor_name": "electrophysiology",
+                "standardized_channel_id": "ecg",
+                "standardized_unit": "uV",
+                "standardized_sensor_type": "ecg"
+            },
+            "synchronization": {
+                "original_unit": "Binary16",
+                "manufacturer_sensor_name": "synchronization",
+                "standardized_channel_id": "synchronization",
+                "standardized_unit": "binary",
+                "standardized_sensor_type": "logger_status"
+            },
+            "temperature": {
+                "original_unit": "degreeC",
+                "manufacturer_sensor_name": "temperature",
+                "standardized_channel_id": "temp_int",
+                "standardized_unit": "degC",
+                "standardized_sensor_type": "temperature_int"
+            },
+            "illumination": {
+                "original_unit": "Lux",
+                "manufacturer_sensor_name": "illumination",
+                "standardized_channel_id": "light",
+                "standardized_unit": "lux",
+                "standardized_sensor_type": "light"
+            },
+            "pressure": {
+                "original_unit": "bar",
+                "manufacturer_sensor_name": "pressure",
+                "standardized_channel_id": "pressure",
+                "standardized_unit": "msw",
+                "standardized_sensor_type": "pressure"
+            },
+            "magz": {
+                "original_unit": "Gauss",
+                "manufacturer_sensor_name": "magnetometer",
+                "standardized_channel_id": "mz",
+                "standardized_unit": "Gauss",
+                "standardized_sensor_type": "magnetometer"
+            },
+            "magy": {
+                "original_unit": "Gauss",
+                "manufacturer_sensor_name": "magnetometer",
+                "standardized_channel_id": "my",
+                "standardized_unit": "Gauss",
+                "standardized_sensor_type": "magnetometer"
+            },
+            "magx": {
+                "original_unit": "Gauss",
+                "manufacturer_sensor_name": "magnetometer",
+                "standardized_channel_id": "mx",
+                "standardized_unit": "Gauss",
+                "standardized_sensor_type": "magnetometer"
+            },
+            "accz": {
+                "original_unit": "g",
+                "manufacturer_sensor_name": "accelerometer",
+                "standardized_channel_id": "az",
+                "standardized_unit": "g",
+                "standardized_sensor_type": "accelerometer"
+            },
+            "accy": {
+                "original_unit": "g",
+                "manufacturer_sensor_name": "accelerometer",
+                "standardized_channel_id": "ay",
+                "standardized_unit": "g",
+                "standardized_sensor_type": "accelerometer"
+            },
+            "accx": {
+                "original_unit": "g",
+                "manufacturer_sensor_name": "accelerometer",
+                "standardized_channel_id": "ax",
+                "standardized_unit": "g",
+                "standardized_sensor_type": "accelerometer"
+            },
+            "gyrz": {
+                "original_unit": "RPS",
+                "manufacturer_sensor_name": "gyroscope",
+                "standardized_channel_id": "gz",
+                "standardized_unit": "rps",
+                "standardized_sensor_type": "gyroscope"
+            },
+            "gyry": {
+                "original_unit": "RPS",
+                "manufacturer_sensor_name": "gyroscope",
+                "standardized_channel_id": "gy",
+                "standardized_unit": "rps",
+                "standardized_sensor_type": "gyroscope"
+            },
+            "gyrx": {
+                "original_unit": "RPS",
+                "manufacturer_sensor_name": "gyroscope",
+                "standardized_channel_id": "gx",
+                "standardized_unit": "rps",
+                "standardized_sensor_type": "gyroscope"
+            }
+        }
     }
 }
