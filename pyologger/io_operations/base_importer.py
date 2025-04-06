@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+import warnings
 import json
 import pytz
 from datetime import datetime
@@ -127,7 +128,7 @@ class BaseImporter:
         print(f"✅ Final renamed channels: {new_channels}")
         return new_channels, channel_metadata
 
-    
+
     def group_data_by_sensors(self, df, logger_id, channel_metadata):
         """Groups data columns to sensors and downsamples based on expected frequencies."""
         sensor_groups = {}
@@ -137,7 +138,6 @@ class BaseImporter:
             if sensor_name == 'extra':
                 continue  # Skip 'extra' sensor type
 
-            # Skip already processed sensors
             if sensor_name in self.data_reader.sensor_data:
                 print(f"Sensor '{sensor_name}' has already been processed. Skipping reprocessing.")
                 continue
@@ -146,8 +146,14 @@ class BaseImporter:
             sensor_cols = [col for col, meta in channel_metadata.items() if meta['sensor'].strip().lower() == sensor_name]
             sensor_df = df[['datetime'] + sensor_cols].copy()
 
+            # Check if all sensor columns are numeric
+            non_numeric_cols = sensor_df[sensor_cols].select_dtypes(exclude=['number']).columns.tolist()
+            if non_numeric_cols:
+                print(f"❌ Skipping sensor '{sensor_name}': non-numeric data found in columns: {non_numeric_cols}")
+                continue
+
             # Determine the data type of the sensor columns
-            data_type = sensor_df[sensor_cols].dtypes.iloc[0]  # Assuming all sensor columns have the same dtype
+            data_type = sensor_df[sensor_cols].dtypes.iloc[0]
             data_type_str = str(data_type)
 
             # Standardized metadata collection
@@ -158,29 +164,42 @@ class BaseImporter:
             mean_value = sensor_df[sensor_cols].mean().mean()
 
             # Get the original unit from the column metadata
-            original_units = list({channel_metadata[col]['unit'] for col in sensor_cols})
+            original_units = {channel_metadata[col]['unit'] for col in sensor_cols}
+            if len(original_units) > 1:
+                warnings.warn(f"Conflicting units found for sensor '{sensor_name}': {original_units}. Using the first one.")
+            original_unit = original_units.pop() if original_units else "unknown"
+            original_frequency = round(1 / sensor_df['datetime'].diff().dt.total_seconds().mean())
+            print(f"Original frequency for {sensor_name}: {original_frequency} Hz")
 
-            # Get sampling frequency for each sensor (logger-specific methods or default)
             expected_frequency = self.expected_frequencies.get(sensor_name)
-            if not expected_frequency and self.logger_manufacturer == ['UFI']:
-                # For UFI ECG, use the overall frequency (e.g., determined earlier)
-                expected_frequency = int((self.data_reader.logger_info[logger_id]['fs']))
+            if not expected_frequency and self.logger_manufacturer == 'LL':
+                expected_frequency = int(self.data_reader.logger_info[logger_id]['fs'])
 
-            if expected_frequency:
-                # Calculate the actual sampling frequency based on the 'datetime' column
-                current_frequency = round(1 / df['datetime'].diff().dt.total_seconds().mean())
-                # Calculate the decimation factor
-                decimation_factor = max(1, int(round(current_frequency / expected_frequency)))
+            max_desired_frequency = None
+            if self.logger_manufacturer in ['Evolocus', 'UFI']:
+                max_freq_lookup = {'eeg': 100, 'eog': 100, 'ecg': 250, 'emg': 250}
+                max_desired_frequency = max_freq_lookup.get(sensor_name, None)
 
-                # Print the downsampling information
-                if decimation_factor > 1:
-                    print(f"Downsampling {sensor_name} data by {decimation_factor} X from {current_frequency:.2f} Hz to {expected_frequency:.2f}Hz.")
-                    # Apply downsampling
-                    sensor_df = sensor_df.iloc[::decimation_factor]
-                else:
-                    print(f"No downsampling needed for {sensor_name}. Expected frequency is close to the actual frequency {current_frequency:.2f} Hz.")
-            
-            # Store the processed data and standardized metadata
+            downsample_target = max_desired_frequency or expected_frequency
+            if not expected_frequency and not max_desired_frequency:
+                print(f"⚠️ No frequency target found for {sensor_name}. Using original frequency {original_frequency} Hz.")
+
+            if downsample_target and downsample_target < original_frequency:
+                decimation_factor = max(1, int(round(original_frequency / downsample_target)))
+                print(f"Downsampling {sensor_name} by {decimation_factor}x from {original_frequency:.2f}Hz to {downsample_target:.2f}Hz.")
+                sensor_df = sensor_df.iloc[::decimation_factor]
+                new_frequency = round(1 / sensor_df['datetime'].diff().dt.total_seconds().mean())
+                print(f"New frequency after downsampling: {new_frequency} Hz")
+            else:
+                new_frequency = original_frequency
+                print(f"No downsampling required for {sensor_name}. Current: {original_frequency:.2f}Hz, Target: {downsample_target}Hz")
+
+            details = 'Initial, raw sensor-specific data and metadata loaded.'
+            if new_frequency != original_frequency:
+                details += f' Original frequency: {original_frequency} Hz; downsampled to {new_frequency} Hz.'
+            else:
+                details += f' Original frequency: {original_frequency} Hz; no downsampling applied.'
+
             self.data_reader.sensor_data[sensor_name] = sensor_df
             self.data_reader.sensor_info[sensor_name] = {
                 'channels': sensor_cols,
@@ -191,20 +210,22 @@ class BaseImporter:
                 'min_value': float(min_value),
                 'mean_value': float(mean_value),
                 'data_type': data_type_str,
-                'original_units': original_units,
-                'sampling_frequency': expected_frequency,
+                'original_units': original_unit,
+                'units': original_unit,
+                'original_sampling_frequency': original_frequency,
+                'sampling_frequency': new_frequency,
                 'logger_id': self.logger_id,
                 'logger_manufacturer': self.logger_manufacturer,
                 'processing_step': 'Raw data uploaded',
                 'last_updated': pd.Timestamp(datetime.now().astimezone(pytz.timezone(self.data_reader.deployment_info['Time Zone']))),
-                'details': 'Initial, raw sensor-specific data and metadata loaded.',
+                'details': details,
             }
 
-        # Print final mapping and downsampling results
         for sensor_name, df in self.data_reader.sensor_data.items():
             print(f"Sensor '{sensor_name}' data processed and stored with shape {df.shape}.")
 
         return sensor_groups, sensor_info
+
 
     def process_files(self, files):
         """Process files in the subclass. This should be overridden."""

@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import pickle
 import pandas as pd
+from dash import Dash
 from datetime import timedelta
 
 # Import pyologger utilities
@@ -9,7 +10,7 @@ from pyologger.utils.event_manager import *
 from pyologger.process_data.sampling import *
 from pyologger.utils.folder_manager import *
 from pyologger.calibrate_data.zoc import *
-from pyologger.plot_data.plotter import plot_tag_data_interactive
+from pyologger.plot_data.plotter import plot_tag_data_interactive_st
 
 # Load configuration
 config, data_dir, color_mapping_path, montage_path = load_configuration()
@@ -79,10 +80,10 @@ notes_to_plot = {
 
 TARGET_SAMPLING_RATE = 25
 # **Step 2: Interactive Plot with Zoom**
-fig = plot_tag_data_interactive(
+fig = plot_tag_data_interactive_st(
     data_pkl=data_pkl,
     sensors=['ecg'],
-    derived_data_signals=['depth','heart_rate', 'prh', 'stroke_rate'],
+    derived_data_signals=['depth','corrected_acc','heart_rate', 'prh', 'stroke_rate'],
     note_annotations=notes_to_plot,
     zoom_start_time=selected_start_time,
     zoom_end_time=selected_end_time,

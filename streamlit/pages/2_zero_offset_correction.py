@@ -6,7 +6,7 @@ import pickle
 from pyologger.utils.event_manager import *
 from pyologger.utils.folder_manager import *
 from pyologger.calibrate_data.zoc import *
-from pyologger.plot_data.plotter import plot_tag_data_interactive
+from pyologger.plot_data.plotter import plot_tag_data_interactive_st
 
 # Load configuration
 config, data_dir, color_mapping_path, montage_path = load_configuration()
@@ -142,7 +142,7 @@ st.sidebar.title("Processing Results")
 st.sidebar.write(f"✅ {len(flat_chunks)} surface intervals detected.")
 st.sidebar.write(f"✅ {len(dives)} dives detected.")
 
-fig = plot_tag_data_interactive(
+fig = plot_tag_data_interactive_st(
     data_pkl=data_pkl,
     sensors=['pressure'],
     derived_data_signals=['depth'],

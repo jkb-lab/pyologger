@@ -227,7 +227,7 @@ if detection_mode == "heart_rate":
         )
     )
 else:
-    fig = plot_tag_data_interactive(
+    fig = plot_tag_data_interactive_st(
         data_pkl=data_pkl,
         sensors=['ecg'],
         derived_data_signals=['depth', 'prh', 'stroke_rate', 'sr_broad_bandpass',

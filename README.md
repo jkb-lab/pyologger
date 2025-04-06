@@ -92,21 +92,76 @@ After importing diverse logger data types, pyologger leverages two primary data 
         - #### Signal data:
             - **Sensor Data**: `data_pkl.sensor_data[sensor_name]`
             
-            Contains a pandas dataframe that is accessed using the sensor_name (e.g. 'ecg', 'accelerometer', 'pressure', etc.). Dataframes have a first column with pandas datetime values localized with a pytz timezone (e.g. "America/Los Angeles") and contain one or more columns that have standardized names for the channels associated with that sensor (e.g. 'ecg' for ecg sensor, 'ax', ay', 'az' for accelerometer sensor, etc.). 
-                - **Sensor Metadata**: `data_pkl.sensor_info[sensor_name]`
+                Contains a pandas dataframe that is accessed using the sensor_name (e.g. 'ecg', 'accelerometer', 'pressure', etc.). Dataframes have a first column with pandas datetime values localized with a pytz timezone (e.g. "America/Los Angeles") and contain one or more columns that have standardized names for the channels associated with that sensor (e.g. 'ecg' for ecg sensor, 'ax', ay', 'az' for accelerometer sensor, etc.). 
+            
+            - **Sensor Metadata**: `data_pkl.sensor_info[sensor_name]`
 
                 Holds JSON dictionary with metadata about the sensor and each of its channels. This receives metadata from the montage mapping process on the original channel name and units for each channel. It also holds information on the min and max value of the sensor, the sampling frequency, the logger ID it's associated with, the logger manufacturer, the data type, and processing metadata.
 
-                *Note*: Should at some point clean this metadata up and add things like precision, or other useful info about the sensor. Perhaps hard to standardize across sensor types.
+                - Channel names and standardized units from the montage mapping process
+                - Summary statistics (min_value, max_value, mean_value, calculated sensor precision)
+                - Data type and units
+                - Sampling frequencies before and after downsampling
+                - Logger ID and manufacturer
+                - Timestamps of the first and last samples
+                - A processing log in the details field
+
+                <details>
+                <summary>Example sensor metadata</summary>
+
+                ```{json}
+                {
+                    "channels": ["gx", "gy", "gz"],
+                    "metadata": {
+                        "gx": {
+                        "original_name": "Gyroscope X [mrad/s]",
+                        "unit": "mrad/s",
+                        "sensor": "gyroscope"
+                        },
+                        "gy": {
+                        "original_name": "Gyroscope Y [mrad/s]",
+                        "unit": "mrad/s",
+                        "sensor": "gyroscope"
+                        },
+                        "gz": {
+                        "original_name": "Gyroscope Z [mrad/s]",
+                        "unit": "mrad/s",
+                        "sensor": "gyroscope"
+                        }
+                    },
+                    "sensor_start_datetime": "2023-06-13T09:59:57-07:00",
+                    "sensor_end_datetime": "2023-06-13T12:26:32.235000-07:00",
+                    "max_value": 17436.2649,
+                    "min_value": -17436.2649,
+                    "mean_value": 1.4415,
+                    "calculated_sensor_precision": 0.0001,
+                    "data_type": "float64",
+                    "original_units": ["mrad/s"],
+                    "units": ["mrad/s"],
+                    "original_sampling_frequency": 100,
+                    "sampling_frequency": 50,
+                    "logger_id": "CC-96",
+                    "logger_manufacturer": "CATS",
+                    "processing_step": "Raw data uploaded",
+                    "last_updated": "2025-03-25T14:16:49.873643-07:00",
+                    "details": "Initial, raw sensor-specific data and metadata loaded. Original frequency: 100 Hz; downsampled to 50 Hz."
+                }
+
+                ```
+
+                </details>
 
             - **Derived Data**: `data_pkl.derived_data[signal_name]`
             
-            Contains a pandas dataframe that is accessed using the derived signal_name (e.g. 'heart_rate', 'prh', 'depth', etc.). When deciding which channels to assign to separate sensors, consider which you would want to appear on a single subplot. For example, x y and z values for accelerometry are often more clearly visualized when superimposed; this could also hold for EEG signals, or versions of a smoothed signal that you want to easily compare. By using the [`data_manager.py`](pyologger/utils/data_manager.py) module, you can easily remove derived signals that are no longer necessary using the `clear_intermediate_signals()` function.
-            
-            Dataframes are structured exactly like the sensor dataframes with a first column of pandas datetime values localized with a pytz timezone (e.g. "America/Los Angeles") and one or more columns that have standardized names for the channels associated with that derived signal type (e.g. 'pitch', 'roll', and 'heading' for derived signal 'prh', 'ax', ay', 'az' for calibrated/corrected accelerometer data, etc.). 
-                - **Derived Signal Metadata**: `data_pkl.derived_info[signal_name]`
+                Contains a pandas dataframe that is accessed using the derived signal_name (e.g. 'heart_rate', 'prh', 'depth', etc.). When deciding which channels to assign to separate sensors, consider which you would want to appear on a single subplot. For example, x y and z values for accelerometry are often more clearly visualized when superimposed; this could also hold for EEG signals, or versions of a smoothed signal that you want to easily compare. By using the [`data_manager.py`](pyologger/utils/data_manager.py) module, you can easily remove derived signals that are no longer necessary using the `clear_intermediate_signals()` function.
+                
+                Dataframes are structured exactly like the sensor dataframes with a first column of pandas datetime values localized with a pytz timezone (e.g. "America/Los Angeles") and one or more columns that have standardized names for the channels associated with that derived signal type (e.g. 'pitch', 'roll', and 'heading' for derived signal 'prh', 'ax', ay', 'az' for calibrated/corrected accelerometer data, etc.). 
+                
+            - **Derived Signal Metadata**: `data_pkl.derived_info[signal_name]`
 
                 Holds JSON dictionary with metadata about the derived signal and each of its channels. Critically, this stores information about what sensors informed the derived signal (e.g. 'heart_rate' would point to 'ecg' in the 'derived_from_sensors' field), as well as the transformations which have occurred.
+
+                *Note*: Should at some point clean this metadata up and add things like precision, or other useful info about the derived signal. Perhaps hard to standardize across signal types.
 
         - #### Event data:`data_pkl.event_data`
 

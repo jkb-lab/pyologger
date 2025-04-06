@@ -45,27 +45,123 @@ if None in {OVERLAP_START_TIME, OVERLAP_END_TIME, ZOOM_WINDOW_START_TIME, ZOOM_W
 current_processing_step = "Processing Step 02 IN PROGRESS."
 param_manager.add_to_config("current_processing_step", current_processing_step)
 
+# Check accelerometer units: if not , convert to g. This code works fine for either unit, but we prefer to work in g for consistency.
+acc_unit = data_pkl.sensor_info['accelerometer']['units']
+
+if acc_unit == 'g':
+    # Convert accelerometer data from g to m/s^2
+    conversion_factor = 9.80665  # 1 g = 9.80665 m/s^2
+    data_pkl.sensor_data['accelerometer'][['ax', 'ay', 'az']] *= conversion_factor
+    acc_unit = 'm/s^2'
+    data_pkl.sensor_info['accelerometer']['units'] = acc_unit
+    print("Accelerometer data converted to m/s^2.")
+elif acc_unit == 'm/s²' or acc_unit == 'm/s^2':
+    print("Accelerometer data is already in m/s^2.")
+
+# Check magnetometer units: if not Gauss, convert to Gauss. This code works fine for either unit, but we prefer to work in Gauss for consistency.
+mag_unit = data_pkl.sensor_info['magnetometer']['units']
+
+if mag_unit == 'Gauss':
+    # Convert magnetometer data from Gauss to microtesla
+    conversion_factor = 100  # 1 Gauss = 100 microtesla
+    data_pkl.sensor_data['magnetometer'][['mx', 'my', 'mz']] *= conversion_factor
+    mag_unit = 'µT'
+    data_pkl.sensor_info['magnetometer']['units'] = mag_unit
+    print("Magnetometer data converted to microtesla.")
+elif mag_unit == 'µT' or mag_unit == 'µt' or mag_unit == 'ut' or mag_unit == 'microtesla':
+    print("Magnetometer data is already in microtesla.")
+
+# Check gyroscope units: if not in mrad/s, convert to mrad/s. This code works fine for either unit, but we prefer to work in mrad/s for consistency.
+gyr_unit = data_pkl.sensor_info['gyroscope']['units']
+
+if gyr_unit == 'rps':
+    # Convert gyroscope data from rps to mrad/s
+    conversion_factor = 2 * np.pi * 1000  # 1 rps = 2π × 1000 mrad/s
+    data_pkl.sensor_data['gyroscope'][['gx', 'gy', 'gz']] *= conversion_factor
+    gyr_unit = 'mrad/s'
+    data_pkl.sensor_info['gyroscope']['units'] = gyr_unit
+    print("Gyroscope data converted to mrad/s.")
+elif gyr_unit == 'mrad/s':
+    print("Gyroscope data is already in mrad/s.")
+
+# Deal with unreliable data inserted during logger_restart events
+# This code will mask the data during logger_restart events and interpolate across the gaps
+
+restart_sensitive_sensors = ['accelerometer', 'gyroscope', 'magnetometer']
+
+# Proceed only if logger_restart events are present
+if (
+    data_pkl.event_data is not None and
+    not data_pkl.event_data.empty and
+    any(data_pkl.event_data['key'] == 'logger_restart')
+):
+    restarts = data_pkl.event_data[data_pkl.event_data['key'] == 'logger_restart'].copy()
+    restarts['end_datetime'] = restarts['datetime'] + pd.to_timedelta(restarts['duration'], unit='s')
+
+    for sensor in restart_sensitive_sensors:
+        if sensor not in data_pkl.sensor_data:
+            print(f"⚠️ {sensor} not found in sensor_data. Skipping.")
+            continue
+
+        df = data_pkl.sensor_data[sensor]
+        datetime_col = df['datetime']
+
+        # Make a working copy of the data so we can interpolate safely
+        df_interp = df.copy()
+        channels = [col for col in df.columns if col != 'datetime']
+
+        for _, row in restarts.iterrows():
+            start = row['datetime']
+            end = row['end_datetime']
+
+            # Buffer to include one sample before and after (optional but good practice)
+            mask = (datetime_col >= start) & (datetime_col <= end)
+            buffer_before = datetime_col.shift(1)
+            buffer_after = datetime_col.shift(-1)
+            buffer_mask = ((buffer_before >= start) & (buffer_before <= end)) | \
+                          ((buffer_after >= start) & (buffer_after <= end))
+            full_mask = mask | buffer_mask
+
+            # Mask the data (set to NaN)
+            df_interp.loc[full_mask, channels] = np.nan
+
+        # Interpolate linearly across the gaps
+        df_interp[channels] = df_interp[channels].interpolate(method='linear', limit_direction='both')
+
+        # Replace sensor data in-place (optional: store separately for later restoration)
+        data_pkl.sensor_data[sensor] = df_interp
+        print(f"🔧 Interpolated {sensor} data through logger_restart windows.")
+else:
+    print("✅ No logger_restart events to apply to sensor masks.")
+
 # Check sampling frequencies of accelerometer and magnetometer
 acc_fs = data_pkl.sensor_info['accelerometer']['sampling_frequency']
+acc_fs
 mag_fs = data_pkl.sensor_info['magnetometer']['sampling_frequency']
+mag_fs
 print(f"Sampling frequency of Accelerometer is {acc_fs/mag_fs}X of Magnetometer.")
 
-acc_data = data_pkl.sensor_data['accelerometer'][['ax','ay','az']]
+acc_data = data_pkl.sensor_data['accelerometer'][['ax', 'ay', 'az']]
 mag_data = data_pkl.sensor_data['magnetometer'][['mx', 'my', 'mz']]
 
-upsampled_columns = []
-for col in mag_data.columns:
-    upsampled_col = upsample(mag_data[col].values, acc_fs / mag_fs, len(acc_data))  # Apply upsample to each column
-    upsampled_columns.append(upsampled_col)  # Append the upsampled column to the list
+if acc_fs != mag_fs:
+    upsampled_columns = []
+    for col in mag_data.columns:
+        upsampled_col = upsample(mag_data[col].values, acc_fs / mag_fs, len(acc_data))  # Apply upsample to each column
+        upsampled_columns.append(upsampled_col)  # Append the upsampled column to the list
 
-# Combine the upsampled columns back into a NumPy array
-mag_data_upsampled = np.column_stack(upsampled_columns)
-mag_data = mag_data_upsampled
+    # Combine the upsampled columns back into a NumPy array
+    mag_data_upsampled = np.column_stack(upsampled_columns)
+    mag_data = mag_data_upsampled
+    print("Magnetometer data upsampled to match accelerometer data length.")
+else:
+    mag_data = mag_data.values
+    print("Magnetometer data is already at the same sampling frequency as accelerometer data.")
 
 acc_data = acc_data.values
 
 # Assuming acc_data and mag_data_upsampled are NumPy arrays
-print(f"Magnetometer upsampled to match accelerometer length: acc_data shape= {acc_data.shape}, upsampled mag_data shape = {mag_data.shape}")
+print(f"Magnetometer matches accelerometer length: acc_data shape= {acc_data.shape}, upsampled mag_data shape = {mag_data.shape}")
 sampling_rate = acc_fs
 
 # Call the check_AM function

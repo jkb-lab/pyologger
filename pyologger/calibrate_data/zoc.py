@@ -266,8 +266,8 @@ def enforce_surface_before_after_dives(depth_series, datetime_data, dives):
         print("⚠ No dives detected. No surface enforcement needed.")
         return corrected_depth
 
-    first_dive_start = dives.iloc[0]['start']
-    last_dive_end = dives.iloc[-1]['end']
+    first_dive_start = dives.iloc[0]['start_index']
+    last_dive_end = dives.iloc[-1]['end_index']
 
     # Set all data before the first dive to 0m
     corrected_depth[:first_dive_start] = 0

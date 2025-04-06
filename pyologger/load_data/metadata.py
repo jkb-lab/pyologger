@@ -104,36 +104,46 @@ class Metadata:
                 continue
 
             try:
-                db = self.notion.databases.query(database_id=db_id)
                 rows_list = []
                 column_types = {}
 
-                for page in db["results"]:
-                    row_data = {"page_id": page["id"]}  # Store page ID for each row
+                # Initial query
+                query_kwargs = {}
+                while True:
+                    db = self.notion.databases.query(database_id=db_id, **query_kwargs)
 
-                    for prop_name, prop in page["properties"].items():
-                        if prop is None:
-                            continue
-                        prop_type = prop.get("type")
+                    for page in db["results"]:
+                        row_data = {"page_id": page["id"]}
 
-                        # **Skip rollup columns entirely**
-                        if prop_type == "rollup":
-                            continue  # Do not store rollup data at all
+                        for prop_name, prop in page["properties"].items():
+                            if prop is None:
+                                continue
+                            prop_type = prop.get("type")
 
-                        column_types[prop_name] = prop_type  # Store type for lookup
+                            # Skip rollup columns entirely
+                            if prop_type == "rollup":
+                                continue
 
-                        try:
-                            parsed_value = self.parse_metadata_value(prop, prop_type, prop_name)
-                            row_data[prop_name] = parsed_value
-                        except Exception as parse_error:
-                            print(f"Error parsing '{prop_name}' in {db_name}: {parse_error}")
+                            column_types[prop_name] = prop_type
 
-                    rows_list.append(row_data)
+                            try:
+                                parsed_value = self.parse_metadata_value(prop, prop_type, prop_name)
+                                row_data[prop_name] = parsed_value
+                            except Exception as parse_error:
+                                print(f"Error parsing '{prop_name}' in {db_name}: {parse_error}")
 
-                # **Create DataFrame without rollup columns**
+                        rows_list.append(row_data)
+
+                    # Check if more pages are available
+                    if db.get("has_more"):
+                        query_kwargs["start_cursor"] = db["next_cursor"]
+                    else:
+                        break
+
+                # Create DataFrame without rollup columns
                 df = pd.DataFrame(rows_list)
 
-                # **Remove any lingering rollup columns**
+                # Remove any lingering rollup columns
                 rollup_columns = [col for col in df.columns if column_types.get(col) == "rollup"]
                 if rollup_columns:
                     df.drop(columns=rollup_columns, inplace=True)
@@ -141,7 +151,7 @@ class Metadata:
                         print(f"[DEBUG] Removed rollup columns from {db_name}: {rollup_columns}")
 
                 self.metadata[db_name] = df
-                self.metadata_types[db_name] = column_types  # Store column types
+                self.metadata_types[db_name] = column_types
 
             except Exception as e:
                 if verbose:
