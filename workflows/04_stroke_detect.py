@@ -75,6 +75,9 @@ overwrite = False
 parent_signal_options = list(data_pkl.sensor_data.keys()) + list(data_pkl.derived_data.keys())
 default_parent_signal = "ecg" if detection_mode == "heart_rate" else "corrected_gyr"
 
+animal_id = data_pkl.animal_info['Animal_ID']
+print(f"Detected animal ID: {animal_id}")
+
 # User input for parent signal
 if overwrite:
     print(f"Available parent signals: {parent_signal_options}")
@@ -92,8 +95,18 @@ elif parent_signal in data_pkl.derived_data:
 else:
     available_channels = []
 
-# Default channel
-default_channel = "ecg" if detection_mode == "heart_rate" else "gy"
+# Default channel logic
+if detection_mode == "heart_rate":
+    default_channel = "ecg"
+elif detection_mode == "stroke_rate":
+    if animal_id.startswith(('nesc', 'mian')):
+        default_channel = 'gx'
+    elif animal_id.startswith(('oror', 'bamu')):
+        default_channel = 'gy'
+    else:
+        default_channel = 'gy'  # fallback if no match
+else:
+    default_channel = available_channels[0] if available_channels else None
 
 # User input for channel
 if overwrite:
@@ -108,7 +121,7 @@ else:
 signal_df = data_pkl.sensor_data[parent_signal] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal]
 signal = data_pkl.sensor_data[parent_signal][channel] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal][channel]
 datetime_signal = data_pkl.sensor_data[parent_signal]['datetime'] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal]['datetime']
-sampling_rate = calculate_sampling_frequency(datetime_signal)
+sampling_rate = calculate_sampling_frequency(datetime_signal.head())
 
 # Define the default time range based on the signal's datetime column
 signal_start = datetime_signal.min()

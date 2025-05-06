@@ -168,7 +168,9 @@ class BaseImporter:
             if len(original_units) > 1:
                 warnings.warn(f"Conflicting units found for sensor '{sensor_name}': {original_units}. Using the first one.")
             original_unit = original_units.pop() if original_units else "unknown"
-            original_frequency = round(1 / sensor_df['datetime'].diff().dt.total_seconds().mean())
+
+            # Calculate current frequency - beware this does not fix gaps, just uses the first few values to calculate freq.
+            original_frequency = calculate_sampling_frequency(sensor_df['datetime'].head()) # round(1 / sensor_df['datetime'].diff().dt.total_seconds().mean())
             print(f"Original frequency for {sensor_name}: {original_frequency} Hz")
 
             expected_frequency = self.expected_frequencies.get(sensor_name)
@@ -188,7 +190,8 @@ class BaseImporter:
                 decimation_factor = max(1, int(round(original_frequency / downsample_target)))
                 print(f"Downsampling {sensor_name} by {decimation_factor}x from {original_frequency:.2f}Hz to {downsample_target:.2f}Hz.")
                 sensor_df = sensor_df.iloc[::decimation_factor]
-                new_frequency = round(1 / sensor_df['datetime'].diff().dt.total_seconds().mean())
+                # Calculate new frequency after downsampling - beware this does not fix gaps, just uses the first few values to calculate freq.
+                new_frequency = calculate_sampling_frequency(sensor_df['datetime'].head()) # round(1 / sensor_df['datetime'].diff().dt.total_seconds().mean())
                 print(f"New frequency after downsampling: {new_frequency} Hz")
             else:
                 new_frequency = original_frequency

@@ -78,7 +78,7 @@ notes_to_plot = {
 }
 
 
-TARGET_SAMPLING_RATE = 25
+TARGET_SAMPLING_RATE = 1
 # **Step 2: Interactive Plot with Zoom**
 fig = plot_tag_data_interactive_st(
     data_pkl=data_pkl,

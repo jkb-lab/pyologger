@@ -45,47 +45,33 @@ OVERLAP_END_TIME = settings.get("overlap_end_time")
 
 # CHANGE AS NEEDED
 
-detection_mode="heart_rate"
+detection_mode = "heart_rate"
 overwrite = False
 
 # Define parent signal options
-parent_signal_options = list(data_pkl.sensor_data.keys()) + list(data_pkl.derived_data.keys())
-default_parent_signal = "ecg" if detection_mode == "heart_rate" else "corrected_gyr"
+# parent_signal_options = list(data_pkl.sensor_data.keys()) + list(data_pkl.derived_data.keys())
 
-# User input for parent signal
-if overwrite:
-    print(f"Available parent signals: {parent_signal_options}")
-    parent_signal = input(f"Choose parent signal (default: {default_parent_signal}): ").strip()
-    if not parent_signal or parent_signal not in parent_signal_options:
-        parent_signal = default_parent_signal
+# Handle default signal based on availability
+if detection_mode == "heart_rate":
+    if "ecg" in data_pkl.sensor_data:
+        default_parent_signal = "ecg"
+        default_channel = "ecg"
+    else:
+        print("⚠️ ECG not found. Using accelerometer (ax) as fallback for peak detection.")
+        default_parent_signal = "accelerometer" if "accelerometer" in data_pkl.sensor_data else parent_signal_options[0]
+        default_channel = "ax" if "ax" in data_pkl.sensor_data.get(default_parent_signal, {}).columns else None
 else:
-    parent_signal = default_parent_signal
+    default_parent_signal = "corrected_gyr"
+    default_channel = "gy"
 
-# Get available channels
-if parent_signal in data_pkl.sensor_data:
-    available_channels = list(data_pkl.sensor_data[parent_signal].columns)
-elif parent_signal in data_pkl.derived_data:
-    available_channels = list(data_pkl.derived_data[parent_signal].columns)
-else:
-    available_channels = []
-
-# Default channel
-default_channel = "ecg" if detection_mode == "heart_rate" else "gy"
-
-# User input for channel
-if overwrite:
-    print(f"Available channels: {available_channels}")
-    channel = input(f"Choose channel (default: {default_channel}): ").strip()
-    if not channel or channel not in available_channels:
-        channel = default_channel
-else:
-    channel = default_channel
+parent_signal = default_parent_signal
+channel = default_channel
 
 # Configure signals
 signal_df = data_pkl.sensor_data[parent_signal] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal]
 signal = data_pkl.sensor_data[parent_signal][channel] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal][channel]
 datetime_signal = data_pkl.sensor_data[parent_signal]['datetime'] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal]['datetime']
-sampling_rate = calculate_sampling_frequency(datetime_signal)
+sampling_rate = calculate_sampling_frequency(datetime_signal.head())
 
 # Define the default time range based on the signal's datetime column
 signal_start = datetime_signal.min()
@@ -134,7 +120,7 @@ if overwrite | any(value is None for value in params.values()):
     # Define parameters for peak detection with updated values
     params = {
         "BROAD_LOW_CUTOFF": 1.0,  # Hz, lower cutoff for the broad bandpass filter
-        "BROAD_HIGH_CUTOFF": 35.0,  # Hz, upper cutoff for the broad bandpass filter
+        "BROAD_HIGH_CUTOFF": 35.0,  # Hz, upper cutoff for the broad bandpass filter. Per the Nyquist theorem, this should be less than half the sampling rate.
         "NARROW_LOW_CUTOFF": 5.0,  # Hz, lower cutoff for the narrow bandpass filter
         "NARROW_HIGH_CUTOFF": 20.0,  # Hz, upper cutoff for the narrow bandpass filter
         "FILTER_ORDER": 2,  # Order of the bandpass filter, affects sharpness

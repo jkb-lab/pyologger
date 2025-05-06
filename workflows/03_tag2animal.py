@@ -47,13 +47,13 @@ mag_df = data_pkl.derived_data['calibrated_mag']
 gyr_df = data_pkl.sensor_data['gyroscope']
 
 # Calculate and print sampling frequency for each dataframe
-acc_fs = calculate_sampling_frequency(acc_df['datetime'])
+acc_fs = calculate_sampling_frequency(acc_df['datetime'].head())
 print(f"Accelerometer Sampling frequency: {acc_fs} Hz")
 
-mag_fs = calculate_sampling_frequency(mag_df['datetime'])
+mag_fs = calculate_sampling_frequency(mag_df['datetime'].head())
 print(f"Magnetometer Sampling frequency: {mag_fs} Hz")
 
-gyr_fs = calculate_sampling_frequency(gyr_df['datetime'])
+gyr_fs = calculate_sampling_frequency(gyr_df['datetime'].head())
 print(f"Gyroscope Sampling frequency: {gyr_fs} Hz")
 
 acc_data = acc_df[['ax','ay','az']]

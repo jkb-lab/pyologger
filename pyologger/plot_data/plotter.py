@@ -85,6 +85,9 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
         else:
             signal_data_filtered = signal_data
 
+        # Ensure datetime is sorted
+        signal_data_filtered = signal_data_filtered.sort_values('datetime').reset_index(drop=True)
+
         # Calculate original sampling rate
         original_fs = calculate_sampling_frequency(signal_data_filtered['datetime'])
         print(f"Original sampling frequency for {signal} calculated as {original_fs} Hz.")

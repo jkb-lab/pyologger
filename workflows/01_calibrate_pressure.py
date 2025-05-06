@@ -59,7 +59,7 @@ if original_pressure_unit == 'bar' and pressure_unit != 'm': # if bar to m and h
     data_pkl.sensor_data['pressure']['pressure'] *= 10
     data_pkl.sensor_info['pressure']['units'] = 'm'
     print("✅ Pressure unit changed from bar to m")
-elif pressure_unit in ['m', '100bar_1', 'msw']: # including CATS format weird 100bar_1 which seems to be m
+elif original_pressure_unit in ['m', '100bar_1', '30bar_1', 'msw']: # including CATS format weird 100bar_1 which seems to be m
     print("✅ Pressure unit already in m")
     data_pkl.sensor_info['pressure']['units'] = 'm'
     pass
@@ -170,6 +170,9 @@ param_manager.add_to_config(entries=dive_detection_settings, section="dive_detec
 # Print to confirm
 print(f"✅ Loaded downsampled_sampling_rate: {dive_detection_settings['downsampled_sampling_rate']}")
 
+# Step 6: Process depth data - Downsample, smooth, adjust baseline, and calculate first derivative
+# Interpolate NaNs for processing
+interpolated_depth_data = depth_data.interpolate(limit_direction='both')
 
 # Step 6: Process depth data - Downsample, smooth, adjust baseline, and calculate first derivative
 depth_processing_params = {
@@ -178,7 +181,7 @@ depth_processing_params = {
     "baseline_adjust": dive_detection_settings["baseline_adjust"]  # New parameter
 }
 
-first_derivative, downsampled_depth = smooth_downsample_derivative(depth_data, **depth_processing_params)
+first_derivative, downsampled_depth = smooth_downsample_derivative(interpolated_depth_data, **depth_processing_params)
 
 # Adjust datetime indexing based on the new downsample rate
 depth_downsampled_datetime = depth_datetime.iloc[::int(depth_fs / dive_detection_settings["downsampled_sampling_rate"])]
@@ -219,6 +222,9 @@ depth_df = pd.DataFrame({
     'datetime': depth_downsampled_datetime,
     'depth': corrected_depth
 })
+
+print(f'Number of unique depth values detected: {len(np.unique(corrected_depth))}')
+print(depth_df.head())
 
 dives = find_segments(
     data=depth_df,

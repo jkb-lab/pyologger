@@ -16,7 +16,7 @@ class CATSImporter(BaseImporter):
             enforce_frequency (bool): Whether to enforce expected frequencies. Default is True.
         """
         # Filter out unwanted files
-        files = [f for f in files if not f.endswith(('.ubc', '.bin', '.ubx', '.cfg'))]
+        files = [f for f in files if not f.endswith(('.ubc', '.bin', '.ubx', '.cfg', '.obs', '.pos', '.stat', '.nsl', '.kml', '.conv'))]
 
         # Step 1: Parse .txt file for sensor intervals
         txt_file = next((f for f in files if f.endswith('.txt')), None)

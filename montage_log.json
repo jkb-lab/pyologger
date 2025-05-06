@@ -523,20 +523,34 @@
         }
     },
     "CATS": {
-        "cats-video-montage_V1": {
-            "depth_100bar_2": {
-                "original_unit": "msw",
-                "manufacturer_sensor_name": "Light intensity",
-                "standardized_channel_id": "temp_ext_extra2",
-                "standardized_unit": "degC",
-                "standardized_sensor_type": "temperature_ext"
+        "hms-video-montage_V1": {
+            "gps_raw_4": {
+                "original_unit": "count",
+                "manufacturer_sensor_name": "GPS (raw)",
+                "standardized_channel_id": "gps_raw_count2",
+                "standardized_unit": "count",
+                "standardized_sensor_type": "gps"
             },
-            "temperature_depth": {
-                "original_unit": "100bar_1",
-                "manufacturer_sensor_name": "Depth (temp)",
-                "standardized_channel_id": "pressure_extra1",
-                "standardized_unit": "msw",
-                "standardized_sensor_type": "pressure"
+            "gps_raw_3": {
+                "original_unit": "count",
+                "manufacturer_sensor_name": "GPS (raw)",
+                "standardized_channel_id": "gps_raw_count",
+                "standardized_unit": "count",
+                "standardized_sensor_type": "gps"
+            },
+            "gps_raw_2": {
+                "original_unit": "HH:MM:SS.000000",
+                "manufacturer_sensor_name": "GPS (raw)",
+                "standardized_channel_id": "gps_time_utc",
+                "standardized_unit": "HH:MM:SS.000",
+                "standardized_sensor_type": "gps"
+            },
+            "gps_raw_1": {
+                "original_unit": "DD.MM.YYYY",
+                "manufacturer_sensor_name": "GPS (raw)",
+                "standardized_channel_id": "gps_date_utc",
+                "standardized_unit": "YYYY-MM-DD",
+                "standardized_sensor_type": "gps"
             },
             "light_intensity_2": {
                 "original_unit": "raw",
@@ -560,8 +574,8 @@
                 "standardized_sensor_type": "logger_status"
             },
             "gps": {
-                "original_unit": "count",
-                "manufacturer_sensor_name": "extra",
+                "original_unit": "binary",
+                "manufacturer_sensor_name": "GPS (raw)",
                 "standardized_channel_id": "gps",
                 "standardized_unit": "NA",
                 "standardized_sensor_type": "logger_status"
@@ -624,14 +638,233 @@
             },
             "light_intensity_1": {
                 "original_unit": "raw",
+                "manufacturer_sensor_name": "Light intensity",
+                "standardized_channel_id": "light",
+                "standardized_unit": "lux",
+                "standardized_sensor_type": "light"
+            },
+            "depth_30bar_1": {
+                "original_unit": "msw",
+                "manufacturer_sensor_name": "depth (30bar)",
+                "standardized_channel_id": "pressure",
+                "standardized_unit": "msw",
+                "standardized_sensor_type": "pressure"
+            },
+            "depth_30bar_2": {
+                "original_unit": "degreeC",
+                "manufacturer_sensor_name": "Depth (temp)",
+                "standardized_channel_id": "temp_ext_extra1",
+                "standardized_unit": "degC",
+                "standardized_sensor_type": "temperature_ext"
+            },
+            "temperature_imu": {
+                "original_unit": "degreeC",
+                "manufacturer_sensor_name": "Temperature (imu)",
+                "standardized_channel_id": "temp_ext",
+                "standardized_unit": "degC",
+                "standardized_sensor_type": "temperature_ext"
+            },
+            "magnetometer_z": {
+                "original_unit": "microtesla",
+                "manufacturer_sensor_name": "magnetometer",
+                "standardized_channel_id": "mz",
+                "standardized_unit": "microtesla",
+                "standardized_sensor_type": "magnetometer"
+            },
+            "magnetometer_y": {
+                "original_unit": "microtesla",
+                "manufacturer_sensor_name": "magnetometer",
+                "standardized_channel_id": "my",
+                "standardized_unit": "microtesla",
+                "standardized_sensor_type": "magnetometer"
+            },
+            "magnetometer_x": {
+                "original_unit": "microtesla",
+                "manufacturer_sensor_name": "magnetometer",
+                "standardized_channel_id": "mx",
+                "standardized_unit": "microtesla",
+                "standardized_sensor_type": "magnetometer"
+            },
+            "time_local": {
+                "original_unit": "HH:MM:SS.000000",
                 "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "time",
+                "standardized_unit": "HH:MM:SS.000",
+                "standardized_sensor_type": "clock"
+            },
+            "date_local": {
+                "original_unit": "DD.MM.YYYY",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "date",
+                "standardized_unit": "YYYY-MM-DD",
+                "standardized_sensor_type": "clock"
+            },
+            "time_utc": {
+                "original_unit": "HH:MM:SS.000000",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "time_utc",
+                "standardized_unit": "HH:MM:SS.000",
+                "standardized_sensor_type": "clock"
+            },
+            "date_utc": {
+                "original_unit": "DD.MM.YYYY",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "date_utc",
+                "standardized_unit": "YYYY-MM-DD",
+                "standardized_sensor_type": "clock"
+            },
+            "accelerometer_z": {
+                "original_unit": "m/s^2",
+                "manufacturer_sensor_name": "accelerometer",
+                "standardized_channel_id": "az",
+                "standardized_unit": "m/s^2",
+                "standardized_sensor_type": "accelerometer"
+            },
+            "accelerometer_y": {
+                "original_unit": "m/s^2",
+                "manufacturer_sensor_name": "accelerometer",
+                "standardized_channel_id": "ay",
+                "standardized_unit": "m/s^2",
+                "standardized_sensor_type": "accelerometer"
+            },
+            "accelerometer_x": {
+                "original_unit": "m/s^2",
+                "manufacturer_sensor_name": "accelerometer",
+                "standardized_channel_id": "ax",
+                "standardized_unit": "m/s^2",
+                "standardized_sensor_type": "accelerometer"
+            },
+            "gyroscope_z": {
+                "original_unit": "mrad/s",
+                "manufacturer_sensor_name": "gyroscope",
+                "standardized_channel_id": "gz",
+                "standardized_unit": "mrad/s",
+                "standardized_sensor_type": "gyroscope"
+            },
+            "gyroscope_y": {
+                "original_unit": "mrad/s",
+                "manufacturer_sensor_name": "gyroscope",
+                "standardized_channel_id": "gy",
+                "standardized_unit": "mrad/s",
+                "standardized_sensor_type": "gyroscope"
+            },
+            "gyroscope_x": {
+                "original_unit": "mrad/s",
+                "manufacturer_sensor_name": "gyroscope",
+                "standardized_channel_id": "gx",
+                "standardized_unit": "mrad/s",
+                "standardized_sensor_type": "gyroscope"
+            }
+        },
+        "cats-video-montage_V1": {
+            "depth_100bar_2": {
+                "original_unit": "degreeC",
+                "manufacturer_sensor_name": "Depth (temp)",
+                "standardized_channel_id": "temp_ext_extra2",
+                "standardized_unit": "degC",
+                "standardized_sensor_type": "temperature_ext"
+            },
+            "temperature_depth": {
+                "original_unit": "100bar_1",
+                "manufacturer_sensor_name": "Depth (temp)",
+                "standardized_channel_id": "pressure_extra1",
+                "standardized_unit": "msw",
+                "standardized_sensor_type": "pressure"
+            },
+            "light_intensity_2": {
+                "original_unit": "raw",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "light_extra1",
+                "standardized_unit": "lux",
+                "standardized_sensor_type": "light"
+            },
+            "cc_vid_size": {
+                "original_unit": "kBytes",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "ccvidsize",
+                "standardized_unit": "NA",
+                "standardized_sensor_type": "logger_status"
+            },
+            "cc_status": {
+                "original_unit": "null",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "ccstatus",
+                "standardized_unit": "NA",
+                "standardized_sensor_type": "logger_status"
+            },
+            "gps": {
+                "original_unit": "binary",
+                "manufacturer_sensor_name": "GPS (raw)",
+                "standardized_channel_id": "gps",
+                "standardized_unit": "NA",
+                "standardized_sensor_type": "logger_status"
+            },
+            "camera_time": {
+                "original_unit": "null",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "cameratime",
+                "standardized_unit": "NA",
+                "standardized_sensor_type": "logger_status"
+            },
+            "led": {
+                "original_unit": "null",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "led",
+                "standardized_unit": "NA",
+                "standardized_sensor_type": "logger_status"
+            },
+            "flags": {
+                "original_unit": "null",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "flags",
+                "standardized_unit": "NA",
+                "standardized_sensor_type": "logger_status"
+            },
+            "camera": {
+                "original_unit": "null",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "camera",
+                "standardized_unit": "NA",
+                "standardized_sensor_type": "logger_status"
+            },
+            "batt": {
+                "original_unit": "V",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "batt_v",
+                "standardized_unit": "NA",
+                "standardized_sensor_type": "logger_status"
+            },
+            "batt_mah": {
+                "original_unit": "mAh",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "batt_mah",
+                "standardized_unit": "NA",
+                "standardized_sensor_type": "logger_status"
+            },
+            "batt_ma": {
+                "original_unit": "mA",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "batt_ma",
+                "standardized_unit": "NA",
+                "standardized_sensor_type": "logger_status"
+            },
+            "system_error": {
+                "original_unit": "null",
+                "manufacturer_sensor_name": "extra",
+                "standardized_channel_id": "syserror",
+                "standardized_unit": "NA",
+                "standardized_sensor_type": "logger_status"
+            },
+            "light_intensity_1": {
+                "original_unit": "raw",
+                "manufacturer_sensor_name": "Light intensity",
                 "standardized_channel_id": "light",
                 "standardized_unit": "lux",
                 "standardized_sensor_type": "light"
             },
             "depth_100bar_1": {
                 "original_unit": "msw",
-                "manufacturer_sensor_name": "depth (100 bar)",
+                "manufacturer_sensor_name": "depth (100bar)",
                 "standardized_channel_id": "pressure",
                 "standardized_unit": "msw",
                 "standardized_sensor_type": "pressure"
@@ -644,7 +877,7 @@
                 "standardized_sensor_type": "temperature_ext"
             },
             "temperature_imu": {
-                "original_unit": "imu",
+                "original_unit": "degreeC",
                 "manufacturer_sensor_name": "Temperature (imu)",
                 "standardized_channel_id": "temp_ext",
                 "standardized_unit": "degC",
