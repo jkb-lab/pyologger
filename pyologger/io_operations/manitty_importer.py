@@ -1,66 +1,152 @@
 from pyologger.io_operations.base_importer import BaseImporter
-import os
+from edfio import read_edf
 import pandas as pd
-from datetime import datetime
+import numpy as np
+from math import floor
+import os
+import re
+from pyologger.utils.time_manager import process_datetime
 
-# TODO: Finish writing Manitty-specific methods for .EDF files
 class ManittyImporter(BaseImporter):
-    """Manitty-specific processing."""
+    """Manitty-specific processing for EDF files with multiple frequency outputs."""
 
-    def process_files(self, files):
-        """Process CATS files, specifically handling .txt, ignoring .ubx, .ubc, and .bin files."""
-        # Filter out .ubx, .ubc, and .bin files
-        files = [f for f in files if not f.endswith(('.ubc', '.bin', '.ubx'))]
-        
-        # Parse the .txt file for expected intervals
-        txt_file = next((f for f in files if f.endswith('.txt')), None)
-        if txt_file:
-            print(f"Parsing {txt_file} for expected sensor intervals.")
-            self.parse_txt_for_intervals(os.path.join(self.data_reader.data_folder, txt_file))
+    def process_files(self, files, enforce_frequency=True):
+        edf_file = next((f for f in files if f.endswith('.edf')), None)
+        if not edf_file:
+            print("❌ No EDF file found for Manitty logger.")
+            return {}, {}, {}, {}, {}
 
-        if not files:
-            print(f"No valid files found for {self.logger_manufacturer} logger.")
-            return None, None, None, None  # Return four None values
+        edf_path = os.path.join(self.data_reader.data_folder, edf_file)
+        print(f"📥 Reading EDF: {edf_path}")
+        edf = read_edf(edf_path)
 
-        # Remove the .txt files from the list after processing them
-        files = [f for f in files if not f.endswith('.txt')]
+        # Clean + normalize label
+        def clean_label(label):
+            return re.sub(r'[^\w]', '', label.lower().replace(' ', ''))
 
-        # Concatenate the remaining files into one DataFrame
-        final_df = self.concatenate_and_save_csvs(files)
+        # Filter, map and retain
+        retained_signals = []
+        channel_metadata_all = {}
 
-        # Rename columns
-        final_df, column_metadata = self.rename_columns(final_df, self.logger_id, self.logger_manufacturer)
-        
-        # Process datetime and return metadata
-        final_df, datetime_metadata = self.data_reader.process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
-        self.data_reader.logger_info[self.logger_id]['datetime_metadata'] = datetime_metadata
+        for signal in edf.signals:
+            cleaned = clean_label(signal.label)
+            if cleaned in self.montage:
+                mapping = self.montage[cleaned]
+                sensor_type = mapping['standardized_sensor_type'].lower()
+                if sensor_type in ['exg', 'logger_status']:
+                    continue
+                standardized_id = mapping['standardized_channel_id']
+                signal.label = standardized_id
+                retained_signals.append(signal)
+                channel_metadata_all[standardized_id] = {
+                    'original_name': signal.label,
+                    'unit': mapping.get('original_unit', 'unknown'),
+                    'sensor': sensor_type
+                }
 
-        # Map data to sensors and return sensor information
-        sensor_groups, sensor_info = self.group_data_by_sensors(final_df, self.logger_id, column_metadata)
+        if not retained_signals:
+            print("❌ No valid signals retained after montage mapping.")
+            return {}, {}, {}, {}, {}
 
-        return final_df, column_metadata, datetime_metadata, sensor_groups, sensor_info
+        # Reorder signals by label group
+        order_prefixes = ['ecg', 'eog', 'emg', 'eeg', 'a', 'm', 'g']
+        def sort_key(label):
+            for i, p in enumerate(order_prefixes):
+                if label.startswith(p):
+                    return i
+            return len(order_prefixes)
 
-    def concatenate_and_save_csvs(self, csv_files):
-        """Concatenates multiple CSV files into one DataFrame."""
-        dfs = []
-        for file in csv_files:
-            file_path = os.path.join(self.data_reader.data_folder, file)
-            try:
-                data = self.data_reader.read_csv(file_path)
-                dfs.append(data)
-                print(f"{self.logger_manufacturer} file: {file} - Successfully processed.")
-            except Exception as e:
-                print(f"Error processing file {file}: {e}")
+        retained_signals = sorted(retained_signals, key=lambda s: sort_key(s.label))
 
-        if len(dfs) > 1:
-            concatenated_df = pd.concat(dfs, ignore_index=True)
-        else:
-            concatenated_df = dfs[0]
+        # === Grouping Logic (by frequency) ===
+        def construct_datetime_array(signals, sampling_frequency, startdate, starttime, time_zone='UTC'):
+            start_time = pd.to_datetime(f"{startdate} {starttime}").tz_localize(time_zone)
+            num_samples = len(next(s for s in signals if s.__dict__.get('_sampling_frequency') == sampling_frequency).data)
+            time_offsets = np.arange(num_samples) / sampling_frequency
+            return start_time + pd.to_timedelta(time_offsets, unit='s')
 
-        return concatenated_df
+        def group_signals_by_frequency(signals, startdate, starttime, time_zone='UTC', skip_full=False):
+            freq_dict = {}
+            for s in signals:
+                freq = s.__dict__.get('_sampling_frequency')
+                freq_dict.setdefault(freq, []).append(s)
 
-    def print_txt_content(self, txt_file):
-        """Prints the content of a .txt file."""
-        file_path = os.path.join(self.data_reader.data_folder, txt_file)
-        with open(file_path, 'r') as file:
-            print(file.read())
+            grouped_data = {}
+            for freq, sigs in freq_dict.items():
+                print(f"\n🔍 Grouping {len(sigs)} signals at {freq} Hz")
+                timestamps = construct_datetime_array(sigs, freq, startdate, starttime, time_zone)
+
+                # Always build preview
+                signal_preview = {s.label: s.data[:10] for s in sigs}
+                preview_df = pd.DataFrame(signal_preview)
+                preview_df['datetime'] = timestamps[:10]
+                preview_df = preview_df.reset_index(drop=True)
+
+                if skip_full:
+                    print(f"⚡ Skipping full data for {freq} Hz — using preview only")
+                    grouped_data[freq] = preview_df
+                    continue
+
+                # Build full data
+                int_freq = floor(freq)
+                full_df = pd.DataFrame({s.label: s.data for s in sigs})
+                full_df['datetime'] = timestamps
+
+                if not np.isclose(freq, int_freq):
+                    print(f"⏬ Resampling from {freq:.4f} Hz to {int_freq} Hz...")
+                    df = self.resample_mean_dataframe(full_df, int_freq)
+                    grouped_data[int_freq] = df
+                else:
+                    grouped_data[int_freq] = full_df.reset_index(drop=True)
+
+            return grouped_data
+
+        # === Build and return outputs ===
+        time_zone = self.data_reader.deployment_info.get("Time Zone")
+
+        grouped_dfs = group_signals_by_frequency(
+            retained_signals,
+            startdate=edf.startdate,
+            starttime=edf.starttime,
+            time_zone=time_zone,
+            skip_full=False
+        )
+
+        final_dfs = {}
+        channel_metadata = {}
+        datetime_metadata = {}
+        sensor_groups = {}
+        sensor_info = {}
+
+        for freq, df in grouped_dfs.items():
+            print(f"\n📦 Processing frequency group: {freq} Hz")
+
+            df, dt_meta = process_datetime(df, time_zone)
+            final_dfs[freq] = df
+            datetime_metadata[freq] = dt_meta
+
+            # Per-frequency metadata
+            cols_in_df = set(df.columns) - {'datetime'}
+            metadata_for_df = {col: channel_metadata_all[col] for col in cols_in_df if col in channel_metadata_all}
+            channel_metadata[freq] = metadata_for_df
+
+            g, i = self.group_data_by_sensors(df, self.logger_id, metadata_for_df)
+
+            # Only store sensors not already processed
+            sensor_groups[freq] = {k: v for k, v in g.items() if k not in self.data_reader.sensor_data}
+            sensor_info[freq] = {k: v for k, v in i.items() if k not in self.data_reader.sensor_info}
+
+            self.data_reader.logger_info[self.logger_id]['datetime_created_from'] = dt_meta.get('datetime_created_from', None)
+            self.data_reader.logger_info[self.logger_id]['fs'] = list(final_dfs.keys())
+
+        return final_dfs, channel_metadata, datetime_metadata, sensor_groups, sensor_info
+
+    def resample_mean_dataframe(self, df, target_freq_hz):
+        df = df.copy()
+
+        df = df.set_index('datetime')
+        target_period_ms = int(round(1000 / target_freq_hz))
+
+        df_resampled = df.resample(f"{target_period_ms}ms").mean()
+
+        return df_resampled.reset_index()

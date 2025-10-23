@@ -59,7 +59,7 @@ if original_pressure_unit == 'bar' and pressure_unit != 'm': # if bar to m and h
     data_pkl.sensor_data['pressure']['pressure'] *= 10
     data_pkl.sensor_info['pressure']['units'] = 'm'
     print("✅ Pressure unit changed from bar to m")
-elif original_pressure_unit in ['m', '100bar_1', '30bar_1', 'msw']: # including CATS format weird 100bar_1 which seems to be m
+elif original_pressure_unit in ['m', '100bar', '100bar_1', '30bar_1', 'msw']: # including CATS format weird 100bar_1 which seems to be m
     print("✅ Pressure unit already in m")
     data_pkl.sensor_info['pressure']['units'] = 'm'
     pass

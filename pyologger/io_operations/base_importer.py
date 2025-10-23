@@ -178,7 +178,7 @@ class BaseImporter:
                 expected_frequency = int(self.data_reader.logger_info[logger_id]['fs'])
 
             max_desired_frequency = None
-            if self.logger_manufacturer in ['Evolocus', 'UFI']:
+            if self.logger_manufacturer in ['Evolocus', 'Manitty', 'UFI']:
                 max_freq_lookup = {'eeg': 100, 'eog': 100, 'ecg': 250, 'emg': 250}
                 max_desired_frequency = max_freq_lookup.get(sensor_name, None)
 

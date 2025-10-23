@@ -26,6 +26,7 @@ dependencies = [
   "plotly",
   "nbformat",
   "ipywidgets",
+  "anywidget",
   "snakemake",
   "plotly-resampler",
   "sphinx",

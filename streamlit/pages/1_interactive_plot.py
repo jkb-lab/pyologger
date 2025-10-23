@@ -11,6 +11,7 @@ from pyologger.process_data.sampling import *
 from pyologger.utils.folder_manager import *
 from pyologger.calibrate_data.zoc import *
 from pyologger.plot_data.plotter import plot_tag_data_interactive_st
+from pyologger.plot_data.plotter import plot_tag_data_interactive
 
 # Load configuration
 config, data_dir, color_mapping_path, montage_path = load_configuration()
@@ -78,9 +79,9 @@ notes_to_plot = {
 }
 
 
-TARGET_SAMPLING_RATE = 1
+TARGET_SAMPLING_RATE = 25
 # **Step 2: Interactive Plot with Zoom**
-fig = plot_tag_data_interactive_st(
+fig = plot_tag_data_interactive(
     data_pkl=data_pkl,
     sensors=['ecg'],
     derived_data_signals=['depth','corrected_acc','heart_rate', 'prh', 'stroke_rate'],
@@ -93,7 +94,7 @@ fig = plot_tag_data_interactive_st(
     zoom_range_selector_channel='depth'
 )
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig)
 
 # **Step 6: Update Configuration JSON**
 if st.button("Update configuration JSON"):
