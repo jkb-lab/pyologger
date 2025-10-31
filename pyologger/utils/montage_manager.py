@@ -48,12 +48,12 @@ class MontageManager:
 		- manufacturer_sensor_name
 		- standardized_channel_id
 		- standardized_unit
-		- standardized_sensor_type
+		- parent_signal
 		"""
 		montage_dict = {}
 		required_cols = [
 			"original_channel_id", "original_unit", "manufacturer_sensor_name",
-			"standardized_channel_id", "standardized_unit", "standardized_sensor_type"
+			"standardized_channel_id", "standardized_unit", "parent_signal"
 		]
 
 		if not all(col in montage_df.columns for col in required_cols):
@@ -65,7 +65,7 @@ class MontageManager:
 				"manufacturer_sensor_name": row["manufacturer_sensor_name"],
 				"standardized_channel_id": row["standardized_channel_id"],
 				"standardized_unit": row["standardized_unit"],
-				"standardized_sensor_type": row["standardized_sensor_type"],
+				"parent_signal": row["parent_signal"],
 			}
 
 		return montage_dict

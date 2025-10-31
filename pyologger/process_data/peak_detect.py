@@ -114,7 +114,7 @@ def peak_detect(signal, sampling_rate, datetime_series=None,
 
     # Peak Refinement
     if enable_refinement:
-        refined_peaks = refine_peaks_with_wfdb(spike_removed_signal, detected_peaks, fs=sampling_rate, search_radius=search_radius_sec, sample_rate=sampling_rate, peak_dir="both")
+        refined_peaks = refine_peaks_with_wfdb(smoothed_signal, detected_peaks, fs=sampling_rate, search_radius=search_radius_sec, sample_rate=sampling_rate, peak_dir="both")
         results['refined_peaks'] = refined_peaks
         refined_indices = refined_peaks
     else:

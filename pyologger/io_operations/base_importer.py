@@ -81,7 +81,18 @@ class BaseImporter:
         new_channels = {}
 
         print(f"🔄 Renaming channels for {self.logger_manufacturer} logger with montage ID {self.montage_id}.")
-        print(f"📜 Available mapping keys: {list(self.montage.keys())}")  # Show available keys in the mapping
+
+        # Be defensive: self.montage may be None if no mapping file was provided or it failed to load.
+        if not getattr(self, 'montage', None):
+            print(f"⚠️ No montage mapping loaded for logger {self.logger_id} ({self.logger_manufacturer}). Falling back to identity mapping.")
+            self.montage = {}
+        else:
+            try:
+                print(f"📜 Available mapping keys: {list(self.montage.keys())}")  # Show available keys in the mapping
+            except Exception:
+                # Defensive fallback if montage is not a dict-like object
+                print("⚠️ Montage mapping is not iterable. Falling back to empty mapping.")
+                self.montage = {}
 
         for original_name in channel_names:
             # Take out spaces from channel names and make lowercase
@@ -105,16 +116,16 @@ class BaseImporter:
             elif "utc" in original_name.lower() and "utc" not in clean_name:
                 clean_name = f"{clean_name}_utc"
 
-            # Dictionary lookup
+            # Dictionary lookup: if no mapping entry exists, fall back to using the cleaned name
             if clean_name in self.montage:
-                mapping_info = self.montage[clean_name]
+                mapping_info = self.montage[clean_name] or {}
                 print(f"🎯 Found match in montage: {mapping_info}")  # Show full mapping info
             else:
-                print(f"⚠ Warning: {clean_name} not found in channel mapping. Skipping.")
-                continue
+                mapping_info = {}
+                print(f"ℹ️ No mapping for '{clean_name}' — using cleaned name as standardized id.")
 
             mapped_name = mapping_info.get("standardized_channel_id", clean_name)
-            sensor_type = mapping_info.get("standardized_sensor_type", "extra").strip().lower()
+            sensor_type = mapping_info.get("parent_signal", "extra").strip().lower()
 
             print(f"📝 Dictionary: original name: {original_name} → standardized name: {mapped_name} (Sensor type: {sensor_type})")
 
@@ -262,7 +273,7 @@ class BaseImporter:
                 manufacturer_sensor_name = mapping['manufacturer_sensor_name'].strip().lower()
 
                 if manufacturer_sensor_name == sensor_name:
-                    sensor_type = mapping['standardized_sensor_type'].strip().lower()
+                    sensor_type = mapping['parent_signal'].strip().lower()
 
                     if enforce_frequency:
                         self.expected_frequencies[sensor_type] = frequency  

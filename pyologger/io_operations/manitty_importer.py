@@ -32,7 +32,7 @@ class ManittyImporter(BaseImporter):
             cleaned = clean_label(signal.label)
             if cleaned in self.montage:
                 mapping = self.montage[cleaned]
-                sensor_type = mapping['standardized_sensor_type'].lower()
+                sensor_type = mapping['parent_signal'].lower()
                 if sensor_type in ['exg', 'logger_status']:
                     continue
                 standardized_id = mapping['standardized_channel_id']
