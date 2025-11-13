@@ -240,25 +240,25 @@ def process_rate(
         if key in results and params.get(param_flag, False):  # Only save if enabled in params
             derived_key = f"hr_{key}" if mode == "heart_rate" else f"sr_{key}"  # e.g., heart_rate_smoothed_signal
             derived_df = pd.DataFrame({"datetime": datetime, key: results[key]})
-            data_pkl.derived_data[derived_key] = derived_df
+            data_pkl.signal_data[derived_key] = derived_df
 
-            # Add derived_info for the intermediate key
+            # Add signal_info for the intermediate key
             intermediate_info = {
                 "channels": [key],
                 "metadata": {
                     key: {
                         "original_name": f"{rate_key.capitalize()} {key.replace('_', ' ').capitalize()}",
                         "unit": "signal units",
-                        "sensor": parent_signal,
+                        "parent_signal": parent_signal,
                     }
                 },
-                "derived_from_sensors": [parent_signal],
+                "derived_from_signals": [parent_signal],
                 "transformation_log": [
                     f"Derived from {parent_signal} during {rate_key} processing.",
                     f"Parameters: {', '.join(f'{k}={v}' for k, v in params.items())}",
                 ],
             }
-            data_pkl.derived_info[derived_key] = intermediate_info
+            data_pkl.signal_info[derived_key] = intermediate_info
             print(f"Saved derived info for intermediate signal: {derived_key}")
 
     # Construct transformation log
@@ -267,23 +267,23 @@ def process_rate(
         f"{rate_key} was calculated using RR intervals derived from peaks.",
     ]
 
-    # Define derived_info for the rate
-    derived_info = {
+    # Define signal_info for the rate
+    signal_info = {
         "channels": [rate_key],
         "metadata": {
             rate_key: {
                 "original_name": f"Derived {rate_key.capitalize()} (bpm)",
                 "unit": "bpm",
-                "sensor": parent_signal,
+                "parent_signal": parent_signal,
             }
         },
-        "derived_from_sensors": [parent_signal],
+        "derived_from_signals": [parent_signal],
         "transformation_log": transformation_log,
     }
 
     # Save rate data and metadata
-    data_pkl.derived_data[rate_key] = rate_df
-    data_pkl.derived_info[rate_key] = derived_info
+    data_pkl.signal_data[rate_key] = rate_df
+    data_pkl.signal_info[rate_key] = signal_info
     print(f"Derived {rate_key} data and metadata saved successfully.")
 
     # Create DataFrame for accepted events

@@ -15,7 +15,7 @@ class LLImporter(BaseImporter):
         # Parse the .txt file for expected intervals
         txt_file = next((f for f in files if f.endswith('.txt')), None)
         if txt_file:
-            print(f"Parsing {txt_file} for expected sensor intervals.")
+            print(f"Parsing {txt_file} for expected signal intervals.")
             self.parse_txt_for_intervals(os.path.join(self.data_reader.data_folder, txt_file))
 
         if not files:
@@ -35,10 +35,10 @@ class LLImporter(BaseImporter):
         final_df, datetime_metadata = self.data_reader.process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
         self.data_reader.logger_info[self.logger_id]['datetime_metadata'] = datetime_metadata
 
-        # Map data to sensors and return sensor information
-        sensor_groups, sensor_info = self.group_data_by_sensors(final_df, self.logger_id, column_metadata)
+        # Map data to signals and return signal information
+        signal_groups, signal_info = self.group_data_by_signals(final_df, self.logger_id, column_metadata)
 
-        return final_df, column_metadata, datetime_metadata, sensor_groups, sensor_info
+        return final_df, column_metadata, datetime_metadata, signal_groups, signal_info
 
     def concatenate_and_save_csvs(self, csv_files):
         """Concatenates multiple CSV files into one DataFrame."""

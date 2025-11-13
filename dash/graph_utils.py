@@ -20,8 +20,7 @@ def generate_random_color():
 
 def plot_tag_data_interactive5(
     data_pkl,
-    sensors=None,
-    derived_data_signals=None,
+    signals=None,
     channels=None,
     time_range=None,
     note_annotations=None,
@@ -32,10 +31,9 @@ def plot_tag_data_interactive5(
 ):
     """
     Function to plot tag data interactively using Plotly with optional initial zooming into a specific time range.
-    Includes both sensor_data and derived_data.
     """
 
-    # Default sensor and derived data order
+    # Default signal and derived data order
     default_order = [
         "depth",
         "ecg",
@@ -48,15 +46,9 @@ def plot_tag_data_interactive5(
         "light",
     ]
 
-    # Determine the sensors and derived data to plot
-    if sensors is None:
-        sensors = list(data_pkl.sensor_data.keys())
-
-    if derived_data_signals is None and "derived_data" in data_pkl:
-        derived_data_signals = list(data_pkl["derived_data"].keys())
-
-    # Combine sensors and derived data
-    signals = sensors + derived_data_signals
+    # Determine the signals and derived data to plot
+    if signals is None:
+        signals = list(data_pkl.signal_data.keys())
 
     # Sort signals with the range selector signal on top if specified
     if zoom_range_selector_channel and zoom_range_selector_channel in signals:
@@ -83,7 +75,7 @@ def plot_tag_data_interactive5(
     row_counter = 1
 
     def plot_signal_data(signal, signal_data, signal_info):
-        """General function to handle plotting both sensor and derived data."""
+        """General function to handle plotting both signal and derived data."""
         # Determine the channels to plot for the current signal
         if channels is None or signal not in channels:
             signal_channels = signal_info["channels"]
@@ -128,32 +120,11 @@ def plot_tag_data_interactive5(
                     col=1,
                 )
 
-    # Iterate through both sensor data and derived data and plot
+    # Iterate through both signal data and derived data and plot
     for signal in signals_sorted:
-        if signal in data_pkl["sensor_data"]:
-            signal_data = data_pkl["sensor_data"][signal]
-            signal_info = data_pkl["sensor_info"][signal]
-
-            plot_signal_data(signal, signal_data, signal_info)
-
-            if row_counter == 1:  # Right after the first plot
-                # Add blank plot with height of 200 pixels after the first plot
-                fig.add_trace(
-                    go.Scatter(x=[], y=[], mode="markers", showlegend=False),
-                    row=row_counter + 1,
-                    col=1,
-                )
-                fig.update_yaxes(
-                    showticklabels=False, row=row_counter + 1, col=1
-                )  # Hide tick labels
-                fig.update_xaxes(
-                    showticklabels=False, row=row_counter + 1, col=1
-                )  # Hide tick labels
-                row_counter += 1  # Skip to the next row after the blank plot
-
-        elif signal in data_pkl["derived_data"]:
-            signal_data = data_pkl["derived_data"][signal]
-            signal_info = data_pkl["derived_info"][signal]
+        if signal in data_pkl["signal_data"]:
+            signal_data = data_pkl["signal_data"][signal]
+            signal_info = data_pkl["signal_info"][signal]
 
             plot_signal_data(signal, signal_data, signal_info)
 
@@ -178,14 +149,9 @@ def plot_tag_data_interactive5(
             y_offsets = {}
 
             for note_type, note_params in note_annotations.items():
-                note_channel = note_params["sensor"]
+                note_channel = note_params["parent_signal"]
                 signal_data, signal_info = (
-                    (data_pkl.sensor_data.get(signal), data_pkl.sensor_info.get(signal))
-                    if signal in data_pkl.sensor_data
-                    else (
-                        data_pkl.derived_data.get(signal),
-                        data_pkl.derived_info.get(signal),
-                    )
+                    (data_pkl.signal_data.get(signal), data_pkl.signal_info.get(signal))
                 )
 
                 if signal_data is not None and note_channel in signal_data.columns:

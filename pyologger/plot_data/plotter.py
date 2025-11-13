@@ -9,8 +9,6 @@ import pandas as pd
 import numpy as np
 import pytz
 
-
-
 def load_color_mapping(path):
     if os.path.exists(path):
         with open(path, 'r') as f:
@@ -28,31 +26,24 @@ def generate_random_color():
     r = lambda: random.randint(100, 255)
     return f'#{r():02x}{r():02x}{r():02x}'
 
-def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None, channels=None, 
+def plot_tag_data_interactive(data_pkl, signals=None, channels=None, 
                                time_range=None, note_annotations=None, state_annotations=None, color_mapping_path=None, 
                                target_sampling_rate=10, zoom_start_time=None, zoom_end_time=None, 
                                plot_event_values=None, zoom_range_selector_channel=None):
     """
     Function to plot tag data interactively using Plotly with optional initial zooming into a specific time range.
-    Includes both sensor_data and derived_data.
     """
     register_plotly_resampler(mode='auto')
-    # Default sensor and derived data order
+    # Default signal order
     default_order = ['ecg', 'pressure', 'accelerometer', 'magnetometer', 'gyroscope', 
                      'prh', 'temperature', 'light']
 
     # Load the color mapping
     color_mapping = load_color_mapping(color_mapping_path) if color_mapping_path else {}
 
-    # Determine the sensors and derived data to plot
-    if sensors is None:
-        sensors = list(data_pkl.sensor_data.keys())
-        
-    if derived_data_signals is None:
-        derived_data_signals = list(data_pkl.derived_data.keys())
-
-    # Combine sensors and derived data
-    signals = sensors + derived_data_signals
+    # Determine the signals to plot
+    if signals is None:
+        signals = list(data_pkl.signal_data.keys())
 
     # Sort signals with the range selector signal on top if specified
     if zoom_range_selector_channel and zoom_range_selector_channel in signals:
@@ -71,7 +62,7 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
     row_counter = 1
 
     def plot_signal_data(signal, signal_data, signal_info):
-        """General function to handle plotting both sensor and derived data."""
+        """General function to handle plotting signal data."""
         # Determine the channels to plot for the current signal
         if channels is None or signal not in channels:
             signal_channels = signal_info['channels']
@@ -111,30 +102,15 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
                               hf_x=x_data, hf_y=y_data,
                               row=row_counter, col=1)
 
-    # Iterate through both sensor data and derived data and plot
+    # Iterate through signals and plot relevant timeseries and events
     for signal in signals_sorted:
-        if signal in data_pkl.sensor_data:
-            signal_data = data_pkl.sensor_data[signal]
-            signal_info = data_pkl.sensor_info[signal]
+        if signal in data_pkl.signal_data:
+            signal_data = data_pkl.signal_data[signal]
+            signal_info = data_pkl.signal_info[signal]
 
             plot_signal_data(signal, signal_data, signal_info)
             # Reverse y-axis for depth or pressure signals
             if signal in ['pressure']:
-                fig.update_yaxes(autorange="reversed", row=row_counter, col=1)
-
-            if row_counter == 1:  # Right after the first plot
-                # Add blank plot with height of 200 pixels after the first plot
-                fig.add_trace(go.Scatter(x=[], y=[], mode='markers', showlegend=False), row=row_counter+1, col=1)
-                fig.update_yaxes(showticklabels=False, row=row_counter+1, col=1)  # Hide tick labels
-                fig.update_xaxes(showticklabels=False, row=row_counter+1, col=1)  # Hide tick labels
-                row_counter += 1  # Skip to the next row after the blank plot
-
-        elif signal in data_pkl.derived_data:
-            signal_data = data_pkl.derived_data[signal]
-            signal_info = data_pkl.derived_info[signal]
-
-            plot_signal_data(signal, signal_data, signal_info)
-            if signal in ['depth']:
                 fig.update_yaxes(autorange="reversed", row=row_counter, col=1)
 
             if row_counter == 1:  # Right after the first plot
@@ -207,15 +183,6 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
                         continue
                     # Find the row index corresponding to the signal
                     signal_row = signals_sorted.index(signal) 
-
-                    # Check if signal is in `sensor_data` or `derived_data`
-                    if signal in data_pkl.sensor_data:
-                        signal_data = data_pkl.sensor_data[signal]
-                    elif signal in data_pkl.derived_data:
-                        signal_data = data_pkl.derived_data[signal]
-                    else:
-                        print(f"⚠ Warning: Signal '{signal}' not found in sensor or derived data.")
-                        continue  # Skip if signal not found 
                     
                     state_events = data_pkl.event_data[
                         (data_pkl.event_data["key"] == event_type) &
@@ -299,30 +266,23 @@ def plot_tag_data_interactive(data_pkl, sensors=None, derived_data_signals=None,
 
     return fig
 
-def plot_tag_data_interactive_st(data_pkl, sensors=None, derived_data_signals=None, channels=None, 
+def plot_tag_data_interactive_st(data_pkl, signals=None, channels=None, 
                                time_range=None, note_annotations=None, state_annotations=None, color_mapping_path=None, 
                                target_sampling_rate=10, zoom_start_time=None, zoom_end_time=None, 
                                plot_event_values=None, zoom_range_selector_channel=None):
     """
     Function to plot tag data interactively using Plotly with optional initial zooming into a specific time range.
-    Includes both sensor_data and derived_data.
     """
-    # Default sensor and derived data order
+    # Default signal order
     default_order = ['ecg', 'pressure', 'accelerometer', 'magnetometer', 'gyroscope', 
                      'prh', 'temperature', 'light']
 
     # Load the color mapping
     color_mapping = load_color_mapping(color_mapping_path) if color_mapping_path else {}
 
-    # Determine the sensors and derived data to plot
-    if sensors is None:
-        sensors = list(data_pkl.sensor_data.keys())
-        
-    if derived_data_signals is None:
-        derived_data_signals = list(data_pkl.derived_data.keys())
-
-    # Combine sensors and derived data
-    signals = sensors + derived_data_signals
+    # Determine the signals to plot
+    if signals is None:
+        signals = list(data_pkl.signal_data.keys())
 
     # Sort signals with the range selector signal on top if specified
     if zoom_range_selector_channel and zoom_range_selector_channel in signals:
@@ -338,7 +298,7 @@ def plot_tag_data_interactive_st(data_pkl, sensors=None, derived_data_signals=No
     row_counter = 1
 
     def plot_signal_data(signal, signal_data, signal_info):
-        """General function to handle plotting both sensor and derived data."""
+        """General function to handle plotting data."""
         # Determine the channels to plot for the current signal
         if channels is None or signal not in channels:
             signal_channels = signal_info['channels']
@@ -383,30 +343,15 @@ def plot_tag_data_interactive_st(data_pkl, sensors=None, derived_data_signals=No
                     col=1
                 )
 
-    # Iterate through both sensor data and derived data and plot
+    # Iterate through signal data and plot relevant timeseries and events
     for signal in signals_sorted:
-        if signal in data_pkl.sensor_data:
-            signal_data = data_pkl.sensor_data[signal]
-            signal_info = data_pkl.sensor_info[signal]
+        if signal in data_pkl.signal_data:
+            signal_data = data_pkl.signal_data[signal]
+            signal_info = data_pkl.signal_info[signal]
 
             plot_signal_data(signal, signal_data, signal_info)
             # Reverse y-axis for depth or pressure signals
             if signal in ['pressure']:
-                fig.update_yaxes(autorange="reversed", row=row_counter, col=1)
-
-            if row_counter == 1:  # Right after the first plot
-                # Add blank plot with height of 200 pixels after the first plot
-                fig.add_trace(go.Scatter(x=[], y=[], mode='markers', showlegend=False), row=row_counter+1, col=1)
-                fig.update_yaxes(showticklabels=False, row=row_counter+1, col=1)  # Hide tick labels
-                fig.update_xaxes(showticklabels=False, row=row_counter+1, col=1)  # Hide tick labels
-                row_counter += 1  # Skip to the next row after the blank plot
-
-        elif signal in data_pkl.derived_data:
-            signal_data = data_pkl.derived_data[signal]
-            signal_info = data_pkl.derived_info[signal]
-
-            plot_signal_data(signal, signal_data, signal_info)
-            if signal in ['depth']:
                 fig.update_yaxes(autorange="reversed", row=row_counter, col=1)
 
             if row_counter == 1:  # Right after the first plot
@@ -479,15 +424,6 @@ def plot_tag_data_interactive_st(data_pkl, sensors=None, derived_data_signals=No
                         continue
                     # Find the row index corresponding to the signal
                     signal_row = signals_sorted.index(signal) 
-
-                    # Check if signal is in `sensor_data` or `derived_data`
-                    if signal in data_pkl.sensor_data:
-                        signal_data = data_pkl.sensor_data[signal]
-                    elif signal in data_pkl.derived_data:
-                        signal_data = data_pkl.derived_data[signal]
-                    else:
-                        print(f"⚠ Warning: Signal '{signal}' not found in sensor or derived data.")
-                        continue  # Skip if signal not found 
                     
                     state_events = data_pkl.event_data[
                         (data_pkl.event_data["key"] == event_type) &

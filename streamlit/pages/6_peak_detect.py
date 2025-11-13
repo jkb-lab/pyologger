@@ -52,15 +52,15 @@ params = get_params(detection_mode)
 
 # Select parent signal and channel
 st.sidebar.subheader("Signal Configuration")
-parent_signal_options = list(data_pkl.sensor_data.keys()) + list(data_pkl.derived_data.keys())
+parent_signal_options = list(data_pkl.signal_data.keys()) + list(data_pkl.signal_data.keys())
 default_parent_signal = "ecg" if detection_mode == "heart_rate" else "corrected_gyr"
 parent_signal = st.sidebar.selectbox("Parent Signal", parent_signal_options, index=parent_signal_options.index(default_parent_signal))
 
 # Get available channels for the selected parent signal
-if parent_signal in data_pkl.sensor_data:
-    available_channels = list(data_pkl.sensor_data[parent_signal].columns)
-elif parent_signal in data_pkl.derived_data:
-    available_channels = list(data_pkl.derived_data[parent_signal].columns)
+if parent_signal in data_pkl.signal_data:
+    available_channels = list(data_pkl.signal_data[parent_signal].columns)
+elif parent_signal in data_pkl.signal_data:
+    available_channels = list(data_pkl.signal_data[parent_signal].columns)
 else:
     available_channels = []
 
@@ -69,10 +69,10 @@ default_channel = "ecg" if detection_mode == "heart_rate" else "gy"
 channel = st.sidebar.selectbox("Channel", available_channels, index=available_channels.index(default_channel) if default_channel in available_channels else 0)
 
 # Configure signals
-signal_df = data_pkl.sensor_data[parent_signal] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal]
-signal = data_pkl.sensor_data[parent_signal][channel] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal][channel]
-datetime_signal = data_pkl.sensor_data[parent_signal]['datetime'] if parent_signal in data_pkl.sensor_data else data_pkl.derived_data[parent_signal]['datetime']
-sampling_rate = data_pkl.sensor_info.get(parent_signal, {}).get('sampling_frequency', calculate_sampling_frequency(datetime_signal))
+signal_df = data_pkl.signal_data[parent_signal]
+signal = data_pkl.signal_data[parent_signal][channel]
+datetime_signal = data_pkl.signal_data[parent_signal]['datetime']
+sampling_rate = data_pkl.signal_info.get(parent_signal, {}).get('sampling_frequency', calculate_sampling_frequency(datetime_signal))
 
 # Streamlit UI
 st.title(f"{detection_mode} Peak Detection")
@@ -200,8 +200,7 @@ TARGET_SAMPLING_RATE = 25 if detection_mode == "heart_rate" else 10
 if detection_mode == "heart_rate":
     fig = plot_tag_data_interactive(
         data_pkl=data_pkl,
-        sensors=['ecg'],
-        derived_data_signals=['depth', 'prh', 'heart_rate', 'hr_broad_bandpass',
+        signals=['ecg','depth', 'prh', 'heart_rate', 'hr_broad_bandpass',
                             'hr_narrow_bandpass', 'hr_smoothed',
                             'hr_normalized'],
         channels={}, #'corrected_gyr': ['broad_bandpassed_signal']
@@ -229,8 +228,7 @@ if detection_mode == "heart_rate":
 else:
     fig = plot_tag_data_interactive_st(
         data_pkl=data_pkl,
-        sensors=['ecg'],
-        derived_data_signals=['depth', 'prh', 'stroke_rate', 'sr_broad_bandpass',
+        signals=['ecg','depth', 'prh', 'stroke_rate', 'sr_broad_bandpass',
                             'sr_narrow_bandpass', 'sr_smoothed',
                             'sr_normalized'],
         channels={}, #'corrected_gyr': ['broad_bandpassed_signal']

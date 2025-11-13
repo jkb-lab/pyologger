@@ -3,6 +3,7 @@ import os
 import json
 import re
 import pickle
+import tempfile
 import argparse
 import pandas as pd
 import xarray as xr
@@ -34,76 +35,168 @@ else:
 if not os.path.exists(dataset_folder):
     raise ValueError(f"❌ Dataset folder {dataset_folder} not found!")
 
-overwrite_metadata = False
-# Define the path to the metadata pickle file
-metadata_pickle_path = os.path.join(data_dir, "00_Metadata/metadata_snapshot.pkl")
+overwrite = False  # Force refresh from Notion if True
 
-# Check if the metadata pickle file exists and is more than 5 days old
-if overwrite_metadata or not os.path.exists(metadata_pickle_path) or (datetime.now() - datetime.fromtimestamp(os.path.getmtime(metadata_pickle_path))) > timedelta(days=14):
-    
+# Paths
+metadata_dir = os.path.join(data_dir, "00_Metadata")
+os.makedirs(metadata_dir, exist_ok=True)
+metadata_pickle_path = os.path.join(metadata_dir, "metadata_snapshot.pkl")
+
+relations_map_dir = config["paths"].get("local_repo_path", metadata_dir)
+os.makedirs(relations_map_dir, exist_ok=True)
+relations_map_path = os.path.join(relations_map_dir, "relations_map.json")
+
+
+def atomic_write_bytes(path: str, data: bytes):
+    """Write bytes atomically to avoid partial/corrupt files."""
+    dirpath = os.path.dirname(path)
+    os.makedirs(dirpath, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=dirpath, delete=False) as tmp:
+        tmp.write(data)
+        tmp.flush()
+        os.fsync(tmp.fileno())
+        tmp_path = tmp.name
+    os.replace(tmp_path, path)
+
+
+def atomic_write_text(path: str, text: str):
+    atomic_write_bytes(path, text.encode("utf-8"))
+
+
+def load_all_tables(md_obj):
+    """
+    Convenience: pull all the DB/data source tables from a Metadata instance.
+    Returns a dict so you can unpack if you want.
+    """
+    return {
+        "deployment_db": md_obj.get_metadata("deployment_DB"),
+        "logger_db": md_obj.get_metadata("logger_DB"),
+        "recording_db": md_obj.get_metadata("recording_DB"),
+        "animal_db": md_obj.get_metadata("animal_DB"),
+        "dataset_db": md_obj.get_metadata("dataset_DB"),
+        "procedure_db": md_obj.get_metadata("procedure_DB"),
+        "observation_db": md_obj.get_metadata("observation_DB"),
+        "collaborator_db": md_obj.get_metadata("collaborator_DB"),
+        "location_db": md_obj.get_metadata("location_DB"),
+        "montage_db": md_obj.get_metadata("montage_DB"),
+        "signal_db": md_obj.get_metadata("signal_DB"),
+        "attachment_db": md_obj.get_metadata("attachment_DB"),
+        "originalchannel_db": md_obj.get_metadata("originalchannel_DB"),
+        "standardizedchannel_db": md_obj.get_metadata("standardizedchannel_DB")
+    }
+
+
+def pickle_needs_refresh(path: str, max_age_days: int = 14) -> bool:
+    if not os.path.exists(path):
+        return True
+    try:
+        mtime = datetime.fromtimestamp(os.path.getmtime(path))
+        return (datetime.now() - mtime) > timedelta(days=max_age_days)
+    except Exception:
+        # If anything is weird with the file, refresh.
+        return True
+
+
+# Decide whether to pull fresh data from Notion
+needs_refresh = overwrite or pickle_needs_refresh(metadata_pickle_path, max_age_days=14)
+
+if needs_refresh:
+    # 1) Build a fresh Metadata instance (hits Notion and populates self.metadata etc.)
     metadata = Metadata()
 
-    # Save database variables
-    deployment_db = metadata.get_metadata("deployment_DB")
-    logger_db = metadata.get_metadata("logger_DB")
-    recording_db = metadata.get_metadata("recording_DB")
-    animal_db = metadata.get_metadata("animal_DB")
-    dataset_db = metadata.get_metadata("dataset_DB")
-    procedure_db = metadata.get_metadata("procedure_DB")
-    observation_db = metadata.get_metadata("observation_DB")
-    collaborator_db = metadata.get_metadata("collaborator_DB")
-    location_db = metadata.get_metadata("location_DB")
-    montage_db = metadata.get_metadata("montage_DB")
-    sensor_db = metadata.get_metadata("sensor_DB")
-    attachment_db = metadata.get_metadata("attachment_DB")
-    originalchannel_db = metadata.get_metadata("originalchannel_DB")
-    standardizedchannel_db = metadata.get_metadata("standardizedchannel_DB")
-    derivedsignal_db = metadata.get_metadata("derivedsignal_DB")
-    derivedchannel_db = metadata.get_metadata("derivedchannel_DB")
-
-    # Get the relations map
+    # 2) Recompute relations map (uses databases.retrieve schemas and relation fields)
+    metadata.map_database_relations()
     relations_map = metadata.relations_map
 
-    # Define the path to save the relations map
-    relations_map_path = os.path.join(config['paths']['local_repo_path'], 'relations_map.json')
+    # 3) Save relations map atomically (so it’s never half-written)
+    try:
+        atomic_write_text(relations_map_path, json.dumps(relations_map, indent=4))
+        print(f"Relations map saved at: {relations_map_path}")
+    except Exception as e:
+        print(f"[WARN] Failed to write relations_map.json: {e}")
 
-    # Save the relations map as a JSON file
-    with open(relations_map_path, 'w') as file:
-        json.dump(relations_map, file, indent=4)
+    # 4) Strip live client / transient runtime caches before pickling
+    metadata.notion = None
+    if hasattr(metadata, "data_source_cache"):
+        metadata.data_source_cache = {}
 
-    print(f"Relations map saved at: {relations_map_path}")
+    # Optional: embed a tiny snapshot header for sanity
+    snapshot_meta = {
+        "notion_version": getattr(metadata, "notion_version", None),
+        "created_at": datetime.now().isoformat(),
+        "class": "Metadata",
+    }
+    payload = {"snapshot_meta": snapshot_meta, "metadata_obj": metadata}
 
-    ## OPTIONAL: Save metadata snapshot as a pickle file
-    metadata.notion = None  # Temporarily remove the Notion client
-    # Save metadata snapshot as a pickle file
-    with open(metadata_pickle_path, "wb") as file:
-        pickle.dump(metadata, file)
-
-    print(f"Metadata snapshot saved at: {metadata_pickle_path}")
+    # 5) Snapshot full metadata object to disk atomically
+    try:
+        atomic_write_bytes(metadata_pickle_path, pickle.dumps(payload, protocol=pickle.HIGHEST_PROTOCOL))
+        print(f"[REFRESH] Metadata snapshot saved at: {metadata_pickle_path}")
+    except Exception as e:
+        print(f"[ERROR] Failed to write metadata snapshot: {e}")
+        raise
 else:
-    print(f"Recent metadata snapshot loaded, already present at: {metadata_pickle_path}")
-    
-    # Load the metadata snapshot from the pickle file
-    with open(metadata_pickle_path, "rb") as file:
-        metadata = pickle.load(file)
-    
-    # Save database variables
-    deployment_db = metadata.get_metadata("deployment_DB")
-    logger_db = metadata.get_metadata("logger_DB")
-    recording_db = metadata.get_metadata("recording_DB")
-    animal_db = metadata.get_metadata("animal_DB")
-    dataset_db = metadata.get_metadata("dataset_DB")
-    procedure_db = metadata.get_metadata("procedure_DB")
-    observation_db = metadata.get_metadata("observation_DB")
-    collaborator_db = metadata.get_metadata("collaborator_DB")
-    location_db = metadata.get_metadata("location_DB")
-    montage_db = metadata.get_metadata("montage_DB")
-    sensor_db = metadata.get_metadata("sensor_DB")
-    attachment_db = metadata.get_metadata("attachment_DB")
-    originalchannel_db = metadata.get_metadata("originalchannel_DB")
-    standardizedchannel_db = metadata.get_metadata("standardizedchannel_DB")
-    derivedsignal_db = metadata.get_metadata("derivedsignal_DB")
-    derivedchannel_db = metadata.get_metadata("derivedchannel_DB")
+    # Load cached snapshot instead of hitting Notion
+    print(f"[CACHE] Using existing metadata snapshot at: {metadata_pickle_path}")
+    try:
+        with open(metadata_pickle_path, "rb") as file:
+            payload = pickle.load(file)
+        # Backward-compat: support old format (raw Metadata pickled directly)
+        if isinstance(payload, dict) and "metadata_obj" in payload:
+            metadata = payload["metadata_obj"]
+            snapshot_meta = payload.get("snapshot_meta", {})
+        else:
+            metadata = payload
+            snapshot_meta = {}
+        # Note: metadata.notion is None here (by design). We're only reading dfs, so it's fine.
+    except Exception as e:
+        print(f"[WARN] Cache unreadable ({e}). Falling back to fresh pull.")
+        metadata = Metadata()
+        metadata.map_database_relations()
+        relations_map = metadata.relations_map
+        try:
+            atomic_write_text(relations_map_path, json.dumps(relations_map, indent=4))
+        except Exception as ee:
+            print(f"[WARN] Failed to write relations_map.json on fallback: {ee}")
+        metadata.notion = None
+        if hasattr(metadata, "data_source_cache"):
+            metadata.data_source_cache = {}
+        payload = {
+            "snapshot_meta": {
+                "notion_version": getattr(metadata, "notion_version", None),
+                "created_at": datetime.now().isoformat(),
+                "class": "Metadata",
+            },
+            "metadata_obj": metadata,
+        }
+        atomic_write_bytes(metadata_pickle_path, pickle.dumps(payload, protocol=pickle.HIGHEST_PROTOCOL))
+        print(f"[REFRESH] Metadata snapshot saved at: {metadata_pickle_path}")
+
+
+# Expose each table for downstream code in this session
+tables = load_all_tables(metadata)
+
+deployment_db = tables["deployment_db"]
+logger_db = tables["logger_db"]
+recording_db = tables["recording_db"]
+animal_db = tables["animal_db"]
+dataset_db = tables["dataset_db"]
+procedure_db = tables["procedure_db"]
+observation_db = tables["observation_db"]
+collaborator_db = tables["collaborator_db"]
+location_db = tables["location_db"]
+montage_db = tables["montage_db"]
+signal_db = tables["signal_db"]
+attachment_db = tables["attachment_db"]
+originalchannel_db = tables["originalchannel_db"]
+standardizedchannel_db = tables["standardizedchannel_db"]
+
+# Optional: quick sanity print of row counts
+try:
+    counts = {k: (v.shape[0] if v is not None else 0) for k, v in tables.items()}
+    print("[Metadata tables] row counts:", json.dumps(counts, indent=2))
+except Exception:
+    pass
 
 # Step 3: Select deployment folder
 if args.deployment:
@@ -177,9 +270,9 @@ else:
     print("Adding timestamps to config.")
     zoom_time_window = 5  # minutes
 
-    # Extract start and end times for all sensors
-    start_times = [df['datetime'].min() for df in data_pkl.sensor_data.values()]
-    end_times = [df['datetime'].max() for df in data_pkl.sensor_data.values()]
+    # Extract start and end times for all signals
+    start_times = [df['datetime'].min() for df in data_pkl.signal_data.values()]
+    end_times = [df['datetime'].max() for df in data_pkl.signal_data.values()]
 
     # Compute common start, end, and zoom window
     overlap_start_time = max(start_times)
@@ -212,11 +305,11 @@ if not any(v is None for v in truncate_times.values()):
     OVERLAP_START_TIME = pd.Timestamp(truncate_times['selected_start_time']).tz_convert(timezone)
     OVERLAP_END_TIME = pd.Timestamp(truncate_times['selected_end_time']).tz_convert(timezone)
 
-    # Truncate sensor data
-    for sensor, df in data_pkl.sensor_data.items():
+    # Truncate signal data
+    for signal, df in data_pkl.signal_data.items():
         # Truncate based on selected time range
         truncated_df = df[(df.iloc[:, 0] >= OVERLAP_START_TIME) & (df.iloc[:, 0] <= OVERLAP_END_TIME)].copy()
-        data_pkl.sensor_data[sensor] = truncated_df  # Save truncated version to new variable
+        data_pkl.signal_data[signal] = truncated_df  # Save truncated version to new variable
 
     # Recalculate Zoom Window (5-minute window in the middle)
     midpoint = OVERLAP_START_TIME + (OVERLAP_END_TIME - OVERLAP_START_TIME) / 2

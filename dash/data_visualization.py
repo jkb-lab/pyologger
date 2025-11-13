@@ -19,9 +19,9 @@ dff = duckpond.get_delta_data(
     animal_ids="apfo-001a",
     frequency=1,
     labels=[
-        "derived_data_depth",
-        "sensor_data_temperature",
-        "sensor_data_light",
+        "signal_data_depth",
+        "signal_data_temperature",
+        "signal_data_light",
         "pitch",
         "roll",
         "heading",
@@ -35,33 +35,33 @@ dff["datetime"] = dff["datetime"] + pd.Timedelta(hours=13)
 
 # Convert datetime to timestamp (seconds since epoch) for slider control
 dff["timestamp"] = dff["datetime"].apply(lambda x: x.timestamp())
-dff["depth"] = dff["derived_data_depth"].apply(lambda x: x * -1)
+dff["depth"] = dff["signal_data_depth"].apply(lambda x: x * -1)
 
 # Replace the existing figure creation with a call to the new function
 fig = plot_tag_data_interactive5(
     data_pkl={
-        "sensor_data": {
-            "light": dff[["datetime", "sensor_data_light"]],
-            "temperature": dff[["datetime", "sensor_data_temperature"]],
+        "signal_data": {
+            "light": dff[["datetime", "signal_data_light"]],
+            "temperature": dff[["datetime", "signal_data_temperature"]],
         },
-        "derived_data": {
+        "signal_data": {
             "prh": dff[["datetime", "pitch", "roll", "heading"]],
             "depth": dff[["datetime", "depth"]],
         },
-        "sensor_info": {
+        "signal_info": {
             "light": {
-                "channels": ["sensor_data_light"],
+                "channels": ["signal_data_light"],
                 "metadata": {
-                    "sensor_data_light": {
+                    "signal_data_light": {
                         "original_name": "Light",
                         "unit": "lux",
                     }
                 },
             },
             "temperature": {
-                "channels": ["sensor_data_temperature"],
+                "channels": ["signal_data_temperature"],
                 "metadata": {
-                    "sensor_data_temperature": {
+                    "signal_data_temperature": {
                         "original_name": "Temperature (imu)",
                         "unit": "°C",
                     }
@@ -97,7 +97,7 @@ fig = plot_tag_data_interactive5(
             },
         },
     },
-    sensors=["light", "temperature"],
+    signals=["light", "temperature"],
 )
 
 # Set x-axis range to data range and set uirevision

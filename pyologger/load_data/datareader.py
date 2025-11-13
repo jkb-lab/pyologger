@@ -38,17 +38,13 @@ class DataReader:
         # Per-logger metadata like Manufacturer, Montage ID, fs, etc.
         self.logger_info = {}
 
-        # Sensor data after grouping (populated by importer.group_data_by_sensors())
-        self.sensor_data = {}
-        self.sensor_info = {}
+        # Signal data after grouping (populated by importer.group_data_by_signals())
+        self.signal_data = {}
+        self.signal_info = {}
 
         # Event notes (00_Notes.xlsx) and extracted behaviors/events
         self.event_data = {}
         self.event_info = {}
-
-        # Derived / higher-level signals (pitch/roll/HR/etc.)
-        self.derived_data = {}
-        self.derived_info = {}
 
         # Exporter helper
         self.exporter = BaseExporter(self)
@@ -209,8 +205,8 @@ class DataReader:
                 (final_dfs_dict,
                  channel_metadata_dict,
                  datetime_metadata_dict,
-                 sensor_groups_dict,
-                 sensor_info_dict) = result
+                 signal_groups_dict,
+                 signal_info_dict) = result
 
                 for freq, df in final_dfs_dict.items():
                     if df is not None and "datetime" in df.columns:
@@ -223,8 +219,8 @@ class DataReader:
                 (final_df,
                  channel_metadata,
                  datetime_metadata,
-                 sensor_groups,
-                 sensor_info) = result
+                 signal_groups,
+                 signal_info) = result
 
                 if final_df is not None and "datetime" in final_df.columns:
                     outname = f"{lid}.csv"
@@ -232,6 +228,13 @@ class DataReader:
                     print(f"✅ Processed and saved files for logger {lid} ({manufacturer}).")
                 else:
                     print(f"⚠ Issue: {lid} ({manufacturer}) produced no final_df with 'datetime'.")
+        
+        req = ['datetime','key','value','note','type','duration']
+        if not hasattr(self,'event_data') or self.event_data is None:
+            self.event_data = pd.DataFrame(columns=req)
+        df = self.event_data
+        df['datetime'] = pd.to_datetime(df.get('datetime', pd.NA), errors='coerce')
+        df['type'] = df.get('type', df.apply(lambda r: ('dive' if 'dive' in str(r.get('key','')).lower() else ('note' if pd.notna(r.get('note')) and str(r.get('note')).strip() else 'event')), axis=1))
 
         # 8. Save the DataReader snapshot to a pickle file (once)
         self.save_datareader_object()

@@ -82,13 +82,8 @@ def _make_df(datetime_series: pd.Series, data: Dict[str, np.ndarray]) -> pd.Data
 class ProcessedMATImporter(BaseImporter):
     """Importer for processed CATS PRH-style .mat files.
 
-    Goal: mirror the existing CATS importer *behaviorally* where appropriate,
-    but:
-      • Anything that is a processed/estimated quantity (orientation, heading,
-        speeds, jiggle, rotated sensor frames, etc.) is stored under
-        `data_reader.derived_data` + `derived_info`.
-      • Raw or near-raw environmental channels (depth p, temperature T,
-        light) and GPS are stored under `sensor_data` + `sensor_info`.
+    Mirror the existing CATS importer *behaviorally* where appropriate,
+    but: use pyologger data structure.
 
     Expected variables in .mat (subset will be used if present):
       DN, Aw, Gw, Mw, At, Gt, Mt, pitch, roll, head, p, T, Light,
@@ -96,7 +91,17 @@ class ProcessedMATImporter(BaseImporter):
       vidDN, vidNam, vidDurs, viddeploy, INFO, fs
     """
 
-    DERIVED_KEYS = {
+    SIGNAL_KEYS = {
+        # environmental channels (treated as signals)
+        "p": ("depth", ["depth"], "m"),
+        "T": ("temp", ["temp"], "degC"),
+        "Light": ("light", ["light"], "arb"),
+        # optionally expose raw triads if present (still signals)
+        "At": ("acc_raw", ["ax", "ay", "az"], "g or m/s^2"),
+        "Gt": ("gyr_raw", ["gx", "gy", "gz"], "deg/s or rad/s"),
+        "Mt": ("mag_raw", ["mx", "my", "mz"], "uT"),
+        # GPS block (lat, lon, maybe time)
+        "GPS": ("gps", ["lat", "lon"], "deg"),
         # orientation and rotated frames
         "Aw": ("acc_animal", ["ax", "ay", "az"], "g or m/s^2"),
         "Gw": ("gyr_animal", ["gx", "gy", "gz"], "deg/s or rad/s"),
@@ -109,19 +114,6 @@ class ProcessedMATImporter(BaseImporter):
         "flownoise": ("speed_flownoise", ["speed_flownoise"], "m/s"),
         "JigRMS": ("jig_rms", ["jig_rms"], "g or m/s^2"),
         "speed": ("speed", ["speed"], "m/s"),
-    }
-
-    SENSOR_KEYS = {
-        # environmental channels (treated as sensors)
-        "p": ("depth", ["depth"], "m"),
-        "T": ("temp", ["temp"], "degC"),
-        "Light": ("light", ["light"], "arb"),
-        # optionally expose raw triads if present (still sensors)
-        "At": ("acc_raw", ["ax", "ay", "az"], "g or m/s^2"),
-        "Gt": ("gyr_raw", ["gx", "gy", "gz"], "deg/s or rad/s"),
-        "Mt": ("mag_raw", ["mx", "my", "mz"], "uT"),
-        # GPS block (lat, lon, maybe time)
-        "GPS": ("gps", ["lat", "lon"], "deg"),
     }
 
     EVENT_KEYS = {
@@ -171,13 +163,8 @@ class ProcessedMATImporter(BaseImporter):
             # Prepare per-file data frame with everything we might need later
             cols: Dict[str, np.ndarray] = {}
 
-            # DERIVED (store later)
-            for key in self.DERIVED_KEYS:
-                if key in mat:
-                    cols[key] = mat[key]
-
-            # SENSORS (store later)
-            for key in self.SENSOR_KEYS:
+            # SIGNALS (store later)
+            for key in self.SIGNAL_KEYS:
                 if key in mat:
                     cols[key] = mat[key]
 
@@ -208,9 +195,9 @@ class ProcessedMATImporter(BaseImporter):
         all_df = all_df.sort_values("datetime").drop_duplicates(subset=["datetime"]).reset_index(drop=True)
 
         # -----------------------------
-        # Register SENSOR streams
+        # Register SIGNAL streams
         # -----------------------------
-        for key, (sensor_name, channel_names, units) in self.SENSOR_KEYS.items():
+        for key, (signal_name, channel_names, units) in self.SIGNAL_KEYS.items():
             if key not in all_df.columns:
                 continue
             arr = all_df[key]
@@ -234,13 +221,13 @@ class ProcessedMATImporter(BaseImporter):
             if len(sdf.columns) == 1:  # no data columns made it
                 continue
 
-            # Store into sensor_data / sensor_info
-            self.data_reader.sensor_data[sensor_name] = sdf
-            self.data_reader.sensor_info[sensor_name] = {
+            # Store into signal_data / signal_info
+            self.data_reader.signal_data[signal_name] = sdf
+            self.data_reader.signal_info[signal_name] = {
                 "channels": [c for c in sdf.columns if c != "datetime"],
                 "metadata": {"source": "processed_mat", "mat_key": key},
-                "sensor_start_datetime": sdf["datetime"].iloc[0],
-                "sensor_end_datetime": sdf["datetime"].iloc[-1],
+                "signal_start_datetime": sdf["datetime"].iloc[0],
+                "signal_end_datetime": sdf["datetime"].iloc[-1],
                 "units": units,
                 "sampling_frequency": None,  # unknown/variable; can infer later if desired
                 "original_sampling_frequency": None,
@@ -249,46 +236,10 @@ class ProcessedMATImporter(BaseImporter):
                 "processing_step": "Processed MAT import",
                 "details": f"Imported from PRH processed file key '{key}'.",
             }
-            print(f"📦 Sensor '{sensor_name}' stored with columns {self.data_reader.sensor_info[sensor_name]['channels']}")
+            print(f"📦 Signal '{signal_name}' stored with columns {self.data_reader.signal_info[signal_name]['channels']}")
 
         # -----------------------------
-        # Register DERIVED streams
-        # -----------------------------
-        for key, (derived_name, channel_names, units) in self.DERIVED_KEYS.items():
-            if key not in all_df.columns:
-                continue
-            arr = all_df[key]
-            if arr.dtype == object and isinstance(arr.iloc[0], (np.ndarray, list)):
-                tri = np.vstack(arr.values)
-            else:
-                tri = np.asarray(arr).reshape(-1, 1)
-            if tri.ndim == 1:
-                tri = tri[:, None]
-            ncols = tri.shape[1]
-
-            data_cols = {}
-            for i in range(min(ncols, len(channel_names))):
-                data_cols[channel_names[i]] = tri[:, i]
-            ddf = pd.DataFrame({"datetime": all_df["datetime"], **data_cols})
-            ddf = ddf.dropna(subset=["datetime"]).sort_values("datetime").reset_index(drop=True)
-            if len(ddf.columns) == 1:
-                continue
-
-            # Store
-            self.data_reader.derived_data[derived_name] = ddf
-            self.data_reader.derived_info[derived_name] = {
-                "channels": [c for c in ddf.columns if c != "datetime"],
-                "metadata": {"source": "processed_mat", "mat_key": key},
-                "derived_start_datetime": ddf["datetime"].iloc[0],
-                "derived_end_datetime": ddf["datetime"].iloc[-1],
-                "units": units,
-                "sampling_frequency": None,
-                "logger_id": self.logger_id,
-                "logger_manufacturer": self.logger_manufacturer,
-                "processing_step": "Processed MAT import (derived)",
-                "details": f"Imported derived stream from key '{key}'.",
-            }
-            print(f"🧮 Derived '{derived_name}' stored with columns {self.data_reader.derived_info[derived_name]['channels']}")
+        # If derived, add metadata to signal_info
 
         # -----------------------------
         # Register EVENT-like / ancillary tables (optional): tagon/camon and video
@@ -322,7 +273,6 @@ class ProcessedMATImporter(BaseImporter):
         })
 
         return {
-            "sensors": list(self.data_reader.sensor_data.keys()),
-            "derived": list(self.data_reader.derived_data.keys()),
+            "signals": list(self.data_reader.signal_data.keys()),
             "events": list(events_cols.values()) if events_cols else [],
         }

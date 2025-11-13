@@ -45,14 +45,14 @@ class MontageManager:
 		Expected columns:
 		- original_channel_id
 		- original_unit
-		- manufacturer_sensor_name
+		- manufacturer_signal_name
 		- standardized_channel_id
 		- standardized_unit
 		- parent_signal
 		"""
 		montage_dict = {}
 		required_cols = [
-			"original_channel_id", "original_unit", "manufacturer_sensor_name",
+			"original_channel_id", "original_unit", "manufacturer_signal_name",
 			"standardized_channel_id", "standardized_unit", "parent_signal"
 		]
 
@@ -62,7 +62,7 @@ class MontageManager:
 		for _, row in montage_df.iterrows():
 			montage_dict[row["original_channel_id"]] = {
 				"original_unit": row["original_unit"],
-				"manufacturer_sensor_name": row["manufacturer_sensor_name"],
+				"manufacturer_signal_name": row["manufacturer_signal_name"],
 				"standardized_channel_id": row["standardized_channel_id"],
 				"standardized_unit": row["standardized_unit"],
 				"parent_signal": row["parent_signal"],
@@ -189,6 +189,6 @@ class MontageManager:
 		return montages_metadata
 # Example usage:
 # montage_manager = MontageManager("/path/to/montage/folder")
-# montage_manager.add_montage("CATS", "new_montage", {"sensor": "data"})
+# montage_manager.add_montage("CATS", "new_montage", {"parent_signal": "data"})
 # montage_data = montage_manager.get_montage("CATS", "new_montage")
 # montage_manager.remove_montage("CATS", "new_montage")

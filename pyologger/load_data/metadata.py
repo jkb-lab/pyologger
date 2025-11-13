@@ -39,12 +39,10 @@ class Metadata:
             "collaborator_DB": os.getenv("databases.collaborator_DB"),
             "location_DB": os.getenv("databases.location_DB"),
             "montage_DB": os.getenv("databases.montage_DB"),
-            "sensor_DB": os.getenv("databases.sensor_DB"),
+            "signal_DB": os.getenv("databases.signal_DB"),
             "attachment_DB": os.getenv("databases.attachment_DB"),
             "originalchannel_DB": os.getenv("databases.originalchannel_DB"),
             "standardizedchannel_DB": os.getenv("databases.standardizedchannel_DB"),
-            "derivedsignal_DB": os.getenv("databases.derivedsignal_DB"),
-            "derivedchannel_DB": os.getenv("databases.derivedchannel_DB"),
         }
 
         # runtime state

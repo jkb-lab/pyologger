@@ -15,9 +15,9 @@ In the rapidly expanding field of animal-borne sensor research, managing the vas
 Key Features
 ************
 
-- **Data Loading and Organization:** ``pyologger`` includes powerful tools for reading and organizing data from various sensor types, with support for custom metadata handling to ensure that all relevant information is preserved throughout the analysis pipeline.
+- **Data Loading and Organization:** ``pyologger`` includes powerful tools for reading and organizing data from various signal types, with support for custom metadata handling to ensure that all relevant information is preserved throughout the analysis pipeline.
 
-- **Time Alignment and Synchronization:** The package offers functions to align data streams from different sensors, accounting for potential time offsets and ensuring synchronized datasets for accurate analysis.
+- **Time Alignment and Synchronization:** The package offers functions to align data streams from different signals, accounting for potential time offsets and ensuring synchronized datasets for accurate analysis.
 
 - **Data Processing Pipelines:** ``pyologger`` provides modular pipelines for processing biologging data, including features such as depth correction, zero-offset correction, and other signal processing techniques tailored for animal telemetry data.
 
@@ -28,7 +28,7 @@ Key Features
 Limitations
 ***********
 
-- **Sensor-Specific Processing:** While ``pyologger`` includes several general-purpose tools for biologging data, some processing functions are tailored for specific sensor types (e.g., depth, accelerometry) and may require adaptation for other sensors or data types.
+- **Sensor-Specific Processing:** While ``pyologger`` includes several general-purpose tools for biologging data, some processing functions are tailored for specific signal types (e.g., depth, accelerometry) and may require adaptation for other signals or data types.
 
 - **Data Format Dependencies:** The package currently supports specific file formats and data structures commonly used in biologging studies. Users working with non-standard formats may need to develop custom readers or converters.
 
@@ -39,7 +39,7 @@ Limitations
 Future Developments
 *******************
 
-- **Enhanced Sensor Support:** Expanding support for additional sensor types and data formats, making ``pyologger`` applicable to an even broader range of biologging studies.
+- **Enhanced Sensor Support:** Expanding support for additional signal types and data formats, making ``pyologger`` applicable to an even broader range of biologging studies.
 
 - **Advanced Analysis Modules:** Adding more built-in functions for behavioral and ecological analysis, potentially including machine learning models for behavior classification and other advanced techniques.
 

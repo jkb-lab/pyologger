@@ -7,27 +7,30 @@ import mne
 from datetime import datetime, date, time
 from pyologger.process_data.sampling import *
 
-def collate_data(data_pkl, sensor_data_keys, derived_data_keys, output_frequency):
+def collate_data(data_pkl, signal_data_keys, output_frequency):
     """
-    Collates specified sensor and derived data, resampling to a given output frequency.
+    Collates specified signal data, resampling to a given output frequency.
     
     Parameters:
-        data_pkl: Data object containing sensor and derived data as DataFrames.
-        sensor_data_keys: List of sensor data keys to include.
-        derived_data_keys: List of derived data keys to include.
+        data_pkl: Data object containing signal data as DataFrames.
+        signal_data_keys: List of signal data keys to include.
         output_frequency: Desired output frequency in Hz (assumes datetime index).
         
     Returns:
         A collated DataFrame with all specified data resampled to output_frequency.
     """
-    # Initialize base DataFrame with datetime index from 'pressure' sensor
-    base_df = data_pkl.sensor_data['pressure'][['datetime']].copy()
+    # Initialize base DataFrame with datetime index from 'pressure' signal
+    base_df = data_pkl.signal_data['pressure'][['datetime']].copy()
     base_df.set_index('datetime', inplace=True)
 
     # Create a new time index based on the output frequency
     start_time = base_df.index.min()
     end_time = base_df.index.max()
-    time_index = pd.date_range(start=start_time, end=end_time, freq=f"{int(1/output_frequency * 1000)}ms")  # Convert Hz to ms
+    time_index = pd.date_range(
+        start=start_time,
+        end=end_time,
+        freq=f"{int(1 / output_frequency * 1000)}ms"  # Convert Hz to ms
+    )
     collated_df = pd.DataFrame(index=time_index)
 
     def resample_data(df, frequency, original_frequency):
@@ -35,26 +38,18 @@ def collate_data(data_pkl, sensor_data_keys, derived_data_keys, output_frequency
         df = df.set_index('datetime')
 
         # Convert Hz to millisecond intervals
-        resample_interval = f"{int(1/frequency * 1000)}ms"
+        resample_interval = f"{int(1 / frequency * 1000)}ms"
         df_resampled = df.resample(resample_interval).mean()
 
         # Interpolate missing values to match the new frequency
         return df_resampled.interpolate()
 
-    # Process sensor data
-    for key in sensor_data_keys:
-        if key in data_pkl.sensor_data:
-            original_fs = calculate_sampling_frequency(data_pkl.sensor_data[key]['datetime'])
+    # Process signal data
+    for key in signal_data_keys:
+        if key in data_pkl.signal_data:
+            original_fs = calculate_sampling_frequency(data_pkl.signal_data[key]['datetime'])
             if original_fs:
-                resampled_data = resample_data(data_pkl.sensor_data[key], output_frequency, original_fs)
-                collated_df = collated_df.merge(resampled_data, left_index=True, right_index=True, how='left')
-
-    # Process derived data
-    for key in derived_data_keys:
-        if key in data_pkl.derived_data:
-            original_fs = calculate_sampling_frequency(data_pkl.derived_data[key]['datetime'])
-            if original_fs:
-                resampled_data = resample_data(data_pkl.derived_data[key], output_frequency, original_fs)
+                resampled_data = resample_data(data_pkl.signal_data[key], output_frequency, original_fs)
                 collated_df = collated_df.merge(resampled_data, left_index=True, right_index=True, how='left')
 
     # Reset index to include datetime
@@ -98,278 +93,294 @@ class BaseExporter:
                 data.to_parquet(parq_path, index=False)
                 print(f"✅ Parquet file saved without attributes: {parq_path}")
 
-
     def save_to_netcdf(self, datareader, filepath):
-            """Saves the current state of the DataReader object to a NetCDF file."""
-            def convert_to_compatible_array(df):
-                """Convert DataFrame columns to compatible numpy arrays."""
-                for col in df.columns:
-                    if df[col].dtype == 'object':
-                        # Handle datetime objects by converting them to strings
-                        if isinstance(df[col].iloc[0], (datetime, date, time)):
-                            df[col] = df[col].astype(str)
-                        elif pd.api.types.is_datetime64_any_dtype(df[col]):
-                            df[col] = pd.to_datetime(df[col])
-                        else:
-                            # Attempt to convert to float, if fails convert to string
-                            try:
-                                df[col] = df[col].astype(float)
-                            except ValueError:
-                                df[col] = df[col].astype(str)
+        """Saves the current state of the DataReader object to a NetCDF file."""
+
+        def convert_to_compatible_array(df: pd.DataFrame):
+            """Convert DataFrame columns to compatible numpy arrays."""
+            # Early exit for None or empty
+            if df is None or df.empty:
+                return np.array([])
+
+            df = df.copy()
+
+            for col in df.columns:
+                if df[col].dtype == 'object':
+                    # Look at a non-NA example if possible
+                    non_na = df[col].dropna()
+                    first = non_na.iloc[0] if not non_na.empty else None
+
+                    # Handle datetime-like object column
+                    if isinstance(first, (datetime, date, time)):
+                        df[col] = df[col].astype(str)
                     elif pd.api.types.is_datetime64_any_dtype(df[col]):
                         df[col] = pd.to_datetime(df[col])
-
-                # Check the number of columns in the DataFrame
-                if df.shape[1] == 1:
-                    # If there is only one column, return a flat array
-                    return df.iloc[:, 0].to_numpy()
-                else:
-                    # If there are multiple columns, return nested arrays
-                    def safe_to_numeric(series):
+                    else:
+                        # Attempt to convert to float, if fails convert to string
                         try:
-                            return pd.to_numeric(series)
+                            df[col] = df[col].astype(float)
                         except ValueError:
-                            return series
+                            df[col] = df[col].astype(str)
+                elif pd.api.types.is_datetime64_any_dtype(df[col]):
+                    df[col] = pd.to_datetime(df[col])
 
-                    return df.apply(safe_to_numeric).to_numpy()
-
-            def serialize_value(value):
-                """Helper function to serialize values to be JSON-compatible."""
-                if isinstance(value, (datetime, date, time)):
-                    return value.isoformat()
-                elif isinstance(value, (list, tuple)):
-                    return [serialize_value(item) for item in value]
-                elif isinstance(value, dict):
-                    return {k: serialize_value(v) for k, v in value.items()}
-                else:
-                    return value
-
-            def flatten_dict(prefix, d):
-                """Flattens a dictionary and adds it to dataset attributes."""
-                for key, value in d.items():
-                    flattened_key = f"{prefix}_{key}"
+            # Check the number of columns in the DataFrame
+            if df.shape[1] == 1:
+                # If there is only one column, return a flat array
+                return df.iloc[:, 0].to_numpy()
+            else:
+                # If there are multiple columns, return nested arrays
+                def safe_to_numeric(series):
                     try:
-                        serialized_value = serialize_value(value)
-                        if isinstance(serialized_value, (str, int, float, list, tuple, np.ndarray)):
-                            ds.attrs[flattened_key] = serialized_value
-                        else:
-                            raise TypeError("Invalid value type for NetCDF serialization")
-                    except (TypeError, ValueError):
-                        ds.attrs[flattened_key] = "Invalid entry"
-                        print(f"Invalid entry recognized and placed in {flattened_key}")
+                        return pd.to_numeric(series)
+                    except ValueError:
+                        return series
 
-            def create_coords(ndim, datetime_coord, variables, name):
-                """Creates an xarray DataArray with appropriate dimensions and coordinates."""
-                if ndim == 1:
-                    dims = [f"{name}_samples"]
-                    coords = {f"{name}_samples": datetime_coord}
-                else:
-                    dims = [f"{name}_samples", f"{name}_variables"]
-                    coords = {f"{name}_samples": datetime_coord, f"{name}_variables": variables}
+                return df.apply(safe_to_numeric).to_numpy()
 
-                return dims, coords
-                
-            def create_data_array(data, dims, coords):
-                """Creates an xarray DataArray with appropriate dimensions and coordinates."""
-                return xr.DataArray(data, dims=dims, coords=coords)
+        def serialize_value(value):
+            """Helper function to serialize values to be JSON-compatible."""
+            if isinstance(value, (datetime, date, time)):
+                return value.isoformat()
+            elif isinstance(value, (list, tuple)):
+                return [serialize_value(item) for item in value]
+            elif isinstance(value, dict):
+                return {k: serialize_value(v) for k, v in value.items()}
+            else:
+                return value
 
-            def set_variables_attr(ds, var_name, variables):
-                """Sets the 'variables' or 'variable' attribute based on the type of 'variables'."""
-                if isinstance(variables, list):
-                    ds[var_name].attrs['variables'] = variables
-                else:
-                    ds[var_name].attrs['variable'] = variables
+        def flatten_dict(prefix, d):
+            """Flattens a dictionary and adds it to dataset attributes."""
+            for key, value in d.items():
+                flattened_key = f"{prefix}_{key}"
+                try:
+                    serialized_value = serialize_value(value)
+                    if isinstance(serialized_value, (str, int, float, list, tuple, np.ndarray)):
+                        ds.attrs[flattened_key] = serialized_value
+                    else:
+                        raise TypeError("Invalid value type for NetCDF serialization")
+                except (TypeError, ValueError):
+                    ds.attrs[flattened_key] = "Invalid entry"
+                    print(f"Invalid entry recognized and placed in {flattened_key}")
 
-            # Create an empty xarray dataset
-            ds = xr.Dataset()
+        def create_coords(ndim, datetime_coord, variables, name):
+            """Creates an xarray DataArray with appropriate dimensions and coordinates."""
+            if ndim == 1:
+                dims = [f"{name}_samples"]
+                coords = {f"{name}_samples": datetime_coord}
+            else:
+                dims = [f"{name}_samples", f"{name}_variables"]
+                coords = {
+                    f"{name}_samples": datetime_coord,
+                    f"{name}_variables": variables,
+                }
+            return dims, coords
 
-            # Flatten the dictionaries into xarray DataArrays
-            for sensor_name, df in self.datareader.sensor_data.items():
-                sensor_data = df.copy()
-                # Saving datetime as timezone-aware
-                datetime_coord = pd.to_datetime(sensor_data['datetime'])
-                sensor_data = sensor_data.drop(columns=['datetime'])
-                variables = [col for col in sensor_data.columns]
-                data_array = convert_to_compatible_array(sensor_data)
-                var_name = f'sensor_data_{sensor_name}'
-                ndim = data_array.ndim
-                dims, coords = create_coords(ndim, datetime_coord, variables, sensor_name)
-                ds[var_name] = create_data_array(data_array, dims, coords)
-                set_variables_attr(ds, var_name, variables)
+        def create_data_array(data, dims, coords):
+            """Creates an xarray DataArray with appropriate dimensions and coordinates."""
+            return xr.DataArray(data, dims=dims, coords=coords)
 
-            for derived_name, df in self.datareader.derived_data.items():
-                derived_data = df.copy()
-                # Saving datetime as timezone-aware
-                datetime_coord = pd.to_datetime(derived_data['datetime'])
-                derived_data = derived_data.drop(columns=['datetime'])
-                variables = [col for col in derived_data.columns]
-                data_array = convert_to_compatible_array(derived_data)
-                var_name = f'derived_data_{derived_name}'
-                ndim = data_array.ndim
-                dims, coords = create_coords(ndim, datetime_coord, variables, derived_name)
-                ds[var_name] = create_data_array(data_array, dims, coords)
-                set_variables_attr(ds, var_name, variables)
+        def set_variables_attr(ds, var_name, variables):
+            """Sets the 'variables' or 'variable' attribute based on the type of 'variables'."""
+            if isinstance(variables, list):
+                ds[var_name].attrs['variables'] = variables
+            else:
+                ds[var_name].attrs['variable'] = variables
 
-            columns_to_keep = ["type", "key", "value", "duration", "short_description", "long_description"]
-            
-            if isinstance(self.datareader.event_data, pd.DataFrame):
+        # Create an empty xarray dataset
+        ds = xr.Dataset()
+
+        # Flatten the signal_data dictionaries into xarray DataArrays
+        for signal_name, df in self.datareader.signal_data.items():
+            signal_data = df.copy()
+            if signal_data.empty:
+                continue
+
+            # Saving datetime as timezone-aware
+            datetime_coord = pd.to_datetime(signal_data['datetime'])
+            signal_data = signal_data.drop(columns=['datetime'])
+            variables = [col for col in signal_data.columns]
+
+            data_array = convert_to_compatible_array(signal_data)
+            if data_array.size == 0:
+                # Nothing to write for this signal
+                continue
+
+            var_name = f'signal_data_{signal_name}'
+            ndim = data_array.ndim
+            dims, coords = create_coords(ndim, datetime_coord, variables, signal_name)
+            ds[var_name] = create_data_array(data_array, dims, coords)
+            set_variables_attr(ds, var_name, variables)
+
+        # Event data: export selected columns as separate variables (if present)
+        columns_to_keep = ["type", "key", "value", "duration", "short_description", "long_description"]
+
+        if isinstance(self.datareader.event_data, pd.DataFrame) and not self.datareader.event_data.empty:
+            event_df = self.datareader.event_data.copy()
+            # Ensure datetime exists and is usable
+            if 'datetime' not in event_df.columns:
+                print("⚠️ event_data has no 'datetime' column; skipping event export.")
+            else:
+                datetime_coord = pd.to_datetime(event_df['datetime'])
+
                 for var in columns_to_keep:
-                    event_data = self.datareader.event_data.copy()
-                    datetime_coord = pd.to_datetime(event_data['datetime'])
-                    event_data = event_data[[var]]
-                    data_array = convert_to_compatible_array(event_data)
+                    if var not in event_df.columns:
+                        continue
+
+                    col_df = event_df[[var]].copy()
+                    data_array = convert_to_compatible_array(col_df)
+                    if data_array.size == 0:
+                        # Skip empty column
+                        continue
+
                     var_name = f'event_data_{var}'
                     ndim = data_array.ndim
-                    if var == columns_to_keep[0]:
-                        dims, coords = create_coords(ndim, datetime_coord, variables, 'event_data')
+                    # For event data, variables are just the column name
+                    variables_event = [var]
+                    dims, coords = create_coords(ndim, datetime_coord, variables_event, 'event_data')
                     ds[var_name] = create_data_array(data_array, dims, coords)
                     set_variables_attr(ds, var_name, var)
 
-            # Flatten and add global attributes
-            flatten_dict('deployment_info', self.datareader.deployment_info)
-            flatten_dict('animal_info', self.datareader.animal_info)
-            flatten_dict('dataset_info', self.datareader.dataset_info if self.datareader.dataset_info else {})
+        # Flatten and add global attributes
+        flatten_dict('deployment_info', self.datareader.deployment_info)
+        flatten_dict('animal_info', self.datareader.animal_info)
+        flatten_dict('dataset_info', self.datareader.dataset_info if self.datareader.dataset_info else {})
 
-            def recursive_flatten_dict(prefix, d):
-                """Recursively flattens a dictionary and adds it to dataset attributes."""
-                if isinstance(d, dict):  # Ensure 'd' is a dictionary
-                    for key, value in d.items():
-                        flattened_key = f"{prefix}_{key}"
-                        if isinstance(value, dict):
-                            recursive_flatten_dict(flattened_key, value)  # Recurse for dictionaries
-                        elif isinstance(value, list):
-                            for i, item in enumerate(value):
-                                if isinstance(item, dict):
-                                    recursive_flatten_dict(f"{flattened_key}_{i}", item)  # Recurse for dict items
-                                else:
-                                    try:
-                                        serialized_value = serialize_value(item)
-                                        if isinstance(serialized_value, (str, int, float, list, tuple, np.ndarray)):
-                                            ds.attrs[f"{flattened_key}_{i}"] = serialized_value
-                                        else:
-                                            raise TypeError("Invalid value type for NetCDF serialization")
-                                    except (TypeError, ValueError):
-                                        ds.attrs[f"{flattened_key}_{i}"] = "Invalid entry"
-                                        print(f"⚠️ Invalid entry recognized and placed in {flattened_key}_{i}")
-                else:
-                    # If it's not a dictionary, just store the value
-                    try:
-                        serialized_value = serialize_value(d)
-                        if isinstance(serialized_value, (str, int, float, list, tuple, np.ndarray)):
-                            ds.attrs[prefix] = serialized_value
-                        else:
-                            raise TypeError("Invalid value type for NetCDF serialization")
-                    except (TypeError, ValueError):
-                        ds.attrs[prefix] = "Invalid entry"
-                        print(f"⚠️ Invalid entry recognized and placed in {prefix}")
-
-            for sensor_name, sensor_info in self.datareader.sensor_info.items():
-                recursive_flatten_dict(f'sensor_info_{sensor_name}', sensor_info)
-                if 'metadata' in sensor_info:
-                    recursive_flatten_dict(f'sensor_info_{sensor_name}_metadata', sensor_info['metadata'])
-
-            for derived_name, derived_info in self.datareader.derived_info.items():
-                recursive_flatten_dict(f'derived_info_{derived_name}', derived_info)
-                if 'metadata' in derived_info:
-                    recursive_flatten_dict(f'derived_info_{derived_name}_metadata', derived_info['metadata'])
-
-            # Store the Dataset as a NetCDF file
-            ds.to_netcdf(filepath)
-            print(f"NetCDF file saved at {filepath}")
-
-    def create_mne_raw_object(self, sensor, selected_channels=None):
-            """
-            Creates an MNE Raw object from the data of a specific sensor.
-
-            Parameters:
-            - sensor: The sensor name to include in the Raw object.
-            - selected_channels: List of channels to include for the sensor. If None, include all channels.
-
-            Returns:
-            - MNE Raw object containing the sensor data.
-            """
-            sensor_df = self.sensor_data[sensor]
-            ch_names = self.sensor_info[sensor]['channels']
-            
-            # If no specific channels are selected, use all available channels for this sensor
-            if selected_channels is None:
-                selected_channels = ch_names
-            
-            # Extract the relevant data for the selected channels
-            selected_data = sensor_df[selected_channels].values.T  # Transpose to match MNE shape requirements
-            
-            # Create MNE info dictionary
-            info = mne.create_info(
-                ch_names=selected_channels,
-                sfreq=self.sensor_info[sensor]['sampling_frequency'],  # Assume uniform sampling frequency for the sensor
-                ch_types='misc'  # Adjust based on actual sensor types if known
-            )
-            
-            # Convert the start datetime string to a UTC datetime object
-            start_datetime = self.sensor_info[sensor]['sensor_start_datetime']
-            if isinstance(start_datetime, pd.Timestamp):
-                start_datetime_local = start_datetime.to_pydatetime()
-                start_datetime_utc = start_datetime_local.astimezone(pytz.UTC)
-            elif isinstance(start_datetime, str):
-                start_datetime_local = pd.to_datetime(start_datetime)
-                start_datetime_utc = start_datetime_local.tz_convert('UTC')
+        def recursive_flatten_dict(prefix, d):
+            """Recursively flattens a dictionary and adds it to dataset attributes."""
+            if isinstance(d, dict):
+                for key, value in d.items():
+                    flattened_key = f"{prefix}_{key}"
+                    if isinstance(value, dict):
+                        recursive_flatten_dict(flattened_key, value)
+                    elif isinstance(value, list):
+                        for i, item in enumerate(value):
+                            if isinstance(item, dict):
+                                recursive_flatten_dict(f"{flattened_key}_{i}", item)
+                            else:
+                                try:
+                                    serialized_value = serialize_value(item)
+                                    if isinstance(serialized_value, (str, int, float, list, tuple, np.ndarray)):
+                                        ds.attrs[f"{flattened_key}_{i}"] = serialized_value
+                                    else:
+                                        raise TypeError("Invalid value type for NetCDF serialization")
+                                except (TypeError, ValueError):
+                                    ds.attrs[f"{flattened_key}_{i}"] = "Invalid entry"
+                                    print(f"⚠️ Invalid entry recognized and placed in {flattened_key}_{i}")
             else:
-                raise ValueError(f"Unexpected format for sensor_start_datetime: {start_datetime}")
-            
-            # Convert to (seconds, microseconds) tuple
-            meas_date = (int(start_datetime_utc.timestamp()), int((start_datetime_utc.timestamp() % 1) * 1e6))
+                # If it's not a dictionary, just store the value
+                try:
+                    serialized_value = serialize_value(d)
+                    if isinstance(serialized_value, (str, int, float, list, tuple, np.ndarray)):
+                        ds.attrs[prefix] = serialized_value
+                    else:
+                        raise TypeError("Invalid value type for NetCDF serialization")
+                except (TypeError, ValueError):
+                    ds.attrs[prefix] = "Invalid entry"
+                    print(f"⚠️ Invalid entry recognized and placed in {prefix}")
 
-            # Set the measurement date using the converted UTC datetime
-            raw = mne.io.RawArray(selected_data, info)
-            raw.set_meas_date(meas_date)
-            
-            # Add custom metadata to the MNE info object
-            for i, ch_name in enumerate(selected_channels):
-                ch_metadata = self.sensor_info[sensor]['metadata'][ch_name]
-                
-                # Store original unit and other details in the channel description
-                description = f"{ch_metadata['original_name']} ({ch_metadata['unit']})"
-                info['chs'][i]['desc'] = description  # Use the description field for storing extra information
+        for signal_name, signal_info in self.datareader.signal_info.items():
+            recursive_flatten_dict(f'signal_info_{signal_name}', signal_info)
+            if 'metadata' in signal_info:
+                recursive_flatten_dict(f'signal_info_{signal_name}_metadata', signal_info['metadata'])
 
-            # Concatenate other deployment data into a plaintext string
-            deployment_info = "\n".join([f"{key}: {value}" for key, value in self.deployment_info.items()])
-            info['description'] = f"Sensor: {sensor}\nDeployment Data:\n{deployment_info}"
-            
-            return raw
+        # Store the Dataset as a NetCDF file
+        ds.to_netcdf(filepath)
+        print(f"NetCDF file saved at {filepath}")
 
-    def export_to_edf(self, filename_template, selected_sensors=None, selected_channels=None):
+    def create_mne_raw_object(self, signal, selected_channels=None):
         """
-        High-level method to export the current DataReader object's sensors to separate EDF files.
+        Creates an MNE Raw object from the data of a specific signal.
 
         Parameters:
-        - filename_template: A template string for the filename where '{sensor}' will be replaced by the sensor name.
-        - selected_sensors: List of sensor names to export to EDF files. If None, include all sensors.
-        - selected_channels: Dictionary specifying which channels to include for each sensor (e.g., {'accelerometer': ['ax', 'ay']}).
-                            If None, include all channels for the selected sensors.
-        """
-        # If no specific sensors are selected, use all available sensors
-        if selected_sensors is None:
-            selected_sensors = list(self.sensor_data.keys())
+        - signal: The signal name to include in the Raw object.
+        - selected_channels: List of channels to include for the signal. If None, include all channels.
 
-        # Iterate through each sensor and export to an EDF file
-        for sensor in selected_sensors:
-            if sensor not in self.sensor_data:
-                print(f"Sensor {sensor} not found in sensor_data. Skipping.")
+        Returns:
+        - MNE Raw object containing the signal data.
+        """
+        signal_df = self.signal_data[signal]
+        ch_names = self.signal_info[signal]['channels']
+        
+        # If no specific channels are selected, use all available channels for this signal
+        if selected_channels is None:
+            selected_channels = ch_names
+        
+        # Extract the relevant data for the selected channels
+        selected_data = signal_df[selected_channels].values.T  # Transpose to match MNE shape requirements
+        
+        # Create MNE info dictionary
+        info = mne.create_info(
+            ch_names=selected_channels,
+            sfreq=self.signal_info[signal]['sampling_frequency'],  # Assume uniform sampling frequency for the signal
+            ch_types='misc'  # Adjust based on actual signal types if known
+        )
+        
+        # Convert the start datetime string to a UTC datetime object
+        start_datetime = self.signal_info[signal]['signal_start_datetime']
+        if isinstance(start_datetime, pd.Timestamp):
+            start_datetime_local = start_datetime.to_pydatetime()
+            start_datetime_utc = start_datetime_local.astimezone(pytz.UTC)
+        elif isinstance(start_datetime, str):
+            start_datetime_local = pd.to_datetime(start_datetime)
+            start_datetime_utc = start_datetime_local.tz_convert('UTC')
+        else:
+            raise ValueError(f"Unexpected format for signal_start_datetime: {start_datetime}")
+        
+        # Convert to (seconds, microseconds) tuple
+        meas_date = (int(start_datetime_utc.timestamp()), int((start_datetime_utc.timestamp() % 1) * 1e6))
+
+        # Set the measurement date using the converted UTC datetime
+        raw = mne.io.RawArray(selected_data, info)
+        raw.set_meas_date(meas_date)
+        
+        # Add custom metadata to the MNE info object
+        for i, ch_name in enumerate(selected_channels):
+            ch_metadata = self.signal_info[signal]['metadata'][ch_name]
+            
+            # Store original unit and other details in the channel description
+            description = f"{ch_metadata['original_name']} ({ch_metadata['unit']})"
+            info['chs'][i]['desc'] = description  # Use the description field for storing extra information
+
+        # Concatenate other deployment data into a plaintext string
+        deployment_info = "\n".join([f"{key}: {value}" for key, value in self.deployment_info.items()])
+        info['description'] = f"Sensor: {signal}\nDeployment Data:\n{deployment_info}"
+        
+        return raw
+
+    def export_to_edf(self, filename_template, selected_signals=None, selected_channels=None):
+        """
+        High-level method to export the current DataReader object's signals to separate EDF files.
+
+        Parameters:
+        - filename_template: A template string for the filename where '{signal}' will be replaced by the signal name.
+        - selected_signals: List of signal names to export to EDF files. If None, include all signals.
+        - selected_channels: Dictionary specifying which channels to include for each signal (e.g., {'accelerometer': ['ax', 'ay']}).
+                             If None, include all channels for the selected signals.
+        """
+        # If no specific signals are selected, use all available signals
+        if selected_signals is None:
+            selected_signals = list(self.signal_data.keys())
+
+        # Iterate through each signal and export to an EDF file
+        for signal in selected_signals:
+            if signal not in self.signal_data:
+                print(f"Sensor {signal} not found in signal_data. Skipping.")
                 continue
             
-            # Determine which channels to include for the current sensor
-            if selected_channels and sensor in selected_channels:
-                channels_to_include = selected_channels[sensor]
+            # Determine which channels to include for the current signal
+            if selected_channels and signal in selected_channels:
+                channels_to_include = selected_channels[signal]
             else:
-                channels_to_include = self.sensor_info[sensor]['channels']
+                channels_to_include = self.signal_info[signal]['channels']
 
-            # Create the MNE Raw object for the current sensor
-            raw = self.create_mne_raw_object(sensor, selected_channels=channels_to_include)
+            # Create the MNE Raw object for the current signal
+            raw = self.create_mne_raw_object(signal, selected_channels=channels_to_include)
 
-            # Define the EDF filename for the current sensor, replacing '{sensor}' in the template
-            edf_filename = filename_template.format(sensor=sensor)
+            # Define the EDF filename for the current signal, replacing '{signal}' in the template
+            edf_filename = filename_template.format(signal=signal)
 
             # Save the Raw object as an EDF file
             raw.export(edf_filename, fmt='edf')
             
-            print(f"EDF file for {sensor} saved as {edf_filename}")
+            print(f"EDF file for {signal} saved as {edf_filename}")

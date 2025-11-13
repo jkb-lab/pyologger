@@ -83,8 +83,7 @@ def update_plot(time_indices):
     end = time_values[time_indices[1]]
     fig = plot_tag_data_interactive(
         data_pkl=data_pkl,
-        sensors=['ecg'],
-        derived_data_signals=['depth','heart_rate', 'prh', 'stroke_rate'],
+        signals=['ecg', 'depth','heart_rate', 'prh', 'stroke_rate'],
         note_annotations=notes_to_plot,
         zoom_start_time=start,
         zoom_end_time=end,
@@ -124,9 +123,9 @@ def truncate_and_save(n_clicks, time_indices):
     overlap_start = pd.Timestamp(start).tz_convert(timezone)
     overlap_end = pd.Timestamp(end).tz_convert(timezone)
 
-    for sensor, df in data_pkl.sensor_data.items():
+    for signal, df in data_pkl.signal_data.items():
         truncated_df = df[(df.iloc[:, 0] >= overlap_start) & (df.iloc[:, 0] <= overlap_end)].copy()
-        data_pkl.sensor_data[sensor] = truncated_df
+        data_pkl.signal_data[signal] = truncated_df
 
     midpoint = overlap_start + (overlap_end - overlap_start) / 2
     zoom_start = midpoint - timedelta(minutes=2.5)

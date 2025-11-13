@@ -32,8 +32,8 @@ class EvolocusImporter(BaseImporter):
             cleaned = clean_label(signal.label)
             if cleaned in self.montage:
                 mapping = self.montage[cleaned]
-                sensor_type = mapping['parent_signal'].lower()
-                if sensor_type in ['exg', 'logger_status']:
+                parent_signal = mapping['parent_signal'].lower()
+                if parent_signal in ['exg', 'logger_status']:
                     continue
                 standardized_id = mapping['standardized_channel_id']
                 signal.label = standardized_id
@@ -41,7 +41,7 @@ class EvolocusImporter(BaseImporter):
                 channel_metadata_all[standardized_id] = {
                     'original_name': signal.label,
                     'unit': mapping.get('original_unit', 'unknown'),
-                    'sensor': sensor_type
+                    'signal': parent_signal
                 }
 
         if not retained_signals:
@@ -115,8 +115,8 @@ class EvolocusImporter(BaseImporter):
         final_dfs = {}
         channel_metadata = {}
         datetime_metadata = {}
-        sensor_groups = {}
-        sensor_info = {}
+        signal_groups = {}
+        signal_info = {}
 
         for freq, df in grouped_dfs.items():
             print(f"\n📦 Processing frequency group: {freq} Hz")
@@ -130,16 +130,16 @@ class EvolocusImporter(BaseImporter):
             metadata_for_df = {col: channel_metadata_all[col] for col in cols_in_df if col in channel_metadata_all}
             channel_metadata[freq] = metadata_for_df
 
-            g, i = self.group_data_by_sensors(df, self.logger_id, metadata_for_df)
+            g, i = self.group_data_by_signals(df, self.logger_id, metadata_for_df)
 
-            # Only store sensors not already processed
-            sensor_groups[freq] = {k: v for k, v in g.items() if k not in self.data_reader.sensor_data}
-            sensor_info[freq] = {k: v for k, v in i.items() if k not in self.data_reader.sensor_info}
+            # Only store signals not already processed
+            signal_groups[freq] = {k: v for k, v in g.items() if k not in self.data_reader.signal_data}
+            signal_info[freq] = {k: v for k, v in i.items() if k not in self.data_reader.signal_info}
 
             self.data_reader.logger_info[self.logger_id]['datetime_created_from'] = dt_meta.get('datetime_created_from', None)
             self.data_reader.logger_info[self.logger_id]['fs'] = list(final_dfs.keys())
 
-        return final_dfs, channel_metadata, datetime_metadata, sensor_groups, sensor_info
+        return final_dfs, channel_metadata, datetime_metadata, signal_groups, signal_info
 
     def resample_mean_dataframe(self, df, target_freq_hz):
         df = df.copy()

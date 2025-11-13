@@ -64,7 +64,7 @@ timezone = data_pkl.deployment_info['Time Zone']
 
 app = dash.Dash(__name__)
 
-df_all = data_pkl.derived_data['prh']
+df_all = data_pkl.signal_data['prh']
 
 # Convert to UTC
 #dff["datetime"] = dff["datetime"].dt.tz_localize("UTC")
@@ -76,7 +76,7 @@ dff = df_all[(df_all['datetime'] >= VIDEO_START_TIME) & (df_all['datetime'] <= V
 dff.reset_index(drop=True, inplace=True)
 # Convert datetime to timestamp (seconds since epoch) for slider control
 dff["timestamp"] = dff["datetime"].apply(lambda x: x.timestamp())
-# dff["depth"] = dff["derived_data_depth"].apply(lambda x: x * -1)
+# dff["depth"] = dff["signal_data_depth"].apply(lambda x: x * -1)
 
 ORIGINAL_SAMPLING_RATE = 400
 TARGET_SAMPLING_RATE = 10
@@ -90,8 +90,7 @@ notes_to_plot = {
 
 fig = plot_tag_data_interactive(
     data_pkl=data_pkl,
-    sensors=['ecg', 'hr_normalized'],
-    derived_data_signals=['depth', 'prh', 'stroke_rate', 'heart_rate','sr_smoothed', 'odba'],
+    signals=['ecg', 'hr_normalized','depth', 'prh', 'stroke_rate', 'heart_rate','sr_smoothed', 'odba'],
     channels={}, #'corrected_gyr': ['broad_bandpassed_signal']
     time_range=(VIDEO_START_TIME, VIDEO_END_TIME),
     note_annotations=notes_to_plot,

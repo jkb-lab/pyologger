@@ -74,10 +74,10 @@ params["smoothing_window"] = st.sidebar.slider("Smoothing Window (samples)", 1, 
 params["downsampled_sampling_rate"] = st.sidebar.slider("Downsample Rate (Hz)", 1, 25, dive_detection_settings["downsampled_sampling_rate"], 1)
 
 # **Step 5: Process Depth Data**
-depth_data = data_pkl.sensor_data["pressure"]["pressure"]
-depth_datetime = data_pkl.sensor_data["pressure"]["datetime"]
-depth_fs = data_pkl.sensor_info["pressure"]["sampling_frequency"]
-temp_data = data_pkl.sensor_data['temperature']['temp']
+depth_data = data_pkl.signal_data["pressure"]["pressure"]
+depth_datetime = data_pkl.signal_data["pressure"]["datetime"]
+depth_fs = data_pkl.signal_info["pressure"]["sampling_frequency"]
+temp_data = data_pkl.signal_data['temperature']['temp']
 
 depth_processing_params = {
     "original_sampling_rate": depth_fs,
@@ -144,8 +144,7 @@ st.sidebar.write(f"✅ {len(dives)} dives detected.")
 
 fig = plot_tag_data_interactive_st(
     data_pkl=data_pkl,
-    sensors=['pressure'],
-    derived_data_signals=['depth'],
+    signals=['pressure','depth'],
     time_range=(depth_downsampled_datetime.min(), depth_downsampled_datetime.max()),
     note_annotations={"dive": {"signal": "depth", "symbol": "triangle-down", "color": "blue"}},
     state_annotations={"dive": {"signal": "depth", "color": "rgba(150, 150, 150, 0.3)"}},

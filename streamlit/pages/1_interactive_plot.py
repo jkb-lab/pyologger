@@ -83,8 +83,7 @@ TARGET_SAMPLING_RATE = 25
 # **Step 2: Interactive Plot with Zoom**
 fig = plot_tag_data_interactive(
     data_pkl=data_pkl,
-    sensors=['ecg'],
-    derived_data_signals=['depth','corrected_acc','heart_rate', 'prh', 'stroke_rate'],
+    signals=['ecg','depth','corrected_acc','heart_rate', 'prh', 'stroke_rate'],
     note_annotations=notes_to_plot,
     zoom_start_time=selected_start_time,
     zoom_end_time=selected_end_time,
@@ -109,12 +108,12 @@ if st.button("Truncate Data and Save Pickle"):
     OVERLAP_START_TIME = pd.Timestamp(selected_start_time).tz_convert(timezone)
     OVERLAP_END_TIME = pd.Timestamp(selected_end_time).tz_convert(timezone)
 
-    # **Truncate sensor data**
-    for sensor, df in data_pkl.sensor_data.items():
+    # **Truncate signal data**
+    for signal, df in data_pkl.signal_data.items():
 
         # Truncate based on selected time range
         truncated_df = df[(df.iloc[:, 0] >= OVERLAP_START_TIME) & (df.iloc[:, 0] <= OVERLAP_END_TIME)].copy()
-        data_pkl.sensor_data[sensor] = truncated_df  # Save truncated version to new variable
+        data_pkl.signal_data[signal] = truncated_df  # Save truncated version to new variable
 
     # **Recalculate Zoom Window** (5-minute window in the middle)
     midpoint = OVERLAP_START_TIME + (OVERLAP_END_TIME - OVERLAP_START_TIME) / 2

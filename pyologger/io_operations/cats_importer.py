@@ -18,15 +18,15 @@ class CATSImporter(BaseImporter):
         # Filter out unwanted files
         files = [f for f in files if not f.endswith(('.ubc', '.bin', '.ubx', '.cfg', '.obs', '.pos', '.stat', '.nsl', '.kml', '.conv'))]
 
-        # Step 1: Parse .txt file for sensor intervals
+        # Step 1: Parse .txt file for signal intervals
         txt_file = next((f for f in files if f.endswith('.txt')), None)
-        parsed_sensors = {}
+        parsed_signals = {}
         if txt_file:
-            print(f"🔍 Parsing {txt_file} for expected sensor intervals.")
-            parsed_sensors = self.parse_txt_file(os.path.join(self.data_reader.data_folder, txt_file))
+            print(f"🔍 Parsing {txt_file} for expected signal intervals.")
+            parsed_signals = self.parse_txt_file(os.path.join(self.data_reader.data_folder, txt_file))
 
         # Step 2: Set expected frequencies (can be overridden)
-        self.set_expected_frequencies(parsed_sensors, enforce_frequency=enforce_frequency)
+        self.set_expected_frequencies(parsed_signals, enforce_frequency=enforce_frequency)
 
         # Remove .txt files from the list after processing them
         files = [f for f in files if not f.endswith('.txt')]
@@ -49,10 +49,10 @@ class CATSImporter(BaseImporter):
         self.data_reader.logger_info[self.logger_id]['datetime_created_from'] = datetime_metadata.get('datetime_created_from', None)
         self.data_reader.logger_info[self.logger_id]['fs'] = [datetime_metadata.get('fs', None)]
 
-        # Step 6: Map data to sensors and return sensor information
-        sensor_groups, sensor_info = self.group_data_by_sensors(final_df, self.logger_id, channel_metadata)
+        # Step 6: Map data to signals and return signal information
+        signal_groups, signal_info = self.group_data_by_signals(final_df, self.logger_id, channel_metadata)
 
-        return final_df, channel_metadata, datetime_metadata, sensor_groups, sensor_info
+        return final_df, channel_metadata, datetime_metadata, signal_groups, signal_info
 
     def concatenate_and_save_csvs(self, csv_files):
         """Concatenates multiple CSV files into one DataFrame."""
@@ -80,32 +80,32 @@ class CATSImporter(BaseImporter):
             print(file.read())
 
     def parse_txt_file(self, txt_file_path):
-        """Parses the .txt file to extract sensor names and sampling intervals."""
+        """Parses the .txt file to extract signal names and sampling intervals."""
         print(f"🔍 Attempting to parse intervals from {txt_file_path}")
 
         try:
             with open(txt_file_path, 'r') as file:
                 content = file.read()
 
-            # Extract sensor information from the '[activated sensors]' section
-            activated_sensors_section = re.search(r'\[activated sensors\](.*?)\n\n', content, re.DOTALL)
-            if not activated_sensors_section:
-                print("⚠ No 'activated sensors' section found in the file.")
+            # Extract signal information from the '[activated signals]' section
+            activated_signals_section = re.search(r'\[activated signals\](.*?)\n\n', content, re.DOTALL)
+            if not activated_signals_section:
+                print("⚠ No 'activated signals' section found in the file.")
                 return {}
 
-            activated_sensors_content = activated_sensors_section.group(1)
+            activated_signals_content = activated_signals_section.group(1)
 
-            # Find all sensors' names and their corresponding intervals
-            sensor_info = re.findall(r'(\d{2})_name=(.*?)\n.*?\1_interval=(\d+)', activated_sensors_content, re.DOTALL)
-            if not sensor_info:
-                print("⚠ No sensor information found in the file. Please check the file format.")
+            # Find all signals' names and their corresponding intervals
+            signal_info = re.findall(r'(\d{2})_name=(.*?)\n.*?\1_interval=(\d+)', activated_signals_content, re.DOTALL)
+            if not signal_info:
+                print("⚠ No signal information found in the file. Please check the file format.")
                 return {}
 
-            print(f"✅ Parsed sensor info from txt: {sensor_info}")
+            print(f"✅ Parsed signal info from txt: {signal_info}")
 
-            # Convert to dictionary {sensor_name: interval}
-            parsed_sensors = {sensor_name.strip().lower(): int(interval) for _, sensor_name, interval in sensor_info}
-            return parsed_sensors
+            # Convert to dictionary {signal_name: interval}
+            parsed_signals = {signal_name.strip().lower(): int(interval) for _, signal_name, interval in signal_info}
+            return parsed_signals
 
         except Exception as e:
             print(f"❌ Failed to parse {txt_file_path} due to: {e}")

@@ -130,8 +130,19 @@ def process_datetime(df, time_zone=None,
     # Step 1: Create datetime column if needed
     if 'datetime' in df.columns:
         print("'datetime' column found.")
-        df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
-        print(f"First few entries in 'datetime' column:\n{df['datetime'].head()}")
+        # First, try strict parsing with common format 'YYYY-MM-DD HH:MM:SS'
+        strict_parsed = pd.to_datetime(
+            df['datetime'], format='%Y-%m-%d %H:%M:%S', errors='coerce'
+        )
+        # For any rows that failed strict parsing, fall back to pandas' general parser
+        if strict_parsed.isna().any():
+            fallback_parsed = pd.to_datetime(df['datetime'], errors='coerce')
+            # Prefer strict where available; otherwise use fallback
+            df['datetime'] = strict_parsed.fillna(fallback_parsed)
+        else:
+            df['datetime'] = strict_parsed
+
+        print(f"First few entries in 'datetime' column after parsing:\n{df['datetime'].head()}")
         metadata['datetime_created_from'] = 'datetime'
 
     elif 'time' in df.columns and 'date' in df.columns:

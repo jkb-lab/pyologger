@@ -14,7 +14,7 @@ Plotting Interactive Sensor Data
 
 .. code-block:: python
 
-    """This example demonstrates how to use `pyologger` to load and visualize multimodal sensor data from animal-borne sensors, including depth, accelerometry, gyroscope, magnetometer, and ECG data.
+    """This example demonstrates how to use `pyologger` to load and visualize multimodal signal data from animal-borne signals, including depth, accelerometry, gyroscope, magnetometer, and ECG data.
 
     The example leverages Streamlit for an interactive interface and Plotly for plotting.
     """
@@ -73,7 +73,7 @@ Plotting Interactive Sensor Data
         with open(path, 'w') as f:
             json.dump(mapping, f, indent=4)
 
-    # Function to plot sensor data interactively
+    # Function to plot signal data interactively
     def plot_tag_data_interactive(data_pkl, imu_channels, ephys_channels=None, imu_logger=None, ephys_logger=None, imu_sampling_rate=10, ephys_sampling_rate=50, time_range=None, note_annotations=None):
         # Streamlit color pickers for each channel type
         st.sidebar.header("Customize Colors")

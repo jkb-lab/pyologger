@@ -15,7 +15,7 @@ class BaseImporter:
         self.logger_id = logger_id
         self.logger_manufacturer = self.data_reader.logger_info[logger_id]['Manufacturer']
         self.montage_id = self.data_reader.logger_info[logger_id]['Montage ID']
-        self.expected_frequencies = {}  # Stores expected sensor frequencies from .txt files
+        self.expected_frequencies = {}  # Stores expected signal frequencies from .txt files
         self.montage_path = self.data_reader.montage_path
 
         # Load the custom JSON mapping for column names if available
@@ -76,7 +76,7 @@ class BaseImporter:
             self.montage = None
 
     def rename_channels(self, channel_names):
-        """Maps raw channel names to standardized sensor names."""
+        """Maps original channel IDs to standardized channel IDs."""
         channel_metadata = {}
         new_channels = {}
 
@@ -125,14 +125,15 @@ class BaseImporter:
                 print(f"ℹ️ No mapping for '{clean_name}' — using cleaned name as standardized id.")
 
             mapped_name = mapping_info.get("standardized_channel_id", clean_name)
-            sensor_type = mapping_info.get("parent_signal", "extra").strip().lower()
+            parent_signal = mapping_info.get("parent_signal", "extra").strip().lower()
+            original_unit = mapping_info.get("original_unit", "extra").strip().lower()
 
-            print(f"📝 Dictionary: original name: {original_name} → standardized name: {mapped_name} (Sensor type: {sensor_type})")
+            print(f"📝 Dictionary: original name: {original_name} → standardized name: {mapped_name} (Signal type: {parent_signal})")
 
             channel_metadata[mapped_name] = {
                 "original_name": original_name,
-                "unit": unit or "unknown",
-                "sensor": sensor_type
+                "unit": original_unit or "unknown",
+                "parent_signal": parent_signal
             }
             new_channels[original_name] = mapped_name
 
@@ -140,86 +141,86 @@ class BaseImporter:
         return new_channels, channel_metadata
 
 
-    def group_data_by_sensors(self, df, logger_id, channel_metadata):
-        """Groups data columns to sensors and downsamples based on expected frequencies."""
-        sensor_groups = {}
-        sensor_info = {}
+    def group_data_by_signals(self, df, logger_id, channel_metadata):
+        """Groups data columns to signals and downsamples based on expected frequencies."""
+        signal_groups = {}
+        signal_info = {}
 
-        for sensor_name in set(v['sensor'].strip().lower() for v in channel_metadata.values()):
-            if sensor_name == 'extra':
-                continue  # Skip 'extra' sensor type
+        for signal_name in set(v['parent_signal'].strip().lower() for v in channel_metadata.values()):
+            if signal_name == 'extra':
+                continue  # Skip 'extra' signal type
 
-            if sensor_name in self.data_reader.sensor_data:
-                print(f"Sensor '{sensor_name}' has already been processed. Skipping reprocessing.")
+            if signal_name in self.data_reader.signal_data:
+                print(f"Sensor '{signal_name}' has already been processed. Skipping reprocessing.")
                 continue
 
-            # Group columns by sensor
-            sensor_cols = [col for col, meta in channel_metadata.items() if meta['sensor'].strip().lower() == sensor_name]
-            sensor_df = df[['datetime'] + sensor_cols].copy()
+            # Group columns by signal
+            signal_cols = [col for col, meta in channel_metadata.items() if meta['parent_signal'].strip().lower() == signal_name]
+            signal_df = df[['datetime'] + signal_cols].copy()
 
-            # Check if all sensor columns are numeric
-            non_numeric_cols = sensor_df[sensor_cols].select_dtypes(exclude=['number']).columns.tolist()
+            # Check if all signal columns are numeric
+            non_numeric_cols = signal_df[signal_cols].select_dtypes(exclude=['number']).columns.tolist()
             if non_numeric_cols:
-                print(f"❌ Skipping sensor '{sensor_name}': non-numeric data found in columns: {non_numeric_cols}")
+                print(f"❌ Skipping signal '{signal_name}': non-numeric data found in columns: {non_numeric_cols}")
                 continue
 
-            # Determine the data type of the sensor columns
-            data_type = sensor_df[sensor_cols].dtypes.iloc[0]
+            # Determine the data type of the signal columns
+            data_type = signal_df[signal_cols].dtypes.iloc[0]
             data_type_str = str(data_type)
 
             # Standardized metadata collection
-            start_time = sensor_df['datetime'].iloc[0]
-            end_time = sensor_df['datetime'].iloc[-1]
-            max_value = sensor_df[sensor_cols].max().max()
-            min_value = sensor_df[sensor_cols].min().min()
-            mean_value = sensor_df[sensor_cols].mean().mean()
+            start_time = signal_df['datetime'].iloc[0]
+            end_time = signal_df['datetime'].iloc[-1]
+            max_value = signal_df[signal_cols].max().max()
+            min_value = signal_df[signal_cols].min().min()
+            mean_value = signal_df[signal_cols].mean().mean()
 
             # Get the original unit from the column metadata
-            original_units = {channel_metadata[col]['unit'] for col in sensor_cols}
+            original_units = {channel_metadata[col]['unit'] for col in signal_cols}
             if len(original_units) > 1:
-                warnings.warn(f"Conflicting units found for sensor '{sensor_name}': {original_units}. Using the first one.")
+                warnings.warn(f"Conflicting units found for signal '{signal_name}': {original_units}. Using the first one.")
             original_unit = original_units.pop() if original_units else "unknown"
 
             # Calculate current frequency - beware this does not fix gaps, just uses the first few values to calculate freq.
-            original_frequency = calculate_sampling_frequency(sensor_df['datetime'].head()) # round(1 / sensor_df['datetime'].diff().dt.total_seconds().mean())
-            print(f"Original frequency for {sensor_name}: {original_frequency} Hz")
+            original_frequency = calculate_sampling_frequency(signal_df['datetime'].head()) # round(1 / signal_df['datetime'].diff().dt.total_seconds().mean())
+            print(f"Original frequency for {signal_name}: {original_frequency} Hz")
 
-            expected_frequency = self.expected_frequencies.get(sensor_name)
+            expected_frequency = self.expected_frequencies.get(signal_name)
             if not expected_frequency and self.logger_manufacturer == 'LL':
                 expected_frequency = int(self.data_reader.logger_info[logger_id]['fs'])
 
             max_desired_frequency = None
             if self.logger_manufacturer in ['Evolocus', 'Manitty', 'UFI']:
                 max_freq_lookup = {'eeg': 100, 'eog': 100, 'ecg': 250, 'emg': 250}
-                max_desired_frequency = max_freq_lookup.get(sensor_name, None)
+                max_desired_frequency = max_freq_lookup.get(signal_name, None)
 
             downsample_target = max_desired_frequency or expected_frequency
             if not expected_frequency and not max_desired_frequency:
-                print(f"⚠️ No frequency target found for {sensor_name}. Using original frequency {original_frequency} Hz.")
+                print(f"⚠️ No frequency target found for {signal_name}. Using original frequency {original_frequency} Hz.")
 
             if downsample_target and downsample_target < original_frequency:
                 decimation_factor = max(1, int(round(original_frequency / downsample_target)))
-                print(f"Downsampling {sensor_name} by {decimation_factor}x from {original_frequency:.2f}Hz to {downsample_target:.2f}Hz.")
-                sensor_df = sensor_df.iloc[::decimation_factor]
+                print(f"Downsampling {signal_name} by {decimation_factor}x from {original_frequency:.2f}Hz to {downsample_target:.2f}Hz.")
+                signal_df = signal_df.iloc[::decimation_factor]
                 # Calculate new frequency after downsampling - beware this does not fix gaps, just uses the first few values to calculate freq.
-                new_frequency = calculate_sampling_frequency(sensor_df['datetime'].head()) # round(1 / sensor_df['datetime'].diff().dt.total_seconds().mean())
+                new_frequency = calculate_sampling_frequency(signal_df['datetime'].head()) # round(1 / signal_df['datetime'].diff().dt.total_seconds().mean())
                 print(f"New frequency after downsampling: {new_frequency} Hz")
             else:
                 new_frequency = original_frequency
-                print(f"No downsampling required for {sensor_name}. Current: {original_frequency:.2f}Hz, Target: {downsample_target}Hz")
+                print(f"No downsampling required for {signal_name}. Current: {original_frequency:.2f}Hz, Target: {downsample_target}Hz")
 
-            details = 'Initial, raw sensor-specific data and metadata loaded.'
+            details = 'Initial, raw signal-specific data and metadata loaded.'
             if new_frequency != original_frequency:
                 details += f' Original frequency: {original_frequency} Hz; downsampled to {new_frequency} Hz.'
             else:
                 details += f' Original frequency: {original_frequency} Hz; no downsampling applied.'
 
-            self.data_reader.sensor_data[sensor_name] = sensor_df
-            self.data_reader.sensor_info[sensor_name] = {
-                'channels': sensor_cols,
-                'metadata': {col: channel_metadata[col] for col in sensor_cols},
-                'sensor_start_datetime': start_time,
-                'sensor_end_datetime': end_time,
+            self.data_reader.signal_data[signal_name] = signal_df
+            self.data_reader.signal_info[signal_name] = {
+                'channels': signal_cols,
+                'metadata': {col: channel_metadata[col] for col in signal_cols},
+                'signal_start_datetime': start_time,
+                'signal_end_datetime': end_time,
                 'max_value': float(max_value),
                 'min_value': float(min_value),
                 'mean_value': float(mean_value),
@@ -235,10 +236,10 @@ class BaseImporter:
                 'details': details,
             }
 
-        for sensor_name, df in self.data_reader.sensor_data.items():
-            print(f"Sensor '{sensor_name}' data processed and stored with shape {df.shape}.")
+        for signal_name, df in self.data_reader.signal_data.items():
+            print(f"Sensor '{signal_name}' data processed and stored with shape {df.shape}.")
 
-        return sensor_groups, sensor_info
+        return signal_groups, signal_info
 
 
     def process_files(self, files):
@@ -249,43 +250,43 @@ class BaseImporter:
         """Base method for concatenating and saving CSVs."""
         raise NotImplementedError("This method should be implemented by subclasses.")
 
-    def set_expected_frequencies(self, parsed_sensors, enforce_frequency=True):
+    def set_expected_frequencies(self, parsed_signals, enforce_frequency=True):
         """
-        Matches parsed sensors with the channel mapping and sets expected frequencies.
+        Matches parsed signals with the channel mapping and sets expected frequencies.
         
         Args:
-            parsed_sensors (dict): Sensor name -> expected interval (Hz)
+            parsed_signals (dict): Sensor name -> expected interval (Hz)
             enforce_frequency (bool): Whether to enforce setting expected frequencies. Default: True.
         """
-        if not parsed_sensors:
-            print("⚠ No sensors parsed from txt file, skipping frequency matching.")
+        if not parsed_signals:
+            print("⚠ No signals parsed from txt file, skipping frequency matching.")
             return
 
         if not self.montage:
             print(f"⚠ Warning: No valid channel mapping found for Manufacturer '{self.logger_manufacturer}' with Montage ID '{self.montage_id}'.")
             return
 
-        print(f"🔍 Matching parsed sensors with channel mapping. Enforce frequency: {enforce_frequency}")
+        print(f"🔍 Matching parsed signals with channel mapping. Enforce frequency: {enforce_frequency}")
 
-        for sensor_name, frequency in parsed_sensors.items():
+        for signal_name, frequency in parsed_signals.items():
             found_match = False
             for clean_name, mapping in self.montage.items():
-                manufacturer_sensor_name = mapping['manufacturer_sensor_name'].strip().lower()
+                manufacturer_signal_name = mapping['manufacturer_signal_name'].strip().lower()
 
-                if manufacturer_sensor_name == sensor_name:
-                    sensor_type = mapping['parent_signal'].strip().lower()
+                if manufacturer_signal_name == signal_name:
+                    parent_signal = mapping['parent_signal'].strip().lower()
 
                     if enforce_frequency:
-                        self.expected_frequencies[sensor_type] = frequency  
-                        print(f"✅ Matched '{sensor_name}' -> '{sensor_type}' with expected frequency: {frequency} Hz.")
+                        self.expected_frequencies[parent_signal] = frequency  
+                        print(f"✅ Matched '{signal_name}' -> '{parent_signal}' with expected frequency: {frequency} Hz.")
                     else:
-                        print(f"🔍 Matched '{sensor_name}' -> '{sensor_type}', but skipping frequency enforcement.")
+                        print(f"🔍 Matched '{signal_name}' -> '{parent_signal}', but skipping frequency enforcement.")
 
                     found_match = True
                     break  # Stop once a match is found
 
             if not found_match:
-                print(f"⚠ Sensor name '{sensor_name}' not found in channel mapping. Ignoring this sensor.")
+                print(f"⚠ Sensor name '{signal_name}' not found in channel mapping. Ignoring this signal.")
 
 
 

@@ -11,12 +11,12 @@ def compute_field_intensity_and_inclination(acceleration_data, magnetometer_data
     Parameters
     ----------
     acceleration_data : numpy.ndarray or dict
-        An accelerometer sensor matrix with columns [ax, ay, az].
-        Can also be a sensor data dictionary containing 'data' and 'sampling_rate'.
+        An accelerometer signal matrix with columns [ax, ay, az].
+        Can also be a signal data dictionary containing 'data' and 'sampling_rate'.
     magnetometer_data : numpy.ndarray or None, optional
-        A magnetometer sensor matrix with columns [mx, my, mz]. Optional.
+        A magnetometer signal matrix with columns [mx, my, mz]. Optional.
     sampling_rate : float or None, optional
-        The sampling rate of the sensor data in Hz. Required if `acceleration_data` is not a sensor dictionary.
+        The sampling rate of the signal data in Hz. Required if `acceleration_data` is not a signal dictionary.
     compute_inclination : bool, optional
         Whether to compute and return the inclination angle. Defaults to True.
     
@@ -29,7 +29,7 @@ def compute_field_intensity_and_inclination(acceleration_data, magnetometer_data
     Raises
     ------
     ValueError
-        If `sampling_rate` is not provided when `acceleration_data` is not a sensor dictionary, or if the data is invalid.
+        If `sampling_rate` is not provided when `acceleration_data` is not a signal dictionary, or if the data is invalid.
     """
     
     low_pass_filter_freq = 5  # Low-pass filter frequency in Hz
@@ -47,7 +47,7 @@ def compute_field_intensity_and_inclination(acceleration_data, magnetometer_data
             raise ValueError("No data found in input argument 'acceleration_data'")
     else:
         if magnetometer_data is None and sampling_rate is None:
-            raise ValueError("Sampling rate is required if 'acceleration_data' is not a sensor dictionary")
+            raise ValueError("Sampling rate is required if 'acceleration_data' is not a signal dictionary")
         if sampling_rate is None:
             raise ValueError("Need to specify sampling frequency for matrix arguments")
 
@@ -96,7 +96,7 @@ def estimate_offset_triaxial(data):
     Parameters
     ----------
     data : numpy.ndarray or dict
-        A sensor matrix (numpy.ndarray) or dictionary containing measurements from a triaxial field sensor.
+        A signal matrix (numpy.ndarray) or dictionary containing measurements from a triaxial field signal.
         The array should have a shape of (n_samples, 3) for triaxial data, and the dictionary should have a 'data' key 
         containing such an array. Optional keys in the dictionary include 'cal_map' and 'cal_cross' for calibration.
 
@@ -105,7 +105,7 @@ def estimate_offset_triaxial(data):
     dict
         A dictionary containing:
         - 'X': numpy.ndarray or dict
-            The adjusted triaxial sensor measurements. If the input was a dictionary, the output will be a dictionary 
+            The adjusted triaxial signal measurements. If the input was a dictionary, the output will be a dictionary 
             with the 'data' field containing the adjusted measurements.
         - 'G': dict
             A calibration dictionary containing the offset added to each axis. The key 'poly' maps to a 3x2 array, 
@@ -114,7 +114,7 @@ def estimate_offset_triaxial(data):
     Raises
     ------
     ValueError
-        If the input data is not a 3-axis sensor matrix, if the input is None, or if the condition number of the matrix 
+        If the input data is not a 3-axis signal matrix, if the input is None, or if the condition number of the matrix 
         used for solving the offset is too poor to provide a reliable solution.
     """
     
@@ -132,7 +132,7 @@ def estimate_offset_triaxial(data):
         x = data
 
     if x.shape[1] != 3:
-        raise ValueError("Input data must be from a 3-axis sensor")
+        raise ValueError("Input data must be from a 3-axis signal")
 
     # Filter out invalid rows
     valid_rows = np.all(np.isfinite(x), axis=1)
@@ -156,7 +156,7 @@ def estimate_offset_triaxial(data):
     # Update the calibration polynomial with the offsets
     G['poly'] = np.hstack((poly1, H[:3].reshape(3, 1)))
 
-    # Adjust the sensor data by adding the offset
+    # Adjust the signal data by adding the offset
     x_adjusted = x + H[:3]
 
     if not isinstance(data, dict):

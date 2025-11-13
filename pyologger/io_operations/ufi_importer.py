@@ -91,7 +91,7 @@ class UFIImporter(BaseImporter):
           3. concat
           4. rename columns
           5. process datetime
-          6. group channels into sensors (writes into data_reader.sensor_data/info)
+          6. group channels into signals (writes into data_reader.signal_data/info)
           7. return standard 5-tuple
         """
 
@@ -176,15 +176,15 @@ class UFIImporter(BaseImporter):
         # We'll be consistent with CSVImporter: wrap in a list.
         self.data_reader.logger_info[self.logger_id]['fs'] = [datetime_metadata.get('fs', None)]
 
-        # 6. Group data into sensors ONCE (this populates sensor_data / sensor_info)
-        sensor_groups, sensor_info = self.group_data_by_sensors(
+        # 6. Group data into signals ONCE (this populates signal_data / signal_info)
+        signal_groups, signal_info = self.group_data_by_signals(
             final_df,
             self.logger_id,
             channel_metadata
         )
 
         # 7. Return standard 5-tuple exactly like CSVImporter does
-        return final_df, channel_metadata, datetime_metadata, sensor_groups, sensor_info
+        return final_df, channel_metadata, datetime_metadata, signal_groups, signal_info
 
     # ---------------------------------------------------------------------
     # Internal helper: parse one UBE/UBF file into a raw dataframe.

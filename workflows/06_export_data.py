@@ -26,17 +26,17 @@ else:
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 
 # Example usage
-sensor_data_keys = ['pressure']
-derived_data_keys = ['prh', 'odba', 'heart_rate', 'stroke_rate']
-output_frequency = 5  # Hz
+signal_data_keys = ['pressure','corrected_depth','o2_pressure', 'temperature_ext', 'temperature_int']
+# signal_data_keys = ['pressure','prh', 'odba', 'heart_rate', 'stroke_rate']
+output_frequency = 1  # Hz
 
 # Calculate sampling frequencies for reference
-pressure_fs = calculate_sampling_frequency(data_pkl.sensor_data['pressure']['datetime'])
-heart_rate_fs = calculate_sampling_frequency(data_pkl.derived_data['heart_rate']['datetime'])
-stroke_rate_fs = calculate_sampling_frequency(data_pkl.derived_data['stroke_rate']['datetime'])
+pressure_fs = calculate_sampling_frequency(data_pkl.signal_data['pressure']['datetime'])
+# heart_rate_fs = calculate_sampling_frequency(data_pkl.signal_data['heart_rate']['datetime'])
+# stroke_rate_fs = calculate_sampling_frequency(data_pkl.signal_data['stroke_rate']['datetime'])
 
 # Run the function
-collated_df = collate_data(data_pkl, sensor_data_keys, derived_data_keys, output_frequency)
+collated_df = collate_data(data_pkl, signal_data_keys, output_frequency)
 
 # Retrieve values from config
 variables = ["calm_horizontal_start_time", "calm_horizontal_end_time", 
@@ -88,17 +88,17 @@ print(f"Filtered event data saved to {csv_file_path}")
 if ANALYSIS_START_TIME and ANALYSIS_END_TIME:
     analysis_start = pd.Timestamp(ANALYSIS_START_TIME)
     analysis_end = pd.Timestamp(ANALYSIS_END_TIME)
-    for key, df in data_pkl.derived_data.items():
+    for key, df in data_pkl.signal_data.items():
         if 'datetime' in df.columns:
-            data_pkl.derived_data[key] = df[
+            data_pkl.signal_data[key] = df[
                 (df['datetime'] >= analysis_start) &
                 (df['datetime'] <= analysis_end)
             ]
-    print(f"Cropped derived_data to analysis window: {analysis_start} to {analysis_end}")
+    print(f"Cropped signal_data to analysis window: {analysis_start} to {analysis_end}")
 else:
-    print("No analysis window defined; skipping cropping of derived_data.")
+    print("No analysis window defined; skipping cropping of signal_data.")
 
-# Save the updated data_pkl with cropped derived_data
+# Save the updated data_pkl with cropped signal_data
 with open(pkl_path, 'wb') as f:
     pickle.dump(data_pkl, f)
 print(f"Updated data.pkl saved to {pkl_path}")
