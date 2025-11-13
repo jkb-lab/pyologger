@@ -1,5 +1,6 @@
 import os
 import argparse
+import numpy as np
 import pandas as pd
 
 # Import necessary pyologger utilities
@@ -9,6 +10,7 @@ from pyologger.plot_data.plotter import *
 from pyologger.io_operations.base_exporter import *
 from pyologger.utils.data_manager import *
 from pyologger.process_data.peak_detect import *
+from pyologger.utils.event_manager import create_state_event
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Zero Offset Correction - Calibrate Pressure Sensor")
@@ -139,8 +141,8 @@ if not skip_step:
             "WINDOW_SIZE_MULTIPLIER": 6.35,  # Multiplier for calculating sliding window size
             "NORMALIZATION_NOISE": 1e-10,  # Small constant to avoid division by zero in normalization
             "PEAK_HEIGHT": -0.4,  # Minimum amplitude (height) for peak detection
-            "PEAK_DISTANCE_SEC": 0.71,  # Minimum time between detected peaks (in seconds)
-            "SEARCH_RADIUS_SEC": 0.35,  # Time range for refining the peak location (in seconds)
+            "PEAK_DISTANCE_SEC": 0.16,  # Minimum time between detected peaks (in seconds)
+            "SEARCH_RADIUS_SEC": 0.2,  # Time range for refining the peak location (in seconds)
             "MIN_PEAK_HEIGHT": 70,  # Minimum acceptable amplitude for detected peaks
             "MAX_PEAK_HEIGHT": 12000,  # Maximum acceptable amplitude for detected peaks
             "enable_bandpass": True,  # Enable/disable bandpass filtering
@@ -184,6 +186,355 @@ if not skip_step:
 
     process_rate(data_pkl, results, signal_subset_df, parent_signal,
                 params, sampling_rate, detection_mode)
+    
+    # ============================================================
+    # HEARTBEAT CLEANUP + EVENT SYNC (all together)
+    # ============================================================
+    # Assumptions:
+    # - you already ran peak detection and rate processing, so you have:
+    #     results["peak_df"]
+    #     results["smoothed"]
+    #     signal_subset_df  (with a 'datetime' column, same len as signal)
+    #     data_pkl          (with .event_data and .event_info or we create them)
+    #     fs                (sampling rate, e.g. 100 or 400)
+    #     parent_signal     (e.g. "ecg")
+    # - this goes AFTER you’ve run your original detect code
+    # ============================================================
+
+    # ------------------------------------------------------------
+    # 0. CONFIG
+    # ------------------------------------------------------------
+    HR_JUMP_FRAC = 0.8          # >80% change is suspicious
+    MIN_SUGGESTED_PEAK_HEIGHT = params["MIN_PEAK_HEIGHT"]  # change to your MIN_PEAK_HEIGHT
+    MIN_RR_SEC = 0.25           # discard RR < 0.25 s (i.e. > 240 bpm)
+    MAX_HR_BPM = 250 # 60 for turtles
+    MIN_HR_BPM = 0.1
+    FILL_METHOD = "interp"      # "ffill" or "interp"
+    fs = sampling_rate  # e.g. 100 or 400
+
+    # ============================================================
+    # 1. PULL PEAKS AND BUILD BASE HR TABLE
+    # ============================================================
+    peak_df = results["peak_df"].copy()
+    smoothed = results["smoothed"]
+
+    # accepted peaks (before we alter for DOWN/UP jumps)
+    accepted = peak_df[peak_df["key"] == "beat_auto_detect_accepted"].sort_values(
+        "refined_index"
+    ).reset_index(drop=True)
+
+    # make an HR table from accepted only, to detect jumps
+    if len(accepted) > 1:
+        rr_sec = np.diff(accepted["refined_index"].to_numpy()) / fs
+        inst_hr = 60.0 / rr_sec
+        hr_df = pd.DataFrame({
+            "idx": accepted["refined_index"].iloc[1:].to_numpy(),
+            "datetime": accepted["datetime"].iloc[1:].to_numpy() if "datetime" in accepted else None,
+            "hr_bpm": inst_hr
+        })
+    else:
+        hr_df = pd.DataFrame(columns=["idx", "datetime", "hr_bpm"])
+
+    # detect jumps
+    if not hr_df.empty:
+        hr_df["prev_hr_bpm"] = hr_df["hr_bpm"].shift(1)
+        hr_df["frac_change"] = (hr_df["hr_bpm"] - hr_df["prev_hr_bpm"]) / hr_df["prev_hr_bpm"]
+        big_jump_mask = hr_df["prev_hr_bpm"].notna() & (hr_df["frac_change"].abs() > HR_JUMP_FRAC)
+        jumps = hr_df[big_jump_mask].copy()
+        down_jumps = jumps[jumps["frac_change"] < 0].copy()
+        up_jumps = jumps[jumps["frac_change"] > 0].copy()
+    else:
+        down_jumps = pd.DataFrame()
+        up_jumps = pd.DataFrame()
+
+
+    # ============================================================
+    # 2. HANDLE DOWN JUMPS: try to insert a SUGGESTED beat
+    # ============================================================
+    suggested_rows = []
+
+    for _, row in down_jumps.iterrows():
+        this_idx = int(row["idx"])
+        # find prev accepted beat index
+        prev_idx = int(accepted.loc[accepted["refined_index"] < this_idx, "refined_index"].max())
+
+        search_sig = smoothed[prev_idx:this_idx]
+        if len(search_sig) < 3:
+            continue
+
+        # find local max
+        local_rel_idx = np.argmax(search_sig)
+        local_abs_idx = prev_idx + local_rel_idx
+        local_val = smoothed[local_abs_idx]
+
+        if local_val >= MIN_SUGGESTED_PEAK_HEIGHT:
+            suggested_rows.append({
+                "refined_index": local_abs_idx,
+                "height_original": local_val,
+                "height_normalized": np.nan,
+                "datetime": signal_subset_df["datetime"].iloc[local_abs_idx]
+                    if "datetime" in signal_subset_df
+                    else pd.NaT,
+                "key": "beat_auto_detect_suggested"
+            })
+
+    if suggested_rows:
+        suggested_df = pd.DataFrame(suggested_rows)
+        peak_df = pd.concat([peak_df, suggested_df], ignore_index=True)
+
+    # re-sort after adding suggestions
+    peak_df = peak_df.sort_values("refined_index").reset_index(drop=True)
+
+    # re-evaluate accepted after suggestions
+    accepted_after = peak_df[peak_df["key"].isin([
+        "beat_auto_detect_accepted",
+        "beat_auto_detect_suggested"
+    ])].sort_values("refined_index").reset_index(drop=True)
+
+
+    # ============================================================
+    # 3. HANDLE UP JUMPS: reject spurious early beat, maybe mark gap
+    # ============================================================
+    nan_segments = []        # explicit gaps we want to be NaN
+    auto_nan_intervals = []  # gaps the rebuild later discovers
+
+    for _, row in up_jumps.iterrows():
+        this_idx = int(row["idx"])
+        # previous accepted beat index
+        prev_idx = int(accepted_after.loc[accepted_after["refined_index"] < this_idx, "refined_index"].max())
+
+        # 1) reject the current (spurious) beat
+        peak_df.loc[peak_df["refined_index"] == this_idx, "key"] = "beat_auto_detect_rejected"
+
+        # 2) get next accepted/suggested beat AFTER this_idx
+        later = peak_df[
+            (peak_df["refined_index"] > this_idx) &
+            (peak_df["key"].str.contains("accepted|suggested"))
+        ].sort_values("refined_index")
+
+        if later.empty:
+            continue
+
+        next_idx = int(later.iloc[0]["refined_index"])
+
+        # 3) check if the interval prev_idx -> next_idx is too short
+        rr_fixed_sec = (next_idx - prev_idx) / fs
+        if rr_fixed_sec < MIN_RR_SEC:
+            # force this to be a NaN gap later
+            nan_segments.append((prev_idx, next_idx))
+            continue
+        # else we let the rebuild compute it later
+
+    # stash the updated peak_df
+    results["peak_df"] = peak_df
+
+
+    # ============================================================
+    # 4. REBUILD HR (strict) -> hr_series with NaNs
+    # ============================================================
+    # use accepted + suggested ONLY
+    peak_for_hr = peak_df[peak_df["key"].isin([
+        "beat_auto_detect_accepted",
+        "beat_auto_detect_suggested"
+    ])].sort_values("refined_index").reset_index(drop=True)
+
+    n = len(signal_subset_df)
+    hr_series = np.full(n, np.nan, dtype=float)
+
+    if len(peak_for_hr) > 1:
+        for i in range(len(peak_for_hr) - 1):
+            s = int(peak_for_hr["refined_index"].iloc[i])
+            e = int(peak_for_hr["refined_index"].iloc[i+1])
+
+            if e <= s:
+                hr_series[s:e] = np.nan
+                auto_nan_intervals.append((s, e, "non_increasing"))
+                continue
+
+            rr_sec = (e - s) / fs
+
+            # too short -> NaN + remember
+            if rr_sec < MIN_RR_SEC:
+                hr_series[s:e] = np.nan
+                auto_nan_intervals.append((s, e, f"rr_too_short={rr_sec:.3f}"))
+                continue
+
+            hr_val = 60.0 / rr_sec
+            # clamp
+            hr_val = max(min(hr_val, MAX_HR_BPM), MIN_HR_BPM)
+            hr_series[s:e] = hr_val
+
+    # apply explicit NaN segments from UP-jump phase
+    for (s, e) in nan_segments:
+        hr_series[s:e] = np.nan
+
+
+    # ============================================================
+    # 5. BUILD DERIVED DATAFRAMES (NaN + fixed)
+    # ============================================================
+    heart_rate_nan = pd.DataFrame({
+        "datetime": signal_subset_df["datetime"],
+        "heart_rate_nan": hr_series
+    })
+
+    # fill version
+    s_hr = pd.Series(hr_series)
+    if FILL_METHOD == "ffill":
+        heart_rate_fixed_vals = s_hr.ffill().to_numpy()
+    else:  # "interp"
+        heart_rate_fixed_vals = s_hr.interpolate(limit_direction="both").to_numpy()
+
+    # clamp again after fill
+    heart_rate_fixed_vals = np.clip(heart_rate_fixed_vals, MIN_HR_BPM, MAX_HR_BPM)
+
+    heart_rate_fixed = pd.DataFrame({
+        "datetime": signal_subset_df["datetime"],
+        "heart_rate_fixed": heart_rate_fixed_vals
+    })
+
+    # save into data_pkl signal_data / signal_info
+    data_pkl.signal_data["heart_rate_nan"] = heart_rate_nan
+    data_pkl.signal_info["heart_rate_nan"] = {
+        "channels": ["heart_rate_nan"],
+        "metadata": {"heart_rate_nan": {"unit": "bpm", "signal": parent_signal}},
+        "derived_from_signals": [parent_signal],
+        "transformation_log": [
+            "recomputed HR after beat cleanup",
+            "inserted NaN for suspect intervals (>50% jump or too-short RR)"
+        ],
+    }
+
+    data_pkl.signal_data["heart_rate_fixed"] = heart_rate_fixed
+    data_pkl.signal_info["heart_rate_fixed"] = {
+        "channels": ["heart_rate_fixed"],
+        "metadata": {"heart_rate_fixed": {"unit": "bpm", "signal": parent_signal}},
+        "derived_from_signals": [parent_signal],
+        "transformation_log": [
+            "recomputed HR after beat cleanup",
+            f"NaN gaps filled using {FILL_METHOD}"
+        ],
+    }
+
+
+    # ============================================================
+    # 6. EVENTS: push accepted/rejected/suggested + gaps via event manager
+    # ============================================================
+
+    # --- 6a. ensure event_data exists ---
+    if not hasattr(data_pkl, "event_data") or data_pkl.event_data is None:
+        data_pkl.event_data = pd.DataFrame(columns=[
+            "datetime", "key", "short_description", "type", "duration"
+        ])
+
+    # --- 6b. accepted/rejected/suggested (point events) ---
+    point_events = []
+
+    KEY_MAP = {
+        "beat_auto_detect_accepted":  ("heartbeat_auto_detect_accepted",  "auto-detected heartbeat (accepted)"),
+        "beat_auto_detect_rejected":  ("heartbeat_auto_detect_rejected",  "auto-detected heartbeat (rejected as spurious / atrial)"),
+        "beat_auto_detect_suggested": ("heartbeat_auto_detect_suggested", "auto-detected heartbeat (suggested, missed-beat fix)"),
+    }
+
+    for _, row in results["peak_df"].iterrows():
+        k = row.get("key", "")
+        if k not in KEY_MAP:
+            continue
+        dt = row.get("datetime", pd.NaT)
+        new_key, desc = KEY_MAP[k]
+        point_events.append({
+            "datetime": dt,
+            "key": new_key,
+            "short_description": desc,
+            "type": "point",
+            "duration": 0.0,
+        })
+
+    point_df = pd.DataFrame(point_events)
+
+
+    # --- 6c. gaps (interval events with duration) ---
+    gap_key = "heartbeat_auto_detect_gap"
+    gap_desc = "interval where HR was invalid (>50% jump / too-short RR)"
+    gap_events = []
+
+    def _add_gap_event(s, e, reason=None):
+        dt_start = signal_subset_df["datetime"].iloc[s]
+        dt_end   = signal_subset_df["datetime"].iloc[min(e - 1, len(signal_subset_df) - 1)]
+        duration_sec = (dt_end - dt_start).total_seconds()
+        desc = f"{gap_desc} ({reason})" if reason else gap_desc
+        gap_events.append({
+            "datetime": dt_start,
+            "key": gap_key,
+            "short_description": desc,
+            "type": "interval_start",
+            "duration": duration_sec,
+        })
+        gap_events.append({
+            "datetime": dt_end,
+            "key": gap_key,
+            "short_description": f"{desc}: end",
+            "type": "interval_end",
+            "duration": duration_sec,
+        })
+
+    # from explicit and auto-detected gaps
+    for (s, e) in nan_segments:
+        _add_gap_event(s, e, reason="nan_segment")
+    for (s, e, reason) in auto_nan_intervals:
+        _add_gap_event(s, e, reason=reason)
+
+    gap_df = pd.DataFrame(gap_events)
+
+    # --- 6d. merge and deduplicate using EventManager-style call ---
+    # Combine point and gap events first
+    combined_events = pd.concat([point_df, gap_df], ignore_index=True) if not gap_df.empty else point_df
+
+    # Use create_state_event to safely append into existing event_data
+    if not combined_events.empty:
+        for k in combined_events["key"].unique():
+            subset = combined_events[combined_events["key"] == k]
+            data_pkl.event_data = create_state_event(
+                state_df=subset.rename(columns={"datetime": "start_time"}),
+                key=k,
+                start_time_column="start_time",
+                duration_column="duration",
+                description=subset["short_description"].iloc[0],
+                existing_events=data_pkl.event_data
+            )
+
+    # --- 6e. register keys via EventManager ---
+    if not hasattr(data_pkl, "event_manager"):
+        data_pkl.event_manager = {}
+
+    # ensure a sub-dict for HR
+    data_pkl.event_manager["heart_rate"] = {
+        "keys": [
+            "heartbeat_auto_detect_accepted",
+            "heartbeat_auto_detect_rejected",
+            "heartbeat_auto_detect_suggested",
+            "heartbeat_auto_detect_gap",
+        ],
+        "description": "Events related to heartbeat detection and HR gap handling",
+        "color_map": {
+            "heartbeat_auto_detect_accepted": "#4caf50",
+            "heartbeat_auto_detect_rejected": "#f44336",
+            "heartbeat_auto_detect_suggested": "#ffeb3b",
+            "heartbeat_auto_detect_gap": "#9e9e9e",
+        },
+    }
+
+    print("✅ Heartbeat events synced via EventManager.")
+
+
+
+    # ============================================================
+    # done 🎉
+    # you now have:
+    # - results["peak_df"] with accepted/rejected/suggested
+    # - data_pkl.signal_data["heart_rate_nan"]  (NaN where bad)
+    # - data_pkl.signal_data["heart_rate_fixed"] (filled)
+    # - data_pkl.event_data with heartbeat_* and heartbeat_*_gap (with duration)
+    # ============================================================
 
     TARGET_SAMPLING_RATE = 25
 

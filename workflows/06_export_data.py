@@ -25,24 +25,11 @@ else:
 
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
 
-# Example usage
-signal_data_keys = ['pressure','corrected_depth','o2_pressure', 'temperature_ext', 'temperature_int']
-# signal_data_keys = ['pressure','prh', 'odba', 'heart_rate', 'stroke_rate']
-output_frequency = 1  # Hz
-
-# Calculate sampling frequencies for reference
-pressure_fs = calculate_sampling_frequency(data_pkl.signal_data['pressure']['datetime'])
-# heart_rate_fs = calculate_sampling_frequency(data_pkl.signal_data['heart_rate']['datetime'])
-# stroke_rate_fs = calculate_sampling_frequency(data_pkl.signal_data['stroke_rate']['datetime'])
-
-# Run the function
-collated_df = collate_data(data_pkl, signal_data_keys, output_frequency)
-
 # Retrieve values from config
 variables = ["calm_horizontal_start_time", "calm_horizontal_end_time", 
-             "zoom_window_start_time", "zoom_window_end_time", 
-             "overlap_start_time", "overlap_end_time",
-             "analysis_start_time", "analysis_end_time"]
+            "zoom_window_start_time", "zoom_window_end_time", 
+            "overlap_start_time", "overlap_end_time",
+            "analysis_start_time", "analysis_end_time"]
 settings = param_manager.get_from_config(variables, section="settings")
 
 # Assign retrieved values to variables
@@ -55,34 +42,50 @@ OVERLAP_END_TIME = settings.get("overlap_end_time")
 ANALYSIS_START_TIME = settings.get("analysis_start_time")
 ANALYSIS_END_TIME = settings.get("analysis_end_time")
 
-# Add another 'datetime' column without the timezone information
-collated_df['datetime'] = collated_df['datetime'].dt.tz_localize(None)
-start_time = pd.Timestamp(OVERLAP_START_TIME).tz_localize(None)
-end_time = pd.Timestamp(OVERLAP_END_TIME).tz_localize(None)
-cropped_collated_df = collated_df[(collated_df['datetime'] >= start_time) & (collated_df['datetime'] <= end_time)]
+summarize = False
 
-cropped_collated_df
-# Save the filtered event data to a CSV file in the deployment folder
-csv_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_signal_data.csv')
-cropped_collated_df.to_csv(csv_file_path, index=False)
-print(f"Filtered event data saved to {csv_file_path}")
+if summarize:
+    # Example usage
+    signal_data_keys = ['depth','corrected_depth','o2_pressure', 'temperature_ext', 'temperature_int']
+    # signal_data_keys = ['pressure','prh', 'odba', 'heart_rate', 'stroke_rate']
+    output_frequency = 1  # Hz
 
-# Filter the event data
-filtered_event_data = data_pkl.event_data[
-    data_pkl.event_data['key'].isin(['heartbeat_auto_detect_accepted', 'strokebeat_auto_detect_accepted', 'exhalation_breath'])
-]
+    # Calculate sampling frequencies for reference
+    # pressure_fs = calculate_sampling_frequency(data_pkl.signal_data['pressure']['datetime'])
+    # heart_rate_fs = calculate_sampling_frequency(data_pkl.signal_data['heart_rate']['datetime'])
+    # stroke_rate_fs = calculate_sampling_frequency(data_pkl.signal_data['stroke_rate']['datetime'])
 
-# Keep only the 'datetime' and 'key' columns
-filtered_event_data = filtered_event_data[['datetime', 'key']]
+    # Run the function
+    collated_df = collate_data(data_pkl, signal_data_keys, output_frequency)
 
-# Add another 'datetime' column without the timezone information
-filtered_event_data['datetime'] = filtered_event_data['datetime'].dt.tz_localize(None)
-filtered_event_data = filtered_event_data[(filtered_event_data['datetime'] >= start_time) & (filtered_event_data['datetime'] <= end_time)]
-filtered_event_data
-# Save the filtered event data to a CSV file in the deployment folder
-csv_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_event_data.csv')
-filtered_event_data.to_csv(csv_file_path, index=False)
-print(f"Filtered event data saved to {csv_file_path}")
+    # Add another 'datetime' column without the timezone information
+    collated_df['datetime'] = collated_df['datetime'].dt.tz_localize(None)
+    start_time = pd.Timestamp(OVERLAP_START_TIME).tz_localize(None)
+    end_time = pd.Timestamp(OVERLAP_END_TIME).tz_localize(None)
+    cropped_collated_df = collated_df[(collated_df['datetime'] >= start_time) & (collated_df['datetime'] <= end_time)]
+
+    cropped_collated_df
+    # Save the filtered event data to a CSV file in the deployment folder
+    csv_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_signal_data.csv')
+    cropped_collated_df.to_csv(csv_file_path, index=False)
+    print(f"Filtered event data saved to {csv_file_path}")
+
+    # Filter the event data
+    filtered_event_data = data_pkl.event_data[
+        data_pkl.event_data['key'].isin(['heartbeat_auto_detect_accepted', 'strokebeat_auto_detect_accepted', 'exhalation_breath'])
+    ]
+
+    # Keep only the 'datetime' and 'key' columns
+    filtered_event_data = filtered_event_data[['datetime', 'key']]
+
+    # Add another 'datetime' column without the timezone information
+    filtered_event_data['datetime'] = filtered_event_data['datetime'].dt.tz_localize(None)
+    filtered_event_data = filtered_event_data[(filtered_event_data['datetime'] >= start_time) & (filtered_event_data['datetime'] <= end_time)]
+    filtered_event_data
+    # Save the filtered event data to a CSV file in the deployment folder
+    csv_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_event_data.csv')
+    filtered_event_data.to_csv(csv_file_path, index=False)
+    print(f"Filtered event data saved to {csv_file_path}")
 
 # Crop all derived dataframes to analysis time window if defined
 if ANALYSIS_START_TIME and ANALYSIS_END_TIME:

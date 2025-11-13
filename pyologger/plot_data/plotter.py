@@ -110,7 +110,7 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
 
             plot_signal_data(signal, signal_data, signal_info)
             # Reverse y-axis for depth or pressure signals
-            if signal in ['pressure']:
+            if signal in ['pressure', 'depth', 'corrected_depth']:
                 fig.update_yaxes(autorange="reversed", row=row_counter, col=1)
 
             if row_counter == 1:  # Right after the first plot
@@ -351,7 +351,7 @@ def plot_tag_data_interactive_st(data_pkl, signals=None, channels=None,
 
             plot_signal_data(signal, signal_data, signal_info)
             # Reverse y-axis for depth or pressure signals
-            if signal in ['pressure']:
+            if signal in ['pressure', 'depth', 'corrected_depth']:
                 fig.update_yaxes(autorange="reversed", row=row_counter, col=1)
 
             if row_counter == 1:  # Right after the first plot

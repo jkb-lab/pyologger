@@ -75,7 +75,8 @@ notes_to_plot = {
     'heartbeat_auto_detect_accepted': {'signal': 'ecg', 'symbol': 'triangle-up', 'color': 'green'},
     'heartbeat_auto_detect_rejected': {'signal': 'ecg', 'symbol': 'triangle-up', 'color': 'red'},
     'strokebeat_auto_detect_accepted': {'signal': 'prh', 'symbol': 'triangle-up', 'color': 'green'},
-    'exhalation_breath': {'signal': 'heart_rate', 'symbol': 'triangle-up', 'color': 'orange'}
+    'exhalation_breath': {'signal': 'heart_rate', 'symbol': 'triangle-up', 'color': 'orange'},
+    'dive': {"signal": "depth", "symbol": "triangle-down", "color": "blue"},
 }
 
 
@@ -83,8 +84,9 @@ TARGET_SAMPLING_RATE = 25
 # **Step 2: Interactive Plot with Zoom**
 fig = plot_tag_data_interactive(
     data_pkl=data_pkl,
-    signals=['ecg','depth','corrected_acc','heart_rate', 'prh', 'stroke_rate'],
+    # signals=['ecg','depth','corrected_acc','heart_rate', 'prh', 'stroke_rate'],
     note_annotations=notes_to_plot,
+    state_annotations={"dive": {"signal": "depth", "color": "rgba(150, 150, 150, 0.3)"}},
     zoom_start_time=selected_start_time,
     zoom_end_time=selected_end_time,
     time_range=(OVERLAP_START_TIME, OVERLAP_END_TIME),

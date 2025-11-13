@@ -11,7 +11,7 @@ for dataset, details in config["datasets"].items():
 
 # Define the final target rule
 rule all:
-    input:
+    input: # f"{private_data_root}/{{dataset}}/{{deployment}}/outputs/{{deployment}}_output.nc"
         [f"{private_data_root}/{dataset}/{deployment}/outputs/{deployment}_output.nc"
          for dataset, deployment in dataset_deployment_pairs]
 

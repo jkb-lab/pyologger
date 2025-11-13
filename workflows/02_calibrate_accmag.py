@@ -47,7 +47,7 @@ param_manager.add_to_config("current_processing_step", current_processing_step)
 
 # Check accelerometer units: if not , convert to g. This code works fine for either unit, but we prefer to work in g for consistency.
 
-critical_signal = 'accelerometer'
+critical_signal = 'magnetometer'
 # If critical signal doesn't exist, create flag to skip step.
 if critical_signal not in data_pkl.signal_data or data_pkl.signal_data[critical_signal] is None:
     print(f"⚠️ Signal: {critical_signal} not found. Skipping processing.")
