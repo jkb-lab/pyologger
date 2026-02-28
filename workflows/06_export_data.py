@@ -15,6 +15,14 @@ args = parser.parse_args()
 # Load environment variables
 config, data_dir, color_mapping_path, montage_path = load_configuration()
 
+
+def _as_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return bool(value)
+
 # Load data with optional arguments
 if args.dataset and args.deployment:
     animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(
@@ -111,8 +119,13 @@ current_date = datetime.now().strftime("%Y-%m-%d") # Get the current date in YYY
 netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_output.nc') # Define the export path
 exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format
 
-# Delete all files in the folder that end in _stepXX.nc
-nc_files = glob.glob(os.path.join(deployment_folder, 'outputs', '*_step[0-9][0-9].nc'))
-for nc_file in nc_files:
-    os.remove(nc_file)
-    print(f"Deleted interim processing file: {nc_file}")
+# Optional cleanup of interim step NetCDF files.
+# Keep disabled by default so Snakemake marker dependencies remain satisfied.
+cleanup_intermediate = _as_bool(config.get("cleanup_intermediate_step_nc", False))
+if cleanup_intermediate:
+    nc_files = glob.glob(os.path.join(deployment_folder, 'outputs', '*_step[0-9][0-9].nc'))
+    for nc_file in nc_files:
+        os.remove(nc_file)
+        print(f"Deleted interim processing file: {nc_file}")
+else:
+    print("Keeping interim step NetCDF files (cleanup_intermediate_step_nc=false).")

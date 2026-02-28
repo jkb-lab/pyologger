@@ -69,16 +69,18 @@ def _find_sibling_ubc(file_path: str, logger_id: str | None = None) -> Path | No
     return ubcs[0] if ubcs else None
 
 
-def resolve_sampling_rate_from_ubc(file_path: str, logger_id: str | None = None, default: int = Hz) -> int:
+def resolve_sampling_rate_from_ubc(file_path: str, logger_id: str | None = None, default: int = Hz) -> tuple[int, bool]:
     """
     Resolve sampling rate for a .ube/.ubf by checking a nearby .ubc header.
-    Returns the parsed Hz if found; otherwise returns 'default'.
+    Returns (hz, from_ubc_flag).
     """
     ubc = _find_sibling_ubc(file_path, logger_id=logger_id)
     if not ubc:
-        return default
+        return default, False
     rate = parse_ubc_sampling_rate(str(ubc))
-    return rate if rate else default
+    if rate:
+        return rate, True
+    return default, False
 
 class UFIImporter(BaseImporter):
     """Importer for UFI ECG loggers (.ube/.ubf high-rate cardiac tags)."""
@@ -165,7 +167,8 @@ class UFIImporter(BaseImporter):
         # 5. Standardize / localize / utc convert datetime ONCE
         final_df, datetime_metadata = process_datetime(
             final_df,
-            time_zone=tz_name
+            time_zone=tz_name,
+            channel_metadata=channel_metadata
         )
 
         # Store metadata for this logger in the DataReader
@@ -200,7 +203,8 @@ class UFIImporter(BaseImporter):
         """
 
         print(f"Processing UBE file: {file_path}")
-
+        
+        # TODO: FIX THIS
         try:
             with open(file_path, 'rb') as file:
                 ube_raw = file.read()
@@ -279,9 +283,9 @@ class UFIImporter(BaseImporter):
                 return pd.DataFrame()
 
             # --- NEW: resolve sampling rate via sibling .ubc (fallback to default Hz) ---
-            sr = resolve_sampling_rate_from_ubc(file_path, logger_id=self.logger_id, default=Hz)
-            if sr != Hz:
-                print(f"✅ Sampling rate overridden from .ubc: {sr} Hz")
+            sr, sr_from_ubc = resolve_sampling_rate_from_ubc(file_path, logger_id=self.logger_id, default=Hz)
+            if sr_from_ubc:
+                print(f"✅ Sampling rate parsed from .ubc: {sr} Hz")
             else:
                 print(f"ℹ Using default sampling rate: {sr} Hz (no .ubc override found)")
 

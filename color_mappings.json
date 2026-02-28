@@ -1,4 +1,59 @@
 {
+    "__event_targets__": {
+        "heartbeat_auto_detect_accepted": [
+            "heart_rate_fixed"
+        ],
+        "heartbeat_auto_detect_suggested": [
+            "ecg"
+        ],
+        "heartbeat_manual_ok": [
+            "heart_rate_fixed",
+            "ecg"
+        ],
+        "logger_status": [
+            "ecg"
+        ],
+        "dive": [
+            "depth"
+        ],
+        "heartbeat_auto_detect_gap": [
+            "ecg"
+        ],
+        "strokebeat_auto_detect_accepted": [
+            "ecg"
+        ],
+        "heartbeat_manual_reject": [
+            "heart_rate_fixed",
+            "ecg"
+        ],
+        "cluster_0": [
+            "heart_rate_fixed",
+            "prh"
+        ],
+        "cluster_1": [
+            "heart_rate_fixed",
+            "prh"
+        ],
+        "cluster_2": [
+            "heart_rate_fixed",
+            "prh"
+        ],
+        "cluster_3": [
+            "heart_rate_fixed",
+            "prh"
+        ],
+        "cluster_4": [
+            "heart_rate_fixed",
+            "prh"
+        ],
+        "cluster_5": [
+            "heart_rate_fixed",
+            "prh"
+        ],
+        "logger_restart": [
+            "pressure"
+        ]
+    },
     "ax": "#6CA1C3",
     "ay": "#99d8b5",
     "az": "#e4d596",
@@ -22,9 +77,9 @@
     "sr_narrow_bandpass": "#e64747",
     "sr_smoothed": "#9f76ba",
     "sr_normalized": "#6c4e7f",
-    "depth": "#6d82a4",
-    "pressure": "#a2bae0",
-    "odba":"#87c577",
+    "depth": "#385C73",
+    "pressure": "#94B6C3",
+    "odba": "#87c577",
     "field_intensity_acc": "#88ba92",
     "field_intensity_mag": "#b884a7",
     "inclination_angle": "#d99e9d",
@@ -32,5 +87,76 @@
     "field_intensity_mag2": "#fc9e6d",
     "inclination_angle2": "#d6e1ff",
     "light": "#a5e591",
-    "temperature": "#a39fc0"
+    "temperature": "#a39fc0",
+    "smoothed": "#ab65af",
+    "depth.depth": "#385C73",
+    "depth:depth": "#385C73",
+    "heart_rate_fixed": "#D09191",
+    "pressure.pressure": "#94B6C3",
+    "pressure:pressure": "#94B6C3",
+    "heart_rate_fixed.heart_rate_fixed": "#D09191",
+    "heart_rate_fixed:heart_rate_fixed": "#D09191",
+    "heart_rate_vlf_power": "#80db78",
+    "eeg_f4_delta_power": "#c37ef3",
+    "eeg_f3_delta_power": "#adbdd6",
+    "velocity": "#c373df",
+    "sleep_state": "#c4ced2",
+    "simple_sleep_state": "#ded3da",
+    "latitude": "#a9facc",
+    "longitude": "#6490b9",
+    "normalized": "#804E7B",
+    "dynX": "#cb91b5",
+    "dynY": "#cdcadc",
+    "dynZ": "#e6e891",
+    "broad_bandpass": "#7795b6",
+    "narrow_bandpass": "#64fbdd",
+    "heart_rate_nan": "#b0a877",
+    "light_extra1": "#9fe793",
+    "temp_ext": "#72ff8c",
+    "temp_ext_extra2": "#7e67ef",
+    "datetimenum_utc": "#e0c4be",
+    "dive_num": "#94e7f4",
+    "wet_dry": "#d16e67",
+    "heading2": "#8ccf6b",
+    "dive_num_all-incl-inacc-depth": "#b57386",
+    "feeding": "#ac9ae1",
+    "dive_type_project": "#ba866e",
+    "pos_x_perdive": "#dec66e",
+    "pos_y_perdive": "#b5e2ac",
+    "geopos_x_perdive": "#7cabec",
+    "geopos_y_perdive": "#65bc8f",
+    "hr_normalized.normalized": "#804E7B",
+    "hr_normalized:normalized": "#804E7B",
+    "cluster_0": "#d66a6a",
+    "cluster_1": "#9b7fc9",
+    "cluster_2": "#77b77a",
+    "cluster_3": "#d8c66a",
+    "cluster_4": "#d99263",
+    "cluster_5": "#6f97d6",
+    "cluster_6": "#e377c2",
+    "cluster_7": "#7f7f7f",
+    "cluster_8": "#bcbd22",
+    "cluster_9": "#17becf",
+    "__event_styles__": {
+        "heartbeat_auto_detect_accepted": {
+            "color": "#80DB78",
+            "shade_color": "#4DAEF8",
+            "symbol": "diamond",
+            "shade_enabled": true,
+            "shade_opacity": 0.2,
+            "shade_mode": "all_y",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        },
+        "heartbeat_manual_ok": {
+            "color": "#E377C2",
+            "shade_color": "#4DAEF8",
+            "symbol": "diamond",
+            "shade_enabled": true,
+            "shade_opacity": 0.2,
+            "shade_mode": "all_y",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        }
+    }
 }

@@ -2,6 +2,7 @@ import os
 import re
 import json
 import requests
+import yaml
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -118,6 +119,41 @@ class Metadata:
     def parse_metadata_value(self, prop, prop_type, column_name):
         if prop is None or prop_type is None:
             return np.nan
+
+    def _extract_cover_url(self, page):
+        """
+        Extract Notion page cover URL from page-level metadata.
+        Supports both external and Notion-hosted file cover payloads.
+        """
+        if not isinstance(page, dict):
+            return np.nan
+        cover = page.get("cover") or {}
+        if not isinstance(cover, dict):
+            return np.nan
+        cover_type = cover.get("type")
+        if cover_type == "external":
+            return cover.get("external", {}).get("url", np.nan)
+        if cover_type == "file":
+            return cover.get("file", {}).get("url", np.nan)
+        return np.nan
+
+    def _extract_icon(self, page):
+        """
+        Extract Notion page icon as (emoji, image_url).
+        """
+        if not isinstance(page, dict):
+            return np.nan, np.nan
+        icon = page.get("icon") or {}
+        if not isinstance(icon, dict):
+            return np.nan, np.nan
+        icon_type = icon.get("type")
+        if icon_type == "emoji":
+            return icon.get("emoji", np.nan), np.nan
+        if icon_type == "external":
+            return np.nan, icon.get("external", {}).get("url", np.nan)
+        if icon_type == "file":
+            return np.nan, icon.get("file", {}).get("url", np.nan)
+        return np.nan, np.nan
 
         try:
             if prop_type in ["title", "rich_text"]:
@@ -340,6 +376,11 @@ class Metadata:
 
             for page in pages:
                 row = {"page_id": page["id"]}
+                # Page-level media metadata from Notion (not a database property).
+                row["cover_image_url"] = self._extract_cover_url(page)
+                icon_emoji, icon_image_url = self._extract_icon(page)
+                row["icon_emoji"] = icon_emoji
+                row["icon_image_url"] = icon_image_url
 
                 for prop_name, prop in page.get("properties", {}).items():
                     if prop is None:
@@ -537,6 +578,19 @@ class Metadata:
 
         recording_ids = deployment_recordings.iloc[0].split(", ")
 
+        recording_tz_overrides = {}
+        config_path = os.getenv("CONFIG_PATH")
+        if config_path and os.path.exists(config_path):
+            try:
+                with open(config_path) as f:
+                    config = yaml.safe_load(f) or {}
+                recording_tz_overrides = (
+                    (config.get("recording_metadata_overrides") or {}).get("time_zones")
+                    or {}
+                )
+            except Exception as e:
+                print(f"⚠ Failed to load recording time zone overrides from {config_path}: {e}")
+
         # Step 2: logger IDs from recording IDs
         logger_ids = [
             rec_id.split("_")[2]
@@ -554,6 +608,25 @@ class Metadata:
             montage_map = (
                 recording_db.set_index("Recording ID")["Montage ID"].to_dict()
             )
+
+        def _lookup_recording_time_zone(logger_id):
+            if (
+                recording_db is None
+                or "Recording ID" not in recording_db.columns
+                or "Logger ID" not in recording_db.columns
+                or "Time Zone" not in recording_db.columns
+            ):
+                return None
+
+            rec_rows = recording_db.loc[
+                recording_db["Recording ID"].isin(recording_ids)
+                & (recording_db["Logger ID"] == logger_id),
+                ["Time Zone"],
+            ]
+            if rec_rows.empty:
+                return None
+            tz_series = rec_rows["Time Zone"].dropna()
+            return tz_series.iloc[0] if not tz_series.empty else None
 
         # Step 4: assemble logger info
         loggers_used = []
@@ -576,6 +649,9 @@ class Metadata:
                 (montage_map.get(rid) for rid in recording_ids if logger_id in rid),
                 None,
             )
+            tz_override = recording_tz_overrides.get(logger_id)
+            tz_from_recording = _lookup_recording_time_zone(logger_id)
+            logger_entry["Time Zone"] = tz_override or tz_from_recording
 
             if logger_entry:
                 loggers_used.append(logger_entry)

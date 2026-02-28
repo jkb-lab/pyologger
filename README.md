@@ -247,6 +247,32 @@ pip install .
 4. As you develop, please remember to add any new packages used into the `pyproject.toml` file and add documentation; see [Instructions for Contributing](CONTRIBUTING.md).
 ---
 
+## Snakemake Usage
+
+### Re-run only Step 01 (Calibrate Pressure) for one deployment
+
+From the `pyologger/` directory:
+
+```bash
+snakemake -s Snakefile /Volumes/WORK-SSD/Datasets/Unpublished/mian-juv-nese_sleep_lml-ano_JKB/2019-10-25_mian-001/outputs/2019-10-25_mian-001_step01.nc --cores 1
+```
+
+This runs only the rule that builds `{deployment}_step01.nc` for that deployment.
+
+### Optional overwrite from `{deployment}_00_processed.nc`
+
+Step 01 supports a workflow-level overwrite mode that reloads pressure from:
+
+`outputs/{deployment}_00_processed.nc`
+
+before applying calibration. To enable it, set this in `config.yaml`:
+
+```yaml
+overwrite_step01_from_nc: true
+```
+
+When enabled, Snakemake passes `--overwrite` to `workflows/01_calibrate_pressure.py` for Step 01.
+
 ## Folder Structure
 
 ```plaintext
@@ -398,4 +424,3 @@ fig.show()
 ## Support
 
 For issues or questions, please visit the [GitHub repository](https://github.com/yourusername/pyologger) or open a ticket in the [issue tracker](https://github.com/yourusername/pyologger/issues).
-

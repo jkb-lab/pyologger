@@ -3,7 +3,8 @@ import pandas as pd
 
 def calculate_sampling_frequency(datetime_series):
     """
-    Calculate the sampling frequency from a series of datetime values, rounding to the nearest integer.
+    Calculate the sampling frequency from a series of datetime values.
+    For frequencies >= 1 Hz, rounds to nearest integer. For sub-1Hz, preserves precision.
 
     Parameters
     ----------
@@ -12,15 +13,17 @@ def calculate_sampling_frequency(datetime_series):
 
     Returns
     -------
-    int or None
-        The calculated sampling frequency as an integer, rounded to the nearest whole number,
-        or None if not enough valid data points.
+    float or None
+        The calculated sampling frequency in Hz, or None if not enough valid data points.
     """
     # Ensure the input is in datetime format
     datetime_series = pd.to_datetime(datetime_series)
 
     # Calculate the time differences between consecutive values in seconds
     sec_diff = datetime_series.diff().dt.total_seconds().dropna()  # Drop NaNs here
+    
+    # Filter out zero and negative intervals
+    sec_diff = sec_diff[sec_diff > 0]
 
     # Calculate the mean difference and sampling frequency
     if len(sec_diff) < 1:
@@ -28,12 +31,18 @@ def calculate_sampling_frequency(datetime_series):
         return None
     
     mean_diff = sec_diff.mean()
-    sampling_frequency = 1 / mean_diff if mean_diff else None
+    
+    if mean_diff == 0 or not np.isfinite(mean_diff):
+        print(f"Invalid mean interval: {mean_diff}")
+        return None
+    
+    sampling_frequency = 1 / mean_diff
+    
+    # Round to nearest integer if >= 1 Hz, otherwise keep precision
+    if sampling_frequency >= 1.0:
+        sampling_frequency = round(sampling_frequency)
 
-    # Round the sampling frequency to the nearest integer
-    fs_integer = int(round(sampling_frequency)) if sampling_frequency else None
-
-    return fs_integer
+    return sampling_frequency
 
 
 def upsample(data, upsampling_factor, original_length):
@@ -61,13 +70,71 @@ def upsample(data, upsampling_factor, original_length):
     return upsampled_data
 
 def downsample(df, original_fs, target_fs):
-    original_fs = int(original_fs)
-    target_fs = int(target_fs)
+    """Downsample dataframe by selecting every nth row.
+    
+    Parameters:
+    - df: pandas DataFrame
+    - original_fs: float, original sampling frequency in Hz
+    - target_fs: float, target sampling frequency in Hz
+    
+    Returns:
+    - pandas DataFrame downsampled to target frequency
+    """
+    # If sampling frequency cannot be estimated, fallback to time-based decimation
+    # using the requested target sampling interval.
+    if original_fs is None or target_fs is None:
+        return _downsample_by_target_interval(df, target_fs)
+    try:
+        original_fs = float(original_fs)
+        target_fs = float(target_fs)
+    except (TypeError, ValueError):
+        return _downsample_by_target_interval(df, target_fs)
+    if not np.isfinite(original_fs) or not np.isfinite(target_fs) or original_fs <= 0 or target_fs <= 0:
+        return _downsample_by_target_interval(df, target_fs)
+
     if target_fs >= original_fs:
         return df
-    conversion_factor = int(original_fs / target_fs)
-    print(f"Original FS: {original_fs}, Target FS: {target_fs}, Conversion Factor: {conversion_factor}")
+    conversion_factor = max(1, int(round(original_fs / target_fs)))
+    print(f"Original FS: {original_fs:.6f} Hz, Target FS: {target_fs:.6f} Hz, Conversion Factor: {conversion_factor}")
     return df.iloc[::conversion_factor, :]
+
+
+def _downsample_by_target_interval(df, target_fs):
+    """
+    Downsample using datetime spacing only, keeping approximately one row per
+    target sampling interval when original_fs is unavailable.
+    """
+    try:
+        target_fs = float(target_fs)
+    except (TypeError, ValueError):
+        return df
+    if not np.isfinite(target_fs) or target_fs <= 0:
+        return df
+    if "datetime" not in df.columns:
+        return df
+
+    work = df.copy()
+    work["datetime"] = pd.to_datetime(work["datetime"], errors="coerce")
+    work = work.dropna(subset=["datetime"]).sort_values("datetime")
+    if work.empty:
+        return work
+
+    min_delta = pd.Timedelta(seconds=(1.0 / target_fs))
+    dt = work["datetime"]
+    keep = np.zeros(len(work), dtype=bool)
+    keep[0] = True
+    last_kept = dt.iloc[0]
+    for i in range(1, len(work)):
+        if (dt.iloc[i] - last_kept) >= min_delta:
+            keep[i] = True
+            last_kept = dt.iloc[i]
+
+    out = work.loc[keep]
+    print(
+        f"Downsample fallback by interval: target_fs={target_fs:.6f} Hz, "
+        f"kept {len(out)} / {len(work)} rows."
+    )
+    return out
 
 def resample_df(df, target_fs, original_fs=None):
     """
@@ -158,8 +225,7 @@ def upsample_df(df, original_fs, target_fs):
 
 def downsample_df(df, original_fs, target_fs):
     """
-    Downsamples the DataFrame to the target frequency by taking the mean
-    over intervals and adjusting the datetime index accordingly.
+    Downsamples the DataFrame to the target frequency by taking every nth row.
 
     Parameters:
     - df: pandas DataFrame with a DatetimeIndex.
@@ -169,10 +235,21 @@ def downsample_df(df, original_fs, target_fs):
     Returns:
     - pandas DataFrame downsampled to the target frequency.
     """
+    # If frequency metadata is missing/invalid, keep data unchanged.
+    if original_fs is None or target_fs is None:
+        return df
+    try:
+        original_fs = float(original_fs)
+        target_fs = float(target_fs)
+    except (TypeError, ValueError):
+        return df
+    if not np.isfinite(original_fs) or not np.isfinite(target_fs) or original_fs <= 0 or target_fs <= 0:
+        return df
+
     if target_fs >= original_fs:
         return df
-    conversion_factor = int(original_fs / target_fs)
+    conversion_factor = max(1, int(round(original_fs / target_fs)))
     print(
-        f"Original FS: {original_fs}, Target FS: {target_fs}, Conversion Factor: {conversion_factor}"
+        f"Original FS: {original_fs:.6f} Hz, Target FS: {target_fs:.6f} Hz, Conversion Factor: {conversion_factor}"
     )
     return df.iloc[::conversion_factor, :]

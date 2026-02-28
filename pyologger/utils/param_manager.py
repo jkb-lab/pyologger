@@ -4,6 +4,8 @@ from typing import Any, Optional, List, Dict, Union
 import pandas as pd
 
 class ParamManager:
+    DEFAULTS_DEPLOYMENT_ID = "__dataset_defaults__"
+
     def __init__(self, deployment_folder: str, deployment_id: str):
         """
         Initializes ParamManager with the path to config_log.json inside the dataset folder.
@@ -27,15 +29,27 @@ class ParamManager:
 
     def _initialize_config(self):
         """Creates a new config file inside the dataset folder with the current deployment."""
-        initial_config = [{
-            "deployment_id": self.deployment_id,
-            "deployment_folder_path": self.deployment_folder,
-            "logger_ids": [],
-            "settings": {}
-        }]
+        initial_config = [self._build_defaults_entry(), self._build_deployment_entry(self.deployment_id, self.deployment_folder)]
         with open(self.config_log_path, "w") as file:
             json.dump(initial_config, file, indent=4)
         print(f"Initialized new config log at {self.config_log_path}")
+
+    def _build_defaults_entry(self) -> Dict[str, Any]:
+        return {
+            "deployment_id": self.DEFAULTS_DEPLOYMENT_ID,
+            "deployment_folder_path": self.dataset_folder,
+            "logger_ids": [],
+            "settings": {}
+        }
+
+    @staticmethod
+    def _build_deployment_entry(deployment_id: str, deployment_folder: str) -> Dict[str, Any]:
+        return {
+            "deployment_id": deployment_id,
+            "deployment_folder_path": deployment_folder,
+            "logger_ids": [],
+            "settings": {}
+        }
 
     def _load_config(self) -> List[Dict[str, Any]]:
         """Loads the config log from the JSON file."""
@@ -49,23 +63,56 @@ class ParamManager:
         with open(self.config_log_path, "w") as f:
             json.dump(config_log, f, indent=4)
 
+    def _ensure_defaults_entry(self):
+        config_log = self._load_config()
+        has_defaults = any(entry.get("deployment_id") == self.DEFAULTS_DEPLOYMENT_ID for entry in config_log)
+        if not has_defaults:
+            config_log.insert(0, self._build_defaults_entry())
+            self._save_config(config_log)
+
     def _ensure_deployment_entry(self):
         """Ensures the deployment exists in the config log. Adds it if missing."""
+        self._ensure_defaults_entry()
         config_log = self._load_config()
         for entry in config_log:
             if entry.get("deployment_id") == self.deployment_id:
                 return  # Deployment already exists
         
         # Add the deployment if it was missing
-        new_deployment_entry = {
-            "deployment_id": self.deployment_id,
-            "deployment_folder_path": self.deployment_folder,
-            "logger_ids": [],
-            "settings": {}
-        }
+        new_deployment_entry = self._build_deployment_entry(self.deployment_id, self.deployment_folder)
         config_log.append(new_deployment_entry)
         self._save_config(config_log)
         print(f"Added missing deployment '{self.deployment_id}' to config log.")
+
+    def _get_dataset_defaults(self, section: Optional[str] = None) -> Dict[str, Any]:
+        config_log = self._load_config()
+        defaults_entry = next(
+            (entry for entry in config_log if entry.get("deployment_id") == self.DEFAULTS_DEPLOYMENT_ID),
+            None
+        )
+        if not defaults_entry:
+            return {}
+        if section:
+            value = defaults_entry.get(section, {})
+            return value if isinstance(value, dict) else {}
+        return defaults_entry
+
+    @staticmethod
+    def _merge_non_none(defaults: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Merge dicts while treating None in overrides as "not explicitly set".
+        This preserves dataset defaults unless a deployment value is provided.
+        """
+        merged = dict(defaults or {})
+        for key, value in (overrides or {}).items():
+            if value is not None:
+                merged[key] = value
+        return merged
+
+    def set_dataset_defaults(self, entries: Dict[str, Any], section: Optional[str] = None):
+        """Set dataset-wide defaults that apply to all deployments unless overridden."""
+        self._ensure_defaults_entry()
+        self.add_to_config(entries=entries, section=section, deployment_id=self.DEFAULTS_DEPLOYMENT_ID)
 
     def add_to_config(self, entries: Union[Dict[str, Any], str], value: Optional[Any] = None, section: Optional[str] = None, deployment_id: Optional[str] = None):
         """
@@ -81,7 +128,10 @@ class ParamManager:
         config_log = self._load_config()
 
         # Ensure the deployment exists before modifying
-        self._ensure_deployment_entry()
+        if deployment_id != self.DEFAULTS_DEPLOYMENT_ID:
+            self._ensure_deployment_entry()
+        else:
+            self._ensure_defaults_entry()
         config_log = self._load_config()  # Reload after ensuring entry exists
 
         # Ensure entries is a dictionary if adding a single key-value pair
@@ -102,15 +152,29 @@ class ParamManager:
     def get_from_config(self, variable_names: List[str], section: Optional[str] = None, deployment_id: Optional[str] = None) -> Dict[str, Any]:
         """Retrieves values for specified variable names from the config_log JSON file."""
         deployment_id = deployment_id or self.deployment_id
+        if deployment_id != self.DEFAULTS_DEPLOYMENT_ID:
+            self._ensure_deployment_entry()
+        else:
+            self._ensure_defaults_entry()
         config_log = self._load_config()
         
         for entry in config_log:
             if entry["deployment_id"] == deployment_id:
                 if section:
+                    defaults = self._get_dataset_defaults(section=section) if deployment_id != self.DEFAULTS_DEPLOYMENT_ID else {}
                     settings = entry.get(section, {})
-                    return {var: settings.get(var) for var in variable_names}
+                    merged = self._merge_non_none(
+                        defaults if isinstance(defaults, dict) else {},
+                        settings if isinstance(settings, dict) else {}
+                    )
+                    return {var: merged.get(var) for var in variable_names}
                 else:
-                    return {var: entry.get(var) for var in variable_names}
+                    defaults_entry = self._get_dataset_defaults(section=None) if deployment_id != self.DEFAULTS_DEPLOYMENT_ID else {}
+                    merged = self._merge_non_none(
+                        defaults_entry if isinstance(defaults_entry, dict) else {},
+                        entry if isinstance(entry, dict) else {}
+                    )
+                    return {var: merged.get(var) for var in variable_names}
         raise ValueError(f"Deployment ID '{deployment_id}' not found in config log.")
 
     def remove_from_config(self, key: str, section: Optional[str] = None, deployment_id: Optional[str] = None):

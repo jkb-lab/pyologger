@@ -24,14 +24,49 @@ class BaseImporter:
         
     def read_csv(self, csv_path):
         """Reads a CSV file with multiple encoding attempts."""
+        # First, check if this is a Vectronics file with metadata header
+        skiprows = 0
+        try:
+            with open(csv_path, 'r', encoding='utf-8') as f:
+                first_line = f.readline().strip()
+        except UnicodeDecodeError:
+            with open(csv_path, 'r', encoding='ISO-8859-1') as f:
+                first_line = f.readline().strip()
+        
+        # Detect Vectronics metadata row
+        if (first_line.startswith("Collar:") or 
+            first_line.startswith("DeviceID:") or 
+            "Sensor range" in first_line):
+            skiprows = 1
+            print(f"   🔪 Detected Vectronics metadata row - skipping first row")
+        
+        # Try reading with different encodings
         encodings = ['utf-8', 'ISO-8859-1', 'windows-1252']
         for encoding in encodings:
             try:
                 print(f"Attempting to read {csv_path} with encoding {encoding}")
-                return pd.read_csv(csv_path, encoding=encoding)
+                return pd.read_csv(csv_path, encoding=encoding, skiprows=skiprows)
             except UnicodeDecodeError as e:
                 print(f"Error reading {csv_path} with encoding {encoding}: {e}")
         raise UnicodeDecodeError(f"Failed to read {csv_path} with available encodings.")
+
+    def _read_file(self, path):
+        """Dispatch to CSV or Parquet reader based on extension."""
+        low = path.lower()
+        if low.endswith(('.csv',)):
+            # Uses BaseImporter.read_csv() (handles messy headers, comments, etc.)
+            return self.read_csv(path)
+        elif low.endswith(('.parquet', '.parq', '.pq')):
+            return self._read_parquet(path)
+        raise ValueError(f"Unsupported file type for: {path}")
+
+    def _read_parquet(self, path):
+        """Parquet reader with a safe engine fallback."""
+        try:
+            return pd.read_parquet(path, engine="pyarrow")
+        except Exception:
+            # Fallback to fastparquet if pyarrow isn't available
+            return pd.read_parquet(path, engine="fastparquet")
 
     def import_netcdf(data_reader, filepath):
             """Imports a NetCDF file to the pickle format used by pyologger."""
@@ -61,6 +96,14 @@ class BaseImporter:
 
                 # Validate montage ID
                 montage_id = self.montage_id
+                montage_id_text = str(montage_id).strip().lower() if montage_id is not None else ""
+                if pd.isna(montage_id) or montage_id_text in {"", "nan", "none"}:
+                    print(
+                        f"No valid montage ID for logger '{self.logger_id}' "
+                        f"({manufacturer}); proceeding without custom mapping."
+                    )
+                    self.montage = None
+                    return
                 if montage_id not in full_mapping[manufacturer]:
                     raise ValueError(f"Montage ID '{montage_id}' not found under manufacturer '{manufacturer}'.")
 
@@ -79,6 +122,44 @@ class BaseImporter:
         """Maps original channel IDs to standardized channel IDs."""
         channel_metadata = {}
         new_channels = {}
+        used_names = {}
+        name_parent_owner = {}
+
+        def _slug(value: str) -> str:
+            return re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
+
+        def ensure_unique_name(candidate_name: str, source_column: str, parent_signal: str) -> str:
+            """
+            Guarantee that the standardized channel name we emit is unique.
+
+            If another column already claimed the same standardized name,
+            append a suffix so pandas doesn't create duplicate column labels.
+            """
+            count = used_names.get(candidate_name, 0)
+            if count == 0:
+                used_names[candidate_name] = 1
+                name_parent_owner[candidate_name] = parent_signal
+                return candidate_name
+
+            # Prefer a deterministic parent-signal suffix when collision is across
+            # different parent signals (e.g., ax in accelerometer vs corrected_acc).
+            owner_parent = name_parent_owner.get(candidate_name)
+            parent_slug = _slug(parent_signal) or "extra"
+            owner_slug = _slug(owner_parent) if owner_parent else None
+
+            if owner_slug and owner_slug != parent_slug:
+                preferred_name = f"{candidate_name}__{parent_slug}"
+                if preferred_name not in used_names:
+                    used_names[preferred_name] = 1
+                    return preferred_name
+
+            unique_name = f"{candidate_name}__dup{count}"
+            used_names[candidate_name] = count + 1
+            print(
+                f"⚠️ Duplicate standardized name '{candidate_name}' detected for '{source_column}'. "
+                f"Using unique column id '{unique_name}'."
+            )
+            return unique_name
 
         print(f"🔄 Renaming channels for {self.logger_manufacturer} logger with montage ID {self.montage_id}.")
 
@@ -125,18 +206,32 @@ class BaseImporter:
                 print(f"ℹ️ No mapping for '{clean_name}' — using cleaned name as standardized id.")
 
             mapped_name = mapping_info.get("standardized_channel_id", clean_name)
-            parent_signal = mapping_info.get("parent_signal", "extra").strip().lower()
-            original_unit = mapping_info.get("original_unit", "extra").strip().lower()
+            parent_signal_raw = mapping_info.get("parent_signal")
+            parent_signal = (parent_signal_raw if parent_signal_raw else "extra")
+            parent_signal = str(parent_signal).strip().lower()
+            unique_mapped_name = ensure_unique_name(mapped_name, original_name, parent_signal)
 
-            print(f"📝 Dictionary: original name: {original_name} → standardized name: {mapped_name} (Signal type: {parent_signal})")
+            original_unit_raw = mapping_info.get("original_unit")
+            original_unit = (original_unit_raw if original_unit_raw else "unknown")
+            original_unit = str(original_unit).strip().lower()
 
-            channel_metadata[mapped_name] = {
+            standardized_unit_raw = mapping_info.get("standardized_unit")
+            standardized_unit = (standardized_unit_raw if standardized_unit_raw else "unknown")
+            standardized_unit = str(standardized_unit).strip()
+
+            if unique_mapped_name != mapped_name:
+                print(f"   ↳ Reassigned to unique standardized name: {unique_mapped_name}")
+
+            print(f"📝 Dictionary: original name: {original_name} → standardized name: {unique_mapped_name} (Signal type: {parent_signal})")
+
+            channel_metadata[unique_mapped_name] = {
                 "original_name": original_name,
                 "unit": original_unit or "unknown",
+                "standardized_unit": standardized_unit or "unknown",
                 "parent_signal": parent_signal
             }
-            new_channels[original_name] = mapped_name
-
+            new_channels[original_name] = unique_mapped_name
+        print(f"🐻Channel metadata: {channel_metadata}")
         print(f"✅ Final renamed channels: {new_channels}")
         return new_channels, channel_metadata
 
@@ -146,7 +241,37 @@ class BaseImporter:
         signal_groups = {}
         signal_info = {}
 
-        for signal_name in set(v['parent_signal'].strip().lower() for v in channel_metadata.values()):
+        def _norm_col(value):
+            return re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
+
+        # Build robust column lookup once (handles case, whitespace, punctuation variants).
+        df_cols = list(df.columns)
+        df_lookup = {}
+        for c in df_cols:
+            c_str = str(c)
+            candidates = {
+                c_str,
+                c_str.strip(),
+                c_str.lower(),
+                c_str.strip().lower(),
+                _norm_col(c_str),
+            }
+            for key in candidates:
+                if key and key not in df_lookup:
+                    df_lookup[key] = c
+
+        print("16a")
+        signal_names = set()
+        print(f"Channel metadata received for grouping: {channel_metadata}")
+        for v in channel_metadata.values():
+            try:
+                signal_names.add(v['parent_signal'].strip().lower())
+            except Exception as e:
+                print(f"⚠️ Skipping invalid channel metadata entry: {v}. Error: {e}")
+
+        for signal_name in signal_names:
+
+            print("16b")
             if signal_name == 'extra':
                 continue  # Skip 'extra' signal type
 
@@ -154,20 +279,108 @@ class BaseImporter:
                 print(f"Sensor '{signal_name}' has already been processed. Skipping reprocessing.")
                 continue
 
-            # Group columns by signal
-            signal_cols = [col for col, meta in channel_metadata.items() if meta['parent_signal'].strip().lower() == signal_name]
-            signal_df = df[['datetime'] + signal_cols].copy()
 
+            print("16c")
+            # Group columns by signal and normalize channel ids back to base names.
+            signal_orig_cols = []
+            resolved_meta_keys = {}
+            for std_col, meta in channel_metadata.items():
+                if meta['parent_signal'].strip().lower() != signal_name:
+                    continue
+                # Prefer standardized channel id first; then fallback to original source name.
+                source_name = meta.get("original_name")
+                probes = [
+                    std_col,
+                    str(std_col).strip(),
+                    str(std_col).lower(),
+                    _norm_col(std_col),
+                    source_name,
+                    str(source_name).strip() if source_name is not None else None,
+                    str(source_name).lower() if source_name is not None else None,
+                    _norm_col(source_name) if source_name is not None else None,
+                ]
+                resolved = None
+                for p in probes:
+                    if not p:
+                        continue
+                    if p in df_lookup:
+                        resolved = df_lookup[p]
+                        break
+                if resolved is not None and resolved not in signal_orig_cols:
+                    signal_orig_cols.append(resolved)
+                    resolved_meta_keys[resolved] = std_col
+            if not signal_orig_cols:
+                expected = [
+                    str(col) for col, meta in channel_metadata.items()
+                    if meta['parent_signal'].strip().lower() == signal_name
+                ]
+                print(
+                    f"⚠️ No columns found for signal '{signal_name}'. "
+                    f"Expected one of {expected}. Available columns: {list(df.columns)}. Skipping."
+                )
+                continue
+            print("16d")
+            signal_df = df[['datetime'] + signal_orig_cols].copy()
+
+            # Strip importer uniqueness suffixes (e.g., gy__corrected_gyr -> gy)
+            # at the per-signal level so users interact with canonical channel IDs.
+            rename_map = {}
+            signal_channel_metadata = {}
+            used_base_names = set()
+            for orig_col in signal_orig_cols:
+                meta_key = resolved_meta_keys.get(orig_col, orig_col)
+                if meta_key not in channel_metadata:
+                    # Fallback: try normalized lookup against channel_metadata keys.
+                    norm_target = _norm_col(meta_key)
+                    alt_key = next(
+                        (k for k in channel_metadata.keys() if _norm_col(k) == norm_target),
+                        None,
+                    )
+                    meta_key = alt_key if alt_key is not None else meta_key
+                if meta_key not in channel_metadata:
+                    print(
+                        f"⚠️ Missing channel metadata for '{orig_col}' "
+                        f"(resolved key '{meta_key}') in signal '{signal_name}'. Skipping this channel."
+                    )
+                    continue
+                # Use the standardized metadata key as the canonical channel id.
+                base_name = str(meta_key).split("__", 1)[0]
+                target_name = base_name
+                if target_name in used_base_names:
+                    # Keep this deterministic and safe if a true same-signal collision occurs.
+                    i = 2
+                    while f"{base_name}__dup{i}" in used_base_names:
+                        i += 1
+                    target_name = f"{base_name}__dup{i}"
+                used_base_names.add(target_name)
+                rename_map[orig_col] = target_name
+                signal_channel_metadata[target_name] = channel_metadata[meta_key]
+
+            signal_df.rename(columns=rename_map, inplace=True)
+            signal_cols = [rename_map[c] for c in signal_orig_cols if c in rename_map]
+            if any(str(c).find("__") >= 0 for c in signal_orig_cols):
+                print(
+                    f"[group_data_by_signals] '{signal_name}' channel normalization: "
+                    f"{signal_orig_cols} -> {signal_cols}"
+                )
+
+            if not signal_cols:
+                print(f"⚠️ No valid channels remained for signal '{signal_name}' after metadata resolution. Skipping.")
+                continue
+
+            print("16e")
             # Check if all signal columns are numeric
             non_numeric_cols = signal_df[signal_cols].select_dtypes(exclude=['number']).columns.tolist()
             if non_numeric_cols:
                 print(f"❌ Skipping signal '{signal_name}': non-numeric data found in columns: {non_numeric_cols}")
                 continue
 
+            print("16f")
             # Determine the data type of the signal columns
             data_type = signal_df[signal_cols].dtypes.iloc[0]
             data_type_str = str(data_type)
 
+            print("16g")
             # Standardized metadata collection
             start_time = signal_df['datetime'].iloc[0]
             end_time = signal_df['datetime'].iloc[-1]
@@ -175,29 +388,35 @@ class BaseImporter:
             min_value = signal_df[signal_cols].min().min()
             mean_value = signal_df[signal_cols].mean().mean()
 
+            print("16h")
             # Get the original unit from the column metadata
-            original_units = {channel_metadata[col]['unit'] for col in signal_cols}
+            original_units = {signal_channel_metadata[col]['unit'] for col in signal_cols}
             if len(original_units) > 1:
                 warnings.warn(f"Conflicting units found for signal '{signal_name}': {original_units}. Using the first one.")
             original_unit = original_units.pop() if original_units else "unknown"
 
+            print("16i")
             # Calculate current frequency - beware this does not fix gaps, just uses the first few values to calculate freq.
             original_frequency = calculate_sampling_frequency(signal_df['datetime'].head()) # round(1 / signal_df['datetime'].diff().dt.total_seconds().mean())
             print(f"Original frequency for {signal_name}: {original_frequency} Hz")
 
+            print("16j")
             expected_frequency = self.expected_frequencies.get(signal_name)
             if not expected_frequency and self.logger_manufacturer == 'LL':
                 expected_frequency = int(self.data_reader.logger_info[logger_id]['fs'])
 
+            print("16k")
             max_desired_frequency = None
             if self.logger_manufacturer in ['Evolocus', 'Manitty', 'UFI']:
                 max_freq_lookup = {'eeg': 100, 'eog': 100, 'ecg': 250, 'emg': 250}
                 max_desired_frequency = max_freq_lookup.get(signal_name, None)
 
+            print("16l")
             downsample_target = max_desired_frequency or expected_frequency
             if not expected_frequency and not max_desired_frequency:
                 print(f"⚠️ No frequency target found for {signal_name}. Using original frequency {original_frequency} Hz.")
 
+            print("16m")
             if downsample_target and downsample_target < original_frequency:
                 decimation_factor = max(1, int(round(original_frequency / downsample_target)))
                 print(f"Downsampling {signal_name} by {decimation_factor}x from {original_frequency:.2f}Hz to {downsample_target:.2f}Hz.")
@@ -209,16 +428,45 @@ class BaseImporter:
                 new_frequency = original_frequency
                 print(f"No downsampling required for {signal_name}. Current: {original_frequency:.2f}Hz, Target: {downsample_target}Hz")
 
+            print("16n")
             details = 'Initial, raw signal-specific data and metadata loaded.'
             if new_frequency != original_frequency:
                 details += f' Original frequency: {original_frequency} Hz; downsampled to {new_frequency} Hz.'
             else:
                 details += f' Original frequency: {original_frequency} Hz; no downsampling applied.'
 
+            if signal_name in {"accelerometer", "accelerometer2"}:
+                try:
+                    preview_cols = ["datetime"] + signal_cols
+                    preview_cols = [c for c in preview_cols if c in signal_df.columns]
+                    print(f"🔎 DEBUG {signal_name} dataframe columns: {list(signal_df.columns)}")
+                    print(
+                        f"🔎 DEBUG {signal_name} dataframe dtypes: "
+                        f"{ {col: str(dtype) for col, dtype in signal_df.dtypes.items()} }"
+                    )
+                    print(
+                        f"🔎 DEBUG {signal_name} dataframe header "
+                        f"(cols={preview_cols}, rows={len(signal_df)}):"
+                    )
+                    print(signal_df[preview_cols].head(3).to_string(index=False))
+                except Exception as e:
+                    print(f"⚠️ Failed to print {signal_name} debug header: {type(e).__name__}: {e}")
+
+            print
             self.data_reader.signal_data[signal_name] = signal_df
+            time_zone_raw = self.data_reader.deployment_info.get('Time Zone')
+            tz_name = str(time_zone_raw).strip() if time_zone_raw is not None else "UTC"
+            if not tz_name:
+                tz_name = "UTC"
+            try:
+                tz = pytz.timezone(tz_name)
+            except Exception:
+                print(f"⚠️ Invalid timezone '{tz_name}'. Falling back to UTC.")
+                tz = pytz.UTC
+
             self.data_reader.signal_info[signal_name] = {
                 'channels': signal_cols,
-                'metadata': {col: channel_metadata[col] for col in signal_cols},
+                'metadata': {col: signal_channel_metadata[col] for col in signal_cols},
                 'signal_start_datetime': start_time,
                 'signal_end_datetime': end_time,
                 'max_value': float(max_value),
@@ -232,9 +480,10 @@ class BaseImporter:
                 'logger_id': self.logger_id,
                 'logger_manufacturer': self.logger_manufacturer,
                 'processing_step': 'Raw data uploaded',
-                'last_updated': pd.Timestamp(datetime.now().astimezone(pytz.timezone(self.data_reader.deployment_info['Time Zone']))),
+                'last_updated': pd.Timestamp(datetime.now().astimezone(tz)),
                 'details': details,
             }
+            print(f"[group_data_by_signals] stored signal_info['{signal_name}']['channels'] = {signal_cols}")
 
         for signal_name, df in self.data_reader.signal_data.items():
             print(f"Sensor '{signal_name}' data processed and stored with shape {df.shape}.")
@@ -287,6 +536,3 @@ class BaseImporter:
 
             if not found_match:
                 print(f"⚠ Sensor name '{signal_name}' not found in channel mapping. Ignoring this signal.")
-
-
-

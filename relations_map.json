@@ -1,16 +1,1 @@
-{
-    "deployment_DB": {},
-    "recording_DB": {},
-    "logger_DB": {},
-    "animal_DB": {},
-    "dataset_DB": {},
-    "procedure_DB": {},
-    "observation_DB": {},
-    "collaborator_DB": {},
-    "location_DB": {},
-    "montage_DB": {},
-    "signal_DB": {},
-    "attachment_DB": {},
-    "originalchannel_DB": {},
-    "standardizedchannel_DB": {}
-}
+{}

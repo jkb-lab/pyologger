@@ -201,8 +201,29 @@ except Exception:
 # Step 3: Select deployment folder
 if args.deployment:
     deployment_id = args.deployment
-    deployment_folder = os.path.join(dataset_folder, deployment_id)
     print(f"✅ Using provided deployment ID: {deployment_id}")
+    
+    # Find deployment folder with suffix support (similar to DataReader._find_deployment_folder)
+    # First try exact match
+    deployment_folder = os.path.join(dataset_folder, deployment_id)
+    if not os.path.exists(deployment_folder):
+        # Look for folders starting with deployment_id (handles suffixes)
+        found = False
+        try:
+            for entry in os.listdir(dataset_folder):
+                full_path = os.path.join(dataset_folder, entry)
+                if os.path.isdir(full_path) and entry.startswith(deployment_id):
+                    # Make sure it's not just a prefix match (require _ or end of string after ID)
+                    if entry == deployment_id or (len(entry) > len(deployment_id) and entry[len(deployment_id)] == '_'):
+                        print(f"   📁 Found deployment folder with suffix: {entry}")
+                        deployment_folder = full_path
+                        found = True
+                        break
+        except (FileNotFoundError, PermissionError):
+            pass
+        
+        if not found:
+            raise ValueError(f"❌ Deployment folder not found for ID: {deployment_id}")
 else:
     print("No deployment provided. Selecting from available deployments.")
     deployment_folder = select_folder(dataset_folder, "Select a deployment folder:")
@@ -211,49 +232,108 @@ if not os.path.exists(deployment_folder):
     raise ValueError(f"❌ Deployment folder {deployment_folder} not found!")
 
 # Extract deployment_id and animal_id from the folder name
-match = re.match(r"(\d{4}-\d{2}-\d{2}_[a-z]{4}-\d{3})", os.path.basename(deployment_folder), re.IGNORECASE)
+# Pattern: YYYY-MM-DD_animalid-NNNN or YYYY-MM-DD_animalid-NNNN_suffix
+match = re.match(r"(\d{4}-\d{2}-\d{2}_[a-z]+-\d+)", os.path.basename(deployment_folder), re.IGNORECASE)
 if match:
     deployment_id = match.group(1)  # Extract YYYY-MM-DD_animalID
-    animal_id = deployment_id.split("_")[1]  # Extract animal ID
+    animal_id = deployment_id.split("_")[1]  # Extract animal ID (everything after first _)
     print(f"✅ Extracted deployment ID: {deployment_id}, Animal ID: {animal_id}")
 else:
     raise ValueError(f"❌ Unable to extract deployment ID from folder: {deployment_folder}")
 
 deployment_info, loggers_used = metadata.extract_essential_metadata(deployment_id)
 
-# Step 5: Initialize DataReader with dataset folder, deployment ID, and optional data subfolder
-data_pkl = DataReader(dataset_folder=dataset_folder, deployment_id=deployment_id, data_subfolder="01_raw-data", montage_path=montage_path)
+# Step 5: Initialize DataReader - will find actual folder with suffix if it exists
+data_pkl = DataReader(
+    dataset_folder=dataset_folder,
+    deployment_id=deployment_id,
+    data_subfolder="01_raw-data",
+    montage_path=montage_path
+)
 
-# Step 6: Initialize config manager
-param_manager = ParamManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
-param_manager.add_to_config("current_processing_step", "Processing Step 00: Data import pending.")
-param_manager.export_config()
+# Use the actual deployment folder that DataReader found (may have suffix)
+actual_deployment_folder = data_pkl.deployment_folder
 
+# If the actual folder has a suffix, create a symlink for Snakemake compatibility FIRST
+if os.path.basename(actual_deployment_folder) != deployment_id:
+    symlink_folder = os.path.join(dataset_folder, deployment_id)
+    if not os.path.exists(symlink_folder):
+        os.symlink(os.path.basename(actual_deployment_folder), symlink_folder)
+        print(f"🔗 Created symlink: {deployment_id} -> {os.path.basename(actual_deployment_folder)}")
+
+pkl_path = os.path.join(actual_deployment_folder, "outputs", "data.pkl")
+
+# Check if processed data already exists
 overwrite_data = False
-pkl_path = os.path.join(deployment_folder, "outputs", "data.pkl")
+existing_pickle_ok = False
 if os.path.exists(pkl_path) and not overwrite_data:
-    with open(pkl_path, "rb") as f:
-        data_pkl = pickle.load(f)
-    print(f"📦 Loaded processed DataReader object from: {pkl_path}")
-else:
-    data_pkl = DataReader(
-        dataset_folder=dataset_folder,
-        deployment_id=deployment_id,
-        data_subfolder="01_raw-data",
-        montage_path=montage_path
-    )
-    param_manager = ParamManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
-    param_manager.add_to_config("current_processing_step", "Processing Step 00: Data import pending.")
+    try:
+        with open(pkl_path, "rb") as f:
+            data_pkl = pickle.load(f)
+        existing_pickle_ok = True
+        print(f"📦 Loaded processed DataReader object from: {pkl_path}")
+        # Initialize param_manager for loaded data
+        param_manager = ParamManager(deployment_folder=actual_deployment_folder, deployment_id=deployment_id)
+    except (EOFError, pickle.UnpicklingError, ModuleNotFoundError, AttributeError, ImportError) as e:
+        backup_path = f"{pkl_path}.corrupt_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        try:
+            os.replace(pkl_path, backup_path)
+            print(f"⚠️ Existing data.pkl is unreadable ({type(e).__name__}: {e}).")
+            print(f"🛟 Backed up corrupt pickle to: {backup_path}")
+        except Exception as backup_error:
+            print(f"⚠️ Existing data.pkl is unreadable ({type(e).__name__}: {e}).")
+            print(f"⚠️ Could not move corrupt pickle to backup ({backup_error}). Will overwrite in place.")
 
+if not existing_pickle_ok:
+    # Read data files
     data_pkl.read_files(
         deployment_info=deployment_info,
         loggers_used=loggers_used,
         save_parq=False,
         save_netcdf=True
     )
+    
+    # Create output folder in the actual deployment folder (with suffix)
+    os.makedirs(os.path.join(actual_deployment_folder, "outputs"), exist_ok=True)
+    param_manager = ParamManager(deployment_folder=actual_deployment_folder, deployment_id=deployment_id)
+    
+    # Check if we have data
+    if not data_pkl.signal_data:
+        print(f"⚠️ No signal data found for deployment {deployment_id}.")
+        param_manager.add_to_config("current_processing_step", "Processing Step 00: No data found.")
+        param_manager.export_config()
+        
+        # Save empty DataReader object for downstream compatibility
+        with open(pkl_path, "wb") as file:
+            pickle.dump(data_pkl, file)
+        print(f"DataReader object (empty) saved to {pkl_path}.")
+        
+        # Create placeholder NetCDF for Snakemake
+        exporter = BaseExporter(data_pkl)
+        netcdf_file_path = os.path.join(actual_deployment_folder, 'outputs', f'{deployment_id}_step00.nc')
+        exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path)
+        print(f"📊 Saved empty deployment data to NetCDF: {netcdf_file_path}")
+        
+        # Exit - no data to process further
+        import sys
+        sys.exit(0)
+    
+    param_manager.add_to_config("current_processing_step", "Processing Step 00: Data imported.")
+    param_manager.export_config()
 
 # Get timezone
 timezone = data_pkl.deployment_info.get("Time Zone", "UTC")
+
+
+def _normalize_timestamp(ts_value, timezone_str):
+    """Return a timezone-aware pandas Timestamp normalized to deployment timezone."""
+    ts = pd.Timestamp(ts_value)
+    if pd.isna(ts):
+        return None
+    if ts.tzinfo is None:
+        return ts.tz_localize(timezone_str)
+    return ts.tz_convert(timezone_str)
+
 
 # Load time settings
 time_settings = param_manager.get_from_config(
@@ -263,30 +343,86 @@ time_settings = param_manager.get_from_config(
 
 if time_settings:
     print("Time settings present.")
-# If any required time settings are missing, compute and update them
-if not any(v is None for v in time_settings.values()):
-    print("Time settings not empty.")
+
+should_recompute_time_settings = False
+if not time_settings or any(v is None for v in time_settings.values()):
+    should_recompute_time_settings = True
 else:
+    try:
+        existing_overlap_start = _normalize_timestamp(time_settings["overlap_start_time"], timezone)
+        existing_overlap_end = _normalize_timestamp(time_settings["overlap_end_time"], timezone)
+        existing_zoom_start = _normalize_timestamp(time_settings["zoom_window_start_time"], timezone)
+        existing_zoom_end = _normalize_timestamp(time_settings["zoom_window_end_time"], timezone)
+
+        if (
+            existing_overlap_start is None
+            or existing_overlap_end is None
+            or existing_zoom_start is None
+            or existing_zoom_end is None
+            or existing_overlap_start > existing_overlap_end
+            or existing_zoom_start > existing_zoom_end
+        ):
+            print("⚠️ Existing time settings are invalid. Recomputing from signal timestamps.")
+            should_recompute_time_settings = True
+        else:
+            print("Time settings are valid.")
+    except Exception as e:
+        print(f"⚠️ Failed to parse existing time settings ({e}). Recomputing.")
+        should_recompute_time_settings = True
+
+if should_recompute_time_settings:
     print("Adding timestamps to config.")
     zoom_time_window = 5  # minutes
 
     # Extract start and end times for all signals
-    start_times = [df['datetime'].min() for df in data_pkl.signal_data.values()]
-    end_times = [df['datetime'].max() for df in data_pkl.signal_data.values()]
+    start_times = []
+    end_times = []
+    for df in data_pkl.signal_data.values():
+        if 'datetime' not in df.columns or df.empty:
+            continue
+        start_ts = _normalize_timestamp(df['datetime'].min(), timezone)
+        end_ts = _normalize_timestamp(df['datetime'].max(), timezone)
+        if start_ts is not None:
+            start_times.append(start_ts)
+        if end_ts is not None:
+            end_times.append(end_ts)
 
-    # Compute common start, end, and zoom window
-    overlap_start_time = max(start_times)
-    overlap_end_time = min(end_times)
-    midpoint = overlap_start_time + (overlap_end_time - overlap_start_time) / 2
-    zoom_window_start, zoom_window_end = midpoint - timedelta(minutes=zoom_time_window / 2), midpoint + timedelta(minutes=zoom_time_window / 2)
+    # Check if we have any valid timestamps
+    if not start_times or not end_times:
+        print("⚠️ No valid timestamps found in signal data. Skipping time settings.")
+        time_settings = {
+            "overlap_start_time": None,
+            "overlap_end_time": None,
+            "zoom_window_start_time": None,
+            "zoom_window_end_time": None,
+        }
+    else:
+        # Compute common start, end, and zoom window
+        overlap_start_time = max(start_times)
+        overlap_end_time = min(end_times)
+        if overlap_start_time > overlap_end_time:
+            # No strict overlap across all signals: fall back to a valid deployment-wide range.
+            union_start_time = min(start_times)
+            union_end_time = max(end_times)
+            print(
+                "⚠️ No common overlap across signals. "
+                f"Computed overlap was inverted ({overlap_start_time} > {overlap_end_time}). "
+                f"Using union range instead: {union_start_time} to {union_end_time}."
+            )
+            overlap_start_time = union_start_time
+            overlap_end_time = union_end_time
 
-    # Update settings
-    time_settings = {
-        "overlap_start_time": str(overlap_start_time),
-        "overlap_end_time": str(overlap_end_time),
-        "zoom_window_start_time": str(zoom_window_start),
-        "zoom_window_end_time": str(zoom_window_end),
-    }
+        midpoint = overlap_start_time + (overlap_end_time - overlap_start_time) / 2
+        zoom_window_start, zoom_window_end = midpoint - timedelta(minutes=zoom_time_window / 2), midpoint + timedelta(minutes=zoom_time_window / 2)
+
+        # Update settings
+        time_settings = {
+            "overlap_start_time": str(overlap_start_time),
+            "overlap_end_time": str(overlap_end_time),
+            "zoom_window_start_time": str(zoom_window_start),
+            "zoom_window_end_time": str(zoom_window_end),
+        }
+    
     param_manager.add_to_config(entries=time_settings, section="settings")
 
 if any(v is None for v in time_settings.values()):
@@ -302,8 +438,14 @@ truncate_times = param_manager.get_from_config(
 if not any(v is None for v in truncate_times.values()):
     print("Truncating with provided cropping times.")
     # Update overlap window with selected range
-    OVERLAP_START_TIME = pd.Timestamp(truncate_times['selected_start_time']).tz_convert(timezone)
-    OVERLAP_END_TIME = pd.Timestamp(truncate_times['selected_end_time']).tz_convert(timezone)
+    OVERLAP_START_TIME = _normalize_timestamp(truncate_times['selected_start_time'], timezone)
+    OVERLAP_END_TIME = _normalize_timestamp(truncate_times['selected_end_time'], timezone)
+    if OVERLAP_START_TIME > OVERLAP_END_TIME:
+        print(
+            f"⚠️ selected_start_time ({OVERLAP_START_TIME}) is after "
+            f"selected_end_time ({OVERLAP_END_TIME}). Swapping values."
+        )
+        OVERLAP_START_TIME, OVERLAP_END_TIME = OVERLAP_END_TIME, OVERLAP_START_TIME
 
     # Truncate signal data
     for signal, df in data_pkl.signal_data.items():
@@ -325,7 +467,7 @@ if not any(v is None for v in truncate_times.values()):
     }
     param_manager.add_to_config(entries=time_settings_update, section="settings")
 
-    pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
+    pkl_path = os.path.join(actual_deployment_folder, 'outputs', 'data.pkl')
     with open(pkl_path, "wb") as file:
         pickle.dump(data_pkl, file)
 
@@ -333,5 +475,5 @@ if not any(v is None for v in truncate_times.values()):
 param_manager.add_to_config("current_processing_step", "Processing Step 00: Data imported.")
 
 exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
-netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step00.nc') # Define the export path
+netcdf_file_path = os.path.join(actual_deployment_folder, 'outputs', f'{deployment_id}_step00.nc') # Define the export path
 exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format

@@ -46,6 +46,11 @@ class CSVImporter(BaseImporter):
         # --- 2) concat once
         final_df = pd.concat(dfs, ignore_index=True) if len(dfs) > 1 else dfs[0]
 
+        # --- 2.5) drop completely empty rows
+        drop_mask = final_df.isna().all(axis=1)
+        if drop_mask.any():
+            final_df = final_df.loc[~drop_mask].reset_index(drop=True)
+
         # --- 3) rename columns once
         original_cols = final_df.columns.tolist()
         new_cols, channel_metadata = self.rename_channels(original_cols)
@@ -55,8 +60,15 @@ class CSVImporter(BaseImporter):
         else:
             print(f"ℹ️ No column renames applied for {logger_id}.")
 
+        # Manufacturer-specific transforms can be injected by subclasses.
+        final_df = self.apply_post_rename_transforms(final_df, channel_metadata)
+
         # --- 4) build datetime once
-        final_df, datetime_metadata = process_datetime(final_df, time_zone=tz)
+        final_df, datetime_metadata = process_datetime(
+            final_df,
+            time_zone=tz,
+            channel_metadata=channel_metadata
+        )
         self.data_reader.logger_info[logger_id]['datetime_created_from'] = datetime_metadata.get('datetime_created_from', None)
         self.data_reader.logger_info[logger_id]['fs'] = [datetime_metadata.get('fs', None)]
 
@@ -69,6 +81,10 @@ class CSVImporter(BaseImporter):
 
         # --- 6) return once
         return final_df, channel_metadata, datetime_metadata, signal_groups, signal_info
+
+    def apply_post_rename_transforms(self, df: pd.DataFrame, channel_metadata: dict) -> pd.DataFrame:
+        """Hook for manufacturer-specific transforms after channel renaming."""
+        return df
 
     # -------- helpers --------
     def _read_file(self, path: str) -> pd.DataFrame:

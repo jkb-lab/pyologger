@@ -29,7 +29,13 @@ class LLImporter(BaseImporter):
         final_df = self.concatenate_and_save_csvs(files)
 
         # Rename columns
-        final_df, column_metadata = self.rename_columns(final_df, self.logger_id, self.logger_manufacturer)
+        original_cols = final_df.columns.tolist()
+        new_cols, channel_metadata = self.rename_channels(original_cols)
+        if new_cols:
+            final_df.rename(columns=new_cols, inplace=True)
+            print(f"✅ Renamed columns for {self.logger_id}: {new_cols}")
+        else:
+            print(f"ℹ️ No column renames applied for {self.logger_id}.")
         
         # Process datetime and return metadata
         final_df, datetime_metadata = self.data_reader.process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
@@ -41,12 +47,12 @@ class LLImporter(BaseImporter):
         return final_df, column_metadata, datetime_metadata, signal_groups, signal_info
 
     def concatenate_and_save_csvs(self, csv_files):
-        """Concatenates multiple CSV files into one DataFrame."""
+        """Concatenates multiple CSV and Parquet files into one DataFrame."""
         dfs = []
         for file in csv_files:
             file_path = os.path.join(self.data_reader.data_folder, file)
             try:
-                data = self.data_reader.read_csv(file_path)
+                data = self._read_file(file_path)
                 dfs.append(data)
                 print(f"{self.logger_manufacturer} file: {file} - Successfully processed.")
             except Exception as e:

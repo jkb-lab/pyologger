@@ -30,8 +30,13 @@ def smooth_downsample_derivative(depth, original_sampling_rate, downsampled_samp
     # Calculate the downsample factor based on the original and target sampling rates
     downsample_factor = int(original_sampling_rate / downsampled_sampling_rate)
     
-    # Downsample the depth data
-    downsampled_depth = decimate(depth, downsample_factor, zero_phase=True)
+    # Skip downsampling if data is already at or below target rate
+    if downsample_factor <= 1:
+        print(f"⚠️ Skipping downsampling: original rate ({original_sampling_rate} Hz) is already <= target rate ({downsampled_sampling_rate} Hz)")
+        downsampled_depth = depth.copy()
+    else:
+        # Downsample the depth data
+        downsampled_depth = decimate(depth, downsample_factor, zero_phase=True)
     
     # Apply median filtering for smoothing
     smoothed_depth = medfilt(downsampled_depth, kernel_size=5)
@@ -210,6 +215,11 @@ def find_dives(depth_series, datetime_data, min_depth_threshold, sampling_rate, 
         - 'start_time' (datetime): Datetime of the start of the dive.
         - 'end_time' (datetime): Datetime of the end of the dive.
     """
+    # medfilt requires an odd kernel size; enforce a valid odd integer >= 1.
+    smoothing_window = max(1, int(smoothing_window))
+    if smoothing_window % 2 == 0:
+        smoothing_window += 1
+
     smoothed_depth = medfilt(depth_series, kernel_size=smoothing_window)
     is_dive = smoothed_depth > min_depth_threshold
     rle = [(key, len(list(group))) for key, group in groupby(is_dive)]
@@ -225,18 +235,38 @@ def find_dives(depth_series, datetime_data, min_depth_threshold, sampling_rate, 
     dives = []
     for start, end in dive_chunks:
         start_search_window = max(start - round(search_window * sampling_rate), 0)
-        end_search_window = min(end + round(search_window * sampling_rate), len(smoothed_depth) - 1)
-        dive_start_index = start_search_window + np.argmin(np.abs(smoothed_depth[start_search_window:start]))
-        dive_end_index = end + np.argmin(np.abs(smoothed_depth[end:end_search_window]))
-        max_depth = np.max(smoothed_depth[dive_start_index:dive_end_index])
-        max_depth_index = np.argmax(smoothed_depth[dive_start_index:dive_end_index])
+        end_search_window = min(end + round(search_window * sampling_rate), len(smoothed_depth))
+
+        # Guard against empty windows near array edges.
+        start_window = smoothed_depth[start_search_window:start]
+        if len(start_window) == 0:
+            dive_start_index = start
+        else:
+            dive_start_index = start_search_window + int(np.argmin(np.abs(start_window)))
+
+        end_window = smoothed_depth[end:end_search_window]
+        if len(end_window) == 0:
+            dive_end_index = end
+        else:
+            dive_end_index = end + int(np.argmin(np.abs(end_window)))
+
+        # Ensure a non-empty dive segment for max-depth calculations.
+        if dive_end_index <= dive_start_index:
+            continue
+
+        segment = smoothed_depth[dive_start_index:dive_end_index]
+        if len(segment) == 0:
+            continue
+
+        max_depth = float(np.max(segment))
+        max_depth_index = int(np.argmax(segment))
         dives.append({
             'start': dive_start_index,
             'end': dive_end_index,
             'max_depth': max_depth,
             'tmax': datetime_data.iloc[dive_start_index + max_depth_index],
             'start_time': datetime_data.iloc[dive_start_index],
-            'end_time': datetime_data.iloc[dive_end_index - 1]
+            'end_time': datetime_data.iloc[max(dive_end_index - 1, dive_start_index)]
         })
 
     return pd.DataFrame(dives)
@@ -276,4 +306,3 @@ def enforce_surface_before_after_dives(depth_series, datetime_data, dives):
     corrected_depth[last_dive_end:] = 0
 
     return corrected_depth
-

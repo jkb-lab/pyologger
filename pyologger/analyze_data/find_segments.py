@@ -16,10 +16,16 @@ def find_segments(data, column, criteria, min_duration=None, animal_id_col='anim
     Returns:
         pd.DataFrame: DataFrame where each row corresponds to a detected segment, with relevant attributes.
     """
-    # If no animal_id_col is provided or the column doesn't exist, assign a temporary ID for all rows
-    if not animal_id_col or animal_id_col not in data.columns:
-        data['TEMP_ANIMAL_ID'] = "TEMP_ANIMAL_ID"
-        animal_id_col = 'TEMP_ANIMAL_ID'
+    use_animal_id = False
+    if animal_id_col and animal_id_col in data.columns:
+        use_animal_id = data[animal_id_col].nunique(dropna=True) > 1
+        if not use_animal_id:
+            animal_id_col = None
+    else:
+        default_col = 'animal_id'
+        if default_col in data.columns and data[default_col].nunique(dropna=True) > 1:
+            animal_id_col = default_col
+            use_animal_id = True
 
     segments = []
     segment_start_index = None
@@ -29,11 +35,11 @@ def find_segments(data, column, criteria, min_duration=None, animal_id_col='anim
     # Loop through the dataset
     for i in range(len(data)):
         value = data[column].iloc[i]
-        animal_id = data[animal_id_col].iloc[i]
+        animal_id = data[animal_id_col].iloc[i] if use_animal_id else None
         satisfies_criteria = criteria(value)
 
         # Handle transitions between animal IDs
-        if current_animal_id is not None and animal_id != current_animal_id:
+        if use_animal_id and current_animal_id is not None and animal_id != current_animal_id:
             if current_satisfied:
                 segment_end_index = i - 1
                 start_time = data['datetime'].iloc[segment_start_index]
@@ -41,14 +47,16 @@ def find_segments(data, column, criteria, min_duration=None, animal_id_col='anim
                 duration = (end_time - start_time).total_seconds()
 
                 if min_duration is None or duration >= min_duration:
-                    segments.append({
-                        animal_id_col: current_animal_id,
+                    segment = {
                         'start_index': segment_start_index,
                         'end_index': segment_end_index,
                         'start_datetime': start_time,
                         'end_datetime': end_time,
                         'duration': duration
-                    })
+                    }
+                    if use_animal_id:
+                        segment[animal_id_col] = current_animal_id
+                    segments.append(segment)
             current_satisfied = False
             segment_start_index = None
 
@@ -64,14 +72,16 @@ def find_segments(data, column, criteria, min_duration=None, animal_id_col='anim
             duration = (end_time - start_time).total_seconds()
 
             if min_duration is None or duration >= min_duration:
-                segments.append({
-                    animal_id_col: animal_id,
+                segment = {
                     'start_index': segment_start_index,
                     'end_index': segment_end_index,
                     'start_datetime': start_time,
                     'end_datetime': end_time,
                     'duration': duration
-                })
+                }
+                if use_animal_id:
+                    segment[animal_id_col] = animal_id
+                segments.append(segment)
             current_satisfied = False
             segment_start_index = None
 
@@ -85,14 +95,16 @@ def find_segments(data, column, criteria, min_duration=None, animal_id_col='anim
         duration = (end_time - start_time).total_seconds()
 
         if min_duration is None or duration >= min_duration:
-            segments.append({
-                animal_id_col: current_animal_id,
+            segment = {
                 'start_index': segment_start_index,
                 'end_index': segment_end_index,
                 'start_datetime': start_time,
                 'end_datetime': end_time,
                 'duration': duration
-            })
+            }
+            if use_animal_id:
+                segment[animal_id_col] = current_animal_id
+            segments.append(segment)
 
     # Convert to DataFrame
     segments_df = pd.DataFrame(segments)
@@ -192,4 +204,3 @@ def find_gaps_between_segments(dive_segments, original_data, animal_id_col='Seal
     gaps_df = pd.DataFrame(gaps)
     
     return gaps_df
-

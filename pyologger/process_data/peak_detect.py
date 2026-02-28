@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import ast
 from scipy.signal import butter, filtfilt, find_peaks
 from scipy.signal.windows import bartlett
 from scipy import stats
@@ -44,11 +45,39 @@ def smooth_signal(signal, smooth_sec, fs):
 
 # Sliding Window Normalization Function
 def sliding_window_normalization(signal, window_size, noise=1e-10):
-    half_window = window_size // 2
-    normalized_signal = np.array([(signal[i] - np.mean(signal[max(0, i - half_window):min(len(signal), i + half_window)])) / 
-                     (np.std(signal[max(0, i - half_window):min(len(signal), i + half_window)]) + noise) 
-                     for i in range(len(signal))])
-    return normalized_signal
+    """
+    Local z-normalization with a configurable std floor.
+
+    Backward-compatible behavior:
+    - Very small values (<= 1e-6) are treated as legacy absolute epsilon.
+    - Typical Streamlit tuning values (> 1e-6 and < 1) are treated as a fraction of global std.
+    - Values >= 1 are treated as an absolute std floor.
+    """
+    half_window = max(1, int(window_size) // 2)
+    sig = np.asarray(signal, dtype=float)
+    global_std = float(np.nanstd(sig)) if sig.size else 0.0
+    if not np.isfinite(global_std) or global_std <= 0:
+        global_std = 1.0
+
+    if noise <= 1e-6:
+        std_floor = float(noise)
+    elif noise < 1.0:
+        std_floor = float(noise) * global_std
+    else:
+        std_floor = float(noise)
+    std_floor = max(std_floor, 1e-12)
+
+    normalized = np.empty_like(sig, dtype=float)
+    n = len(sig)
+    for i in range(n):
+        lo = max(0, i - half_window)
+        hi = min(n, i + half_window)
+        win = sig[lo:hi]
+        mu = float(np.mean(win)) if win.size else 0.0
+        sigma = float(np.std(win)) if win.size else 0.0
+        denom = max(sigma, std_floor)
+        normalized[i] = (sig[i] - mu) / denom
+    return normalized
 
 # Peak Refinement with WFDB
 def refine_peaks_with_wfdb(cleaned_signal, rpeaks, fs, search_radius=0.5, sample_rate=1000, peak_dir="compare"):
@@ -70,7 +99,8 @@ def peak_detect(signal, sampling_rate, datetime_series=None,
                 peak_distance_sec=PEAK_DISTANCE_SEC, search_radius_sec=SEARCH_RADIUS_SEC,
                 min_peak_height=MIN_PEAK_HEIGHT, max_peak_height=MAX_PEAK_HEIGHT,
                 enable_bandpass=True, enable_spike_removal=True, enable_absolute=True, enable_smoothing=True, 
-                enable_normalization=True, enable_refinement=True):
+                enable_normalization=True, enable_refinement=True, detection_sources=None,
+                detector_method="legacy", xqrs_conf=None, xqrs_learn=True, xqrs_verbose=False):
     
     results = {}
 
@@ -109,8 +139,98 @@ def peak_detect(signal, sampling_rate, datetime_series=None,
         normalized_signal = smoothed_signal
 
     # Peak Detection
-    detected_peaks = find_peaks(normalized_signal, height=peak_height, distance=int(peak_distance_sec * sampling_rate))[0]
+    method = str(detector_method or "legacy").strip().lower()
+    run_legacy_detector = True
+    if method == "wfdb_xqrs":
+        xqrs_conf = xqrs_conf or {}
+        try:
+            conf = processing.XQRS.Conf(**xqrs_conf)
+            detected_peaks = processing.xqrs_detect(
+                sig=np.asarray(signal, dtype=float),
+                fs=float(sampling_rate),
+                sampfrom=0,
+                sampto='end',
+                conf=conf,
+                learn=bool(xqrs_learn),
+                verbose=bool(xqrs_verbose),
+            )
+            detected_peaks = np.asarray(detected_peaks, dtype=int)
+            detected_by_source = {"wfdb_xqrs": detected_peaks}
+            run_legacy_detector = False
+        except Exception:
+            # Safe fallback: if XQRS fails, keep behavior deterministic by using legacy normalized peaks.
+            method = "legacy"
+    if run_legacy_detector:
+        selected_sources = detection_sources
+        if selected_sources is None:
+            selected_sources = ["normalized"]
+        elif isinstance(selected_sources, str):
+            text = selected_sources.strip()
+            parsed = None
+            if text.startswith("[") and text.endswith("]"):
+                try:
+                    parsed = ast.literal_eval(text)
+                except (SyntaxError, ValueError):
+                    parsed = None
+            if isinstance(parsed, (list, tuple, set)):
+                selected_sources = [str(v).strip() for v in parsed if str(v).strip()]
+            else:
+                selected_sources = [v.strip() for v in text.split(",") if v.strip()]
+        else:
+            selected_sources = [str(v).strip() for v in selected_sources if str(v).strip()]
+        if not selected_sources:
+            selected_sources = ["normalized"]
+
+        source_signals = {
+            "raw": np.asarray(signal),
+            "spikeless": np.asarray(spike_removed_signal),
+            "smoothed": np.asarray(smoothed_signal),
+            "normalized": np.asarray(normalized_signal),
+            "narrow_bandpass": np.asarray(narrow_bandpassed_signal),
+        }
+        if enable_bandpass and "broad_bandpass" in results:
+            source_signals["broad_bandpass"] = np.asarray(results["broad_bandpass"])
+
+        distance_samples = max(1, int(peak_distance_sec * sampling_rate))
+        detected_by_source = {}
+        detected_pool = []
+        for source_name in selected_sources:
+            source_key = str(source_name).strip().lower()
+            if source_key not in source_signals:
+                continue
+
+            if source_key == "normalized":
+                detection_signal = normalized_signal
+            else:
+                detection_signal = sliding_window_normalization(
+                    source_signals[source_key],
+                    int(window_size_multiplier * sampling_rate),
+                    noise=normalization_noise,
+                )
+                results[f"detection_{source_key}"] = detection_signal
+
+            source_peaks = find_peaks(
+                detection_signal,
+                height=peak_height,
+                distance=distance_samples,
+            )[0]
+            detected_by_source[source_key] = source_peaks
+            detected_pool.append(source_peaks)
+
+        if detected_pool:
+            detected_peaks = np.unique(np.concatenate(detected_pool))
+        else:
+            # Safe fallback when user-configured sources are unavailable.
+            detected_peaks = find_peaks(
+                normalized_signal,
+                height=peak_height,
+                distance=distance_samples,
+            )[0]
+            detected_by_source = {"normalized": detected_peaks}
+
+    results['detected_peaks_by_source'] = detected_by_source
     results['detected_peaks'] = detected_peaks
+    results['detector_method'] = method
 
     # Peak Refinement
     if enable_refinement:
@@ -126,16 +246,19 @@ def peak_detect(signal, sampling_rate, datetime_series=None,
 
     # Align heights with unique refined indices
     height_original = smoothed_signal[unique_refined_indices]
-    height_normalized = normalized_signal[refined_peaks[index_positions]]
+    height_normalized = normalized_signal[refined_indices[index_positions]]
     results['height_original'] = height_original
     results['height_normalized'] = height_normalized
 
-    # Filter out peaks that are too close to each other
+    # Filter out peaks that are too close to each other.
+    # Keep the latest peak in a close pair by default (replace prior).
     min_distance_samples = int(peak_distance_sec * sampling_rate)
     filtered_indices = [unique_refined_indices[0]] if len(unique_refined_indices) > 0 else []
     for i in range(1, len(unique_refined_indices)):
         if unique_refined_indices[i] - filtered_indices[-1] >= min_distance_samples:
             filtered_indices.append(unique_refined_indices[i])
+        else:
+            filtered_indices[-1] = unique_refined_indices[i]
 
     # Update the DataFrame with the filtered indices
     peak_df = pd.DataFrame({
@@ -161,10 +284,33 @@ def peak_detect(signal, sampling_rate, datetime_series=None,
     peak_df['key'] = np.where(peak_df['refined_index'].isin(filtered_peak_df['refined_index']), 
                               'beat_auto_detect_accepted', 
                               'beat_auto_detect_rejected')
-    peak_df['key'].fillna('beat_auto_detect_unknown', inplace=True)  # Ensure no NaN values in 'key'
+    peak_df['key'] = peak_df['key'].fillna('beat_auto_detect_unknown')  # Ensure no NaN values in 'key'
     results['peak_df'] = peak_df
 
     return results
+
+
+def upsert_rate_signal(data_pkl, rate_df, rate_key, parent_signal, transformation_log=None):
+    """
+    Write/update a derived rate-like signal and its signal_info metadata.
+    """
+    if transformation_log is None:
+        transformation_log = [f"{rate_key} updated."]
+
+    signal_info = {
+        "channels": [rate_key],
+        "metadata": {
+            rate_key: {
+                "original_name": f"Derived {rate_key.capitalize()} (bpm)",
+                "unit": "bpm",
+                "parent_signal": parent_signal,
+            }
+        },
+        "derived_from_signals": [parent_signal],
+        "transformation_log": transformation_log,
+    }
+    data_pkl.signal_data[rate_key] = rate_df
+    data_pkl.signal_info[rate_key] = signal_info
 
 
 def process_rate(
@@ -267,23 +413,14 @@ def process_rate(
         f"{rate_key} was calculated using RR intervals derived from peaks.",
     ]
 
-    # Define signal_info for the rate
-    signal_info = {
-        "channels": [rate_key],
-        "metadata": {
-            rate_key: {
-                "original_name": f"Derived {rate_key.capitalize()} (bpm)",
-                "unit": "bpm",
-                "parent_signal": parent_signal,
-            }
-        },
-        "derived_from_signals": [parent_signal],
-        "transformation_log": transformation_log,
-    }
-
-    # Save rate data and metadata
-    data_pkl.signal_data[rate_key] = rate_df
-    data_pkl.signal_info[rate_key] = signal_info
+    # Save rate data and metadata via shared utility.
+    upsert_rate_signal(
+        data_pkl=data_pkl,
+        rate_df=rate_df,
+        rate_key=rate_key,
+        parent_signal=parent_signal,
+        transformation_log=transformation_log,
+    )
     print(f"Derived {rate_key} data and metadata saved successfully.")
 
     # Create DataFrame for accepted events
@@ -326,6 +463,3 @@ def process_rate(
     # Append new events
     data_pkl.event_data = pd.concat([data_pkl.event_data, rate_events], ignore_index=True)
     print(f"Appended {rate_key} events successfully.")
-
-
-
