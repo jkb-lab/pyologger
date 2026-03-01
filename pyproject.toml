@@ -33,9 +33,7 @@ dependencies = [
   "plotly-resampler",
   "dash",
   "dash-cytoscape",
-  "sphinx",
   "streamlit-plotly-events",
-  "sphinx-rtd-theme",
   "magnetic_field_calculator",
   "pelicanfs",
   "s3fs",
@@ -43,6 +41,13 @@ dependencies = [
   "EDFlib-Python",
   "openpyxl",
   "ipykernel"
+]
+
+[project.optional-dependencies]
+docs = [
+  "sphinx>=8.0",
+  "sphinx-rtd-theme>=2.0",
+  "antropy",
 ]
 
 [tool.setuptools.packages.find] # finds submodules

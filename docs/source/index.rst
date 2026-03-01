@@ -11,10 +11,10 @@ Welcome to pyologger's documentation!
    :caption: Contents:
 
    intro
+   workflows_and_dash
    modules
+   docs_maintenance
    examples
-   pyologger
-   pyologger.load_data
 
 
 

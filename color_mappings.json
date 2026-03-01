@@ -158,5 +158,91 @@
             "shade_pct_min": 0.0,
             "shade_pct_max": 100.0
         }
+    },
+    "__peak_detect_defaults__": {
+        "heart_rate": {
+            "signals": [
+                "ecg",
+                "depth",
+                "prh",
+                "heart_rate",
+                "hr_broad_bandpass",
+                "hr_narrow_bandpass",
+                "hr_smoothed",
+                "hr_normalized",
+                "heart_rate_fixed"
+            ],
+            "order": [
+                "ecg",
+                "depth",
+                "prh",
+                "heart_rate",
+                "hr_broad_bandpass",
+                "hr_narrow_bandpass",
+                "hr_smoothed",
+                "hr_normalized",
+                "heart_rate_fixed"
+            ],
+            "channels": {
+                "ecg": [
+                    "ecg"
+                ],
+                "depth": [
+                    "depth"
+                ],
+                "prh": [
+                    "pitch",
+                    "roll"
+                ],
+                "heart_rate": [
+                    "heart_rate"
+                ],
+                "hr_broad_bandpass": [
+                    "broad_bandpass"
+                ],
+                "hr_narrow_bandpass": [
+                    "narrow_bandpass"
+                ],
+                "hr_smoothed": [
+                    "smoothed"
+                ],
+                "hr_normalized": [
+                    "normalized"
+                ],
+                "heart_rate_fixed": [
+                    "heart_rate_fixed"
+                ]
+            },
+            "channel_order": {
+                "ecg": [
+                    "ecg"
+                ],
+                "depth": [
+                    "depth"
+                ],
+                "prh": [
+                    "pitch",
+                    "roll"
+                ],
+                "heart_rate": [
+                    "heart_rate"
+                ],
+                "hr_broad_bandpass": [
+                    "broad_bandpass"
+                ],
+                "hr_narrow_bandpass": [
+                    "narrow_bandpass"
+                ],
+                "hr_smoothed": [
+                    "smoothed"
+                ],
+                "hr_normalized": [
+                    "normalized"
+                ],
+                "heart_rate_fixed": [
+                    "heart_rate_fixed"
+                ]
+            }
+        }
     }
 }

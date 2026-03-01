@@ -8,6 +8,10 @@ Subpackages
    :maxdepth: 4
 
    pyologger.load_data
+   pyologger.plot_data
+   pyologger.process_data
+   pyologger.utils
+   pyologger.interactive_pyologger
 
 Module contents
 ---------------
