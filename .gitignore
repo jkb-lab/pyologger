@@ -53,6 +53,9 @@ pyologger.egg-info/*
 *.manifest
 *.spec
 
+.snakemake_maps
+.snakemake_segmentation
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt

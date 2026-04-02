@@ -11,23 +11,22 @@ The minimal Dash app also includes an experimental water-tank viewer adapted fro
 For segmentation reruns, use:
 
 ```bash
-pyologger/scripts/reset_segmentation_run.sh <run_name>
+scripts/reset_segmentation_run.sh <run_name>
 ```
 
-Then rerun a single segmentation run by marker target:
+Then rerun a single segmentation run by marker target (from `pyologger/`):
 
 ```bash
-cd pyologger
 RUN_NAME=<run_name>
-snakemake -s workflows/Snakefile --configfile config.yaml --cores 4 \
-  segmentation_markers/${RUN_NAME}/14_summary.done
+MARKERS_BASE=$(python3 -c "import yaml; c=yaml.safe_load(open('config.yaml')); print(c['paths']['local_private_meta_analysis_data'])")/segmentation
+snakemake -s Snakefile --configfile config.yaml --cores 4 \
+  ${MARKERS_BASE}/${RUN_NAME}/14_summary.done
 ```
 
 
 ## Segmentation Workflow
 
-See [SEGMENTATION_WORKFLOW.md](SEGMENTATION_WORKFLOW.md) for the current, modular segmentation, clustering, and supervised learning workflow. This document replaces all previous segmentation workflow documentation and review guides.
-Use [docs/CLUSTERING_REVIEW_GUIDE.md](docs/CLUSTERING_REVIEW_GUIDE.md) for review checklists and [notebooks/SEGMENTATION_REVIEW.ipynb](notebooks/SEGMENTATION_REVIEW.ipynb) for artifact inspection.
+See [Segmentation_Workflow.md](Segmentation_Workflow.md) for the current segmentation pipeline: run commands, marker path configuration, reset instructions, output structure, QA checklist, and cross-dataset QC. Use [notebooks/SEGMENTATION_REVIEW.ipynb](notebooks/SEGMENTATION_REVIEW.ipynb) for artifact inspection.
 
 ## Features
 
