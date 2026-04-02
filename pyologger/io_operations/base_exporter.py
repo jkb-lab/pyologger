@@ -104,6 +104,9 @@ class BaseExporter:
 
             df = df.copy()
 
+            def _stringify(series: pd.Series) -> pd.Series:
+                return series.astype("string").fillna("")
+
             for col in df.columns:
                 if df[col].dtype == 'object':
                     # Look at a non-NA example if possible
@@ -112,24 +115,33 @@ class BaseExporter:
 
                     # Handle datetime-like object column
                     if isinstance(first, (datetime, date, time)):
-                        df[col] = df[col].astype(str)
+                        df[col] = _stringify(df[col])
                     elif pd.api.types.is_datetime64_any_dtype(df[col]):
                         df[col] = pd.to_datetime(df[col])
                     else:
                         # Attempt to convert to float, if fails convert to string
                         try:
                             df[col] = df[col].astype(float)
-                        except ValueError:
-                            df[col] = df[col].astype(str)
+                        except (ValueError, TypeError):
+                            df[col] = _stringify(df[col])
                 elif pd.api.types.is_datetime64_any_dtype(df[col]):
                     df[col] = pd.to_datetime(df[col])
 
             # Check the number of columns in the DataFrame
             if df.shape[1] == 1:
                 # If there is only one column, return a flat array
-                return df.iloc[:, 0].to_numpy()
+                series = df.iloc[:, 0]
+                if series.dtype == 'object' or pd.api.types.is_string_dtype(series.dtype):
+                    return _stringify(series).to_numpy(dtype=str)
+                return series.to_numpy()
             else:
-                # If there are multiple columns, return nested arrays
+                # Multi-column signal arrays require one consistent dtype.
+                if any(
+                    (dtype == 'object') or pd.api.types.is_string_dtype(dtype)
+                    for dtype in df.dtypes
+                ):
+                    return df.apply(_stringify).to_numpy(dtype=str)
+
                 def safe_to_numeric(series):
                     try:
                         return pd.to_numeric(series)
@@ -241,11 +253,6 @@ class BaseExporter:
                     ds[var_name] = create_data_array(data_array, dims, coords)
                     set_variables_attr(ds, var_name, var)
 
-        # Flatten and add global attributes
-        flatten_dict('deployment_info', self.datareader.deployment_info)
-        flatten_dict('animal_info', self.datareader.animal_info)
-        flatten_dict('dataset_info', self.datareader.dataset_info if self.datareader.dataset_info else {})
-
         def recursive_flatten_dict(prefix, d):
             """Recursively flattens a dictionary and adds it to dataset attributes."""
             if isinstance(d, dict):
@@ -267,6 +274,16 @@ class BaseExporter:
                                 except (TypeError, ValueError):
                                     ds.attrs[f"{flattened_key}_{i}"] = "Invalid entry"
                                     print(f"⚠️ Invalid entry recognized and placed in {flattened_key}_{i}")
+                    else:
+                        try:
+                            serialized_value = serialize_value(value)
+                            if isinstance(serialized_value, (str, int, float, list, tuple, np.ndarray)):
+                                ds.attrs[flattened_key] = serialized_value
+                            else:
+                                raise TypeError("Invalid value type for NetCDF serialization")
+                        except (TypeError, ValueError):
+                            ds.attrs[flattened_key] = "Invalid entry"
+                            print(f"⚠️ Invalid entry recognized and placed in {flattened_key}")
             else:
                 # If it's not a dictionary, just store the value
                 try:
@@ -278,6 +295,12 @@ class BaseExporter:
                 except (TypeError, ValueError):
                     ds.attrs[prefix] = "Invalid entry"
                     print(f"⚠️ Invalid entry recognized and placed in {prefix}")
+
+        # Flatten and add global attributes
+        recursive_flatten_dict('deployment_info', self.datareader.deployment_info)
+        recursive_flatten_dict('procedure_info', getattr(self.datareader, 'procedure_info', {}) or {})
+        recursive_flatten_dict('animal_info', self.datareader.animal_info)
+        recursive_flatten_dict('dataset_info', self.datareader.dataset_info if self.datareader.dataset_info else {})
 
         for signal_name, signal_info in self.datareader.signal_info.items():
             recursive_flatten_dict(f'signal_info_{signal_name}', signal_info)

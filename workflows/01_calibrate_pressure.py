@@ -1,13 +1,20 @@
-# Run with shell command: python pyologger/workflows/01_calibrate_pressure.py --dataset oror-adult-orca_hr-sr-vid_sw_JKB-PP --deployment 2024-01-16_oror-002
+# Run with shell command: python3 pyologger/workflows/01_calibrate_pressure.py --dataset oror-adult-orca_hr-sr-vid_sw_JKB-PP --deployment 2024-01-16_oror-002
 # Zero offset correction: calibrate pressure signal
 import os
 import pickle
 import argparse
+import sys
 import pandas as pd
 import numpy as np
 import xarray as xr
 import ast
 import pytz
+
+# Ensure direct workflow execution resolves the repo-local pyologger package.
+WORKFLOW_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(WORKFLOW_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # Import necessary pyologger utilities
 from pyologger.utils.folder_manager import *
@@ -17,6 +24,12 @@ from pyologger.calibrate_data.zoc import *
 from pyologger.io_operations.base_exporter import *
 from pyologger.analyze_data.find_segments import *
 from pyologger.analyze_data.analyze_segments import *
+from pyologger.utils.workflow_netcdf import (
+    latest_processing_netcdf_path,
+    netcdf_has_signal,
+    netcdf_signal_has_channel,
+    save_step_netcdf_if_changed,
+)
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Zero Offset Correction - Calibrate Pressure Sensor")
@@ -40,15 +53,35 @@ def _as_bool(value):
         return value.strip().lower() in {"1", "true", "yes", "y", "on"}
     return bool(value)
 
-# Load data with optional arguments
+# Resolve deployment first so critical-signal checks can inspect NetCDF metadata.
 if args.dataset and args.deployment:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager = resolve_deployment_context(
         data_dir, dataset_id=args.dataset, deployment_id=args.deployment
     )
 else:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(data_dir)
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager = resolve_deployment_context(data_dir)
 
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
+latest_netcdf_path = latest_processing_netcdf_path(deployment_folder, deployment_id)
+
+has_pressure_signal = netcdf_has_signal(latest_netcdf_path, "pressure")
+has_pressure_channel = netcdf_signal_has_channel(latest_netcdf_path, "pressure", "pressure")
+has_depth_signal = netcdf_has_signal(latest_netcdf_path, "depth")
+has_depth_channel = (
+    netcdf_signal_has_channel(latest_netcdf_path, "depth", "depth") or
+    netcdf_signal_has_channel(latest_netcdf_path, "depth", "corrected_depth")
+)
+
+if not ((has_pressure_signal and has_pressure_channel) or (has_depth_signal and has_depth_channel)):
+    print(
+        "Skipping Step 01 based on NetCDF metadata: neither a usable pressure signal "
+        "nor a usable depth signal is available."
+    )
+    param_manager.add_to_config("current_processing_step", "Processing Step 01 skipped: missing pressure/depth input.")
+    raise SystemExit(0)
+
+with open(pkl_path, "rb") as file:
+    data_pkl = pickle.load(file)
 
 
 def _to_list(value):
@@ -249,6 +282,7 @@ if None in {OVERLAP_START_TIME, OVERLAP_END_TIME, ZOOM_WINDOW_START_TIME, ZOOM_W
 
 current_processing_step = "Processing Step 01 IN PROGRESS."
 param_manager.add_to_config("current_processing_step", current_processing_step)
+data_changed = False
 
 critical_signal = 'pressure'
 has_derived_depth = (
@@ -284,6 +318,7 @@ if has_derived_depth and pressure_is_missing:
             data_pkl.signal_info['pressure'] = depth_info
     print("✅ Copied depth data and metadata to pressure, with pressure column.")
     skip_step = False
+    data_changed = True
 elif has_derived_depth and not pressure_is_missing:
     print("✅ data_pkl.signal_data['depth'] exists but pressure already exists.")
     print("✅ Keeping existing pressure data without overwriting.")
@@ -303,6 +338,7 @@ else:
         print(f'✅ Proceed - Skip_step: {skip_step}. Critical signal: {critical_signal} found.')
 
 if not skip_step:
+    data_changed = True
     # **Step 1: Clean and prepare data**
     # Keep raw pressure channel unchanged; all conversions/corrections apply only
     # to this local working copy used to derive depth.
@@ -458,7 +494,9 @@ if not skip_step:
     print(f"✅ Loaded downsampled_sampling_rate: {dive_detection_settings['downsampled_sampling_rate']}")
 
     conversion_factor = float(dive_detection_settings.get("conversion_factor", 1.0))
-    conversion_factor = max(0.0, min(100.0, conversion_factor))
+    # Allow -1.0 for sign flipping, otherwise clamp to reasonable positive range
+    if conversion_factor != -1.0:
+        conversion_factor = max(0.01, min(100.0, conversion_factor))
     dive_detection_settings["conversion_factor"] = conversion_factor
     try:
         logger_restart_pressure_threshold = float(
@@ -716,17 +754,17 @@ if not skip_step:
 else:
     print(f"Skipping step due to missing critical signal: {critical_signal}.")
 
-data_pkl.event_data = normalize_event_datetimes(
-    getattr(data_pkl, "event_data", None),
-    data_pkl.deployment_info.get("Time Zone", "UTC")
-)
+if data_changed:
+    data_pkl.event_data = normalize_event_datetimes(
+        getattr(data_pkl, "event_data", None),
+        data_pkl.deployment_info.get("Time Zone", "UTC")
+    )
 
 param_manager.add_to_config("current_processing_step", "Processing Step 01: Pressure signal calibration complete.")
-with open(pkl_path, "wb") as file:
-    pickle.dump(data_pkl, file)
+if data_changed:
+    with open(pkl_path, "wb") as file:
+        pickle.dump(data_pkl, file)
 
-exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
-netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step01.nc') # Define the export path
-exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format
+save_step_netcdf_if_changed(data_pkl, deployment_folder, deployment_id, 1, changed=data_changed)
 
 print("✅ Data processing complete. Pickle file updated.")

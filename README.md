@@ -6,7 +6,28 @@
 
 Pyologger is a Python library designed for analyzing multi-logger, multi-signal biologging data. It provides tools for data loading, processing, visualization, and feature generation, making it easier to analyze data from various signals, including accelerometers, gyroscopes, and depth signals.
 
----
+The minimal Dash app also includes an experimental water-tank viewer adapted from Evan Wallace's MIT-licensed [WebGL Water](https://github.com/evanw/webgl-water) project. Credit for the original water simulation/tank demo belongs to Evan Wallace.
+
+For segmentation reruns, use:
+
+```bash
+pyologger/scripts/reset_segmentation_run.sh <run_name>
+```
+
+Then rerun a single segmentation run by marker target:
+
+```bash
+cd pyologger
+RUN_NAME=<run_name>
+snakemake -s workflows/Snakefile --configfile config.yaml --cores 4 \
+  segmentation_markers/${RUN_NAME}/14_summary.done
+```
+
+
+## Segmentation Workflow
+
+See [SEGMENTATION_WORKFLOW.md](SEGMENTATION_WORKFLOW.md) for the current, modular segmentation, clustering, and supervised learning workflow. This document replaces all previous segmentation workflow documentation and review guides.
+Use [docs/CLUSTERING_REVIEW_GUIDE.md](docs/CLUSTERING_REVIEW_GUIDE.md) for review checklists and [notebooks/SEGMENTATION_REVIEW.ipynb](notebooks/SEGMENTATION_REVIEW.ipynb) for artifact inspection.
 
 ## Features
 
@@ -14,81 +35,6 @@ Pyologger is a Python library designed for analyzing multi-logger, multi-signal 
 - **Data processing**: Calibrate signal data, perform zero-offset corrections, and generate features.
 - **Visualization**: Interactive plotting and exploration of signal and derived data.
 - **Pipeline support**: Compatibility with a custom database, [DiveDB](https://github.com/ecophysviz-lab/DiveDB), to store and compare ecophysiological data across species.
-
----
-
-## Data formats
-
-After importing diverse logger data types, pyologger leverages two primary data structures to store all of the data for a deployment in a single file: 
-
-1. ### `data_pkl` - In-memory Pickle data format 
-    Flexible in-memory data format for saving intermediate signals. Import functions will create this structure for you, but this information should help you understand how the data is stored and can be retrieved: 
-    
-    - ### Easy-access filepaths: 
-        - **Deployment Folder**: `data_pkl.deployment_folder`: Filepath to the folder that stores subfolders of data associated with the deployment. Root directories can be adjusted in [config.yaml](config.yaml).
-        - **Data Folder**: `data_pkl.data_folder`: Filepath to the folder with raw data from the deployment (input data for pyologger).
-        - **Output Folder**: `data_pkl.output_folder`: Filepath to the folder with output data from the deployment (output data for pyologger); this folder can be empty or not exist before processing.
-
-    - ### Essential metadata:
-        - **Deployment ID**: `data_pkl.deployment_id`: Deployment ID is the combination of the date of logger attachment to animal and that animal's animal ID. For multiple loggers, deployment begins with the attachment of the first logger and ends with the removal of the last logger.
-
-            🐳 Example deployment ID: 2023-06-13_oror-002
-
-        - **Deployment Info**: `data_pkl.deployment_info`: Dictionary with deployment metadata fields
-
-            <details>
-            <summary>Example deployment info</summary>
-            
-            ```{json}
-            {'Deployment Date': '2023-06-13',
-                'Deployment Latitude': 32.764655,
-                'Deployment Longitude': -117.228585,
-                'Time Zone': 'America/Los_Angeles'}
-            ```
-
-            </details>
-
-            - **Deployment Date**: Date of first logger attachment (local time); type=string; format `YYYY-MM-DD`; e.g. `2023-06-13`
-            - **Deployment Latitude**: Deployment latitude in decimal degrees; type=float; e.g. `32.764000`
-            - **Deployment Longitude**: Deployment longitude in decimal degrees; type=float; e.g. `-117.228000`
-            - **Deployment Time Zone**: Time zone of deployment start in pandas pytz format (use `pytz.all_timezones` to find relevant time zone or use python package `timezonefinder`).
-
-        - **Logger Info**: `data_pkl.logger_info`: *Nested* dictionary with logger metadata fields. Logger metadata for each logger is *nested* under the logger ID.
-
-            <details>
-            <summary>Example logger info</summary>
-            
-            ```{json}
-            {'CC-96': {'ID': 'CC-96',
-                'Manufacturer': 'CATS',
-                'Montage ID': 'cats-video-montage_V1',
-                'datetime_created_from': 'date and time',
-                'fs': 400},
-            'UF-01': {'ID': 'UF-01',
-                'Manufacturer': 'UFI',
-                'Montage ID': 'hr-montage_V1',
-                'datetime_created_from': 'datetime',
-                'fs': 100}}
-            ```
-            </details>
-
-            - **Logger ID**: Items in dictionary are nested within unique logger ID combining descriptive letter string and numerical code, e.g. `CC-96` for Cats Camera with serial number ending in 96. More detailed logger metadata (like serial number) should be stored separately.
-            Access by using: `data_pkl.logger_info[logger_id]`
-                - **Manufacturer**: Logger manufacturer name to use relevant methods to read in raw data. Ensure format matches known manufacturers to match known methods. Access key by using: `data_pkl.logger_info[logger_id]['Manufacturer']` Example values: `CATS`, `UFI`, `Wildlife Computers`, `Evolocus`, etc.
-                - **Montage ID**: Unique montage ID used for deployment. A montage is a dictionary that maps each original channel name/ID to a standardized channel name/ID. Montages are stored in a `montage_log.json` in the repository root directory and managed using the [`MontageManager`](pyologger/utils/montage_manager.py) class. Access key by using: `data_pkl.logger_info[logger_id]['Montage ID']` Example values: `hr-montage_V1`
-                - **fs**: Sampling frequencies found in the data for the logger. Can be a single sampling frequency or multiple.
-                - **datetime_created_from**: A record of how the date time field was created (to help debug in cases where there are time issues).
-          
-        - **Animal Info**: `data_pkl.animal_info`: Dictionary with animal metadata including required Animal ID as well as other optional animal metadata such as age at deployment, flipper tag IDs, lab-specific ID, project-specific ID, domain-specific ID, etc.
-            - **Animal ID**: We use the animal ID structure of DiveDB that has the genus-species two-letter codes followed by a unique numerical ID. E.g. `oror-002` for the second *Orcinus orca* entered into DiveDB.
-
-        - **Dataset Info**: `data_pkl.dataset_info`: We use the term dataset to represent a unified data collection effort. This could take place over multiple years or be associated with multiple funding sources, but is typically unified in the types of loggers that are deployed, the types of metrics measured, and the species studied. However, this is flexible as long as a study can be mapped one or more deployments that are part of the data collection effort. A deployment should not normally be associated with multiple datasets. At minimum, a dataset must be defined by an ID, but once made public should ideally contain information on funding, citation, collaborators, PIs, etc.
-            - **Dataset ID**: Dataset ID - flexible but unique string identifier that contains some key words related to the unique purpose of the data collection effort, such as the metric studied (e.g. `hr`, `sleep`) as well as the study system (common names are OK here; e.g. `ep` for emperor penguin, `nese` for northern elephant seal), and followed by the key data curators/PIs' initials (e.g. `JKB`). Example for sleep study on northern elephant seals: `mian-juv-nese_sleep_lml-ano_JKB`
-            
-            ***Note***: There are other formalized fields where each data contributor can be more formally recognized, this is a good place for the initials of a "corresponding PI". 
-
-    - ### Key data types:
-        
         - #### Signal data:
             - **Sensor Data**: `data_pkl.signal_data[signal_name]`
             
@@ -222,7 +168,7 @@ Currently:
 1. Create virtual environment from which to run your code:
 
 ```bash
-python -m venv venv
+python3 -m venv venv
 ``` 
 
 This creates a folder `venv`, ignored by git by default, that contains all library-related files.
@@ -241,8 +187,10 @@ source venv/bin/activate
 3. Install the package `pyologger` localling using: 
 
 ```bash
-pip install .
+pip install -e .
 ``` 
+
+Use the `pyologger/` repo directory as your working directory for Snakemake and direct workflow runs. The workflow scripts are written to resolve the local repo copy of `pyologger`, so they should be run from this checkout rather than relying on a separately installed package.
 
 4. As you develop, please remember to add any new packages used into the `pyproject.toml` file and add documentation; see [Instructions for Contributing](CONTRIBUTING.md).
 ---
@@ -272,6 +220,80 @@ overwrite_step01_from_nc: true
 ```
 
 When enabled, Snakemake passes `--overwrite` to `workflows/01_calibrate_pressure.py` for Step 01.
+
+### Dataset-Level Segmentation Pipeline
+
+The segmentation DAG is separate from the step00-step06 deployment pipeline.
+Current stages are marker-driven:
+
+- `09_qc.done`
+- `10_algorithmic.done`
+- `11_features.done`
+- `12_unsupervised.done`
+- `13_supervised.done`
+- `14_summary.done`
+
+Configure one or more runs under `segmentation_runs.yaml`, then run:
+
+```bash
+RUN_NAME=<run_name>
+snakemake -s workflows/Snakefile --configfile config.yaml --cores 4 \
+    segmentation_markers/${RUN_NAME}/14_summary.done
+```
+
+To run up to specific stages:
+
+```bash
+snakemake -s workflows/Snakefile --configfile config.yaml --cores 4 \
+    segmentation_markers/${RUN_NAME}/10_algorithmic.done
+```
+
+```bash
+snakemake -s workflows/Snakefile --configfile config.yaml --cores 4 \
+    segmentation_markers/${RUN_NAME}/11_features.done
+```
+
+```bash
+snakemake -s workflows/Snakefile --configfile config.yaml --cores 4 \
+    segmentation_markers/${RUN_NAME}/12_unsupervised.done
+```
+
+```bash
+snakemake -s workflows/Snakefile --configfile config.yaml --cores 4 \
+    segmentation_markers/${RUN_NAME}/13_supervised.done
+```
+
+The stage scripts live in:
+
+- `workflows/09_cross_dataset_qc.py`
+- `workflows/10_algorithmic_segmentation.py`
+- `workflows/11_feature_generation.py`
+- `workflows/12_unsupervised_segmentation.py`
+- `workflows/13_supervised_segmentation.py`
+- `workflows/14_summary.py`
+
+The canonical feature outputs are:
+
+- `<run_output_root>/features/features_raw.parquet`
+- `<run_output_root>/features/feature_index.parquet`
+- `<run_output_root>/features/feature_correlation_matrix.parquet`
+- `<run_output_root>/features/dropped_correlated_features.csv`
+- `<run_output_root>/features/features_filtered.parquet`
+
+The canonical supervised outputs are written under:
+
+- `<run_output_root>/supervised/`
+
+These include holdout predictions, threshold diagnostics, feature importances,
+deployment-wide predictions, and the supervised summary report. When
+`export_rf_events` is enabled, the supervised stage also writes merged `rf_*`
+state events back into each deployment `data.pkl`.
+
+Use `notebooks/SEGMENTATION_REVIEW.ipynb` as the canonical artifact-review notebook.
+
+For multi-dataset runs, the output root is:
+
+`/Volumes/WORK-SSD/Datasets/Unpublished/00_Meta-Analysis/segmentation/<analysis_id>/`
 
 ## Folder Structure
 

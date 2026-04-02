@@ -1,10 +1,10 @@
 Workflows And Dash App
 ======================
 
-Snakemake
----------
+Snakemake Deployment Pipeline (Step00-Step06)
+---------------------------------------------
 
-Run commands from the ``pyologger/`` directory.
+Run commands from ``pyologger/``.
 
 Run one workflow target for one deployment:
 
@@ -12,48 +12,86 @@ Run one workflow target for one deployment:
 
    snakemake -s Snakefile /path/to/<dataset>/<deployment>/outputs/<deployment>_step01.nc --cores 1
 
-This builds only the rule needed for that output file.
-
-Run the full workflow for a deployment output:
+Run the full workflow for one deployment:
 
 .. code-block:: bash
 
    snakemake -s Snakefile /path/to/<dataset>/<deployment>/outputs/<deployment>_final.nc --cores 4
 
-Tip: Use ``-n`` for a dry run and ``-p`` to print shell commands.
+Use ``-n -p`` to preview and print commands.
+
+Segmentation / Clustering / Supervised Workflow
+------------------------------------------------
+
+The segmentation workflow is configured by ``segmentation_runs.yaml`` and executed via:
+
+- ``pyologger/workflows/Snakefile``
+
+Each run writes markers to:
+
+- ``segmentation_markers/<run_name>/``
+
+Current marker stages:
+
+- ``09_qc.done``
+- ``10_algorithmic.done``
+- ``11_features.done``
+- ``12_unsupervised.done``
+- ``13_supervised.done``
+- ``14_summary.done``
+
+Run one full segmentation pipeline:
 
 .. code-block:: bash
 
-   snakemake -s Snakefile /path/to/<dataset>/<deployment>/outputs/<deployment>_step01.nc -n -p --cores 1
+   RUN_NAME=mian_mile_sleep_transfer_rf
+   snakemake -s workflows/Snakefile --configfile config.yaml --cores 4 \
+     segmentation_markers/${RUN_NAME}/14_summary.done
 
-Optional Step 01 overwrite mode:
+Run a partial stage:
 
-Set this in ``config.yaml``:
+.. code-block:: bash
 
-.. code-block:: yaml
+   snakemake -s workflows/Snakefile --configfile config.yaml --cores 4 \
+     segmentation_markers/${RUN_NAME}/11_features.done
 
-   overwrite_step01_from_nc: true
+Output roots are resolved by the run context and typically land at:
 
-When enabled, Step 01 reads pressure from ``outputs/<deployment>_00_processed.nc`` before calibration.
+- ``00_Meta-Analysis/segmentation/<analysis_id>/`` (multi-dataset)
+- ``<dataset_id>/00_Meta-Analysis/segmentation/<analysis_id>/`` (single-dataset)
+
+Key run outputs:
+
+- ``features/features_filtered.parquet``
+- ``clustering/clustered_windows.parquet``
+- ``supervised/supervised_predictions.parquet``
+- ``summary/method_budget_daily.parquet``
+- ``summary/method_budget_hourly.parquet``
+
+Cross-dataset channel/unit QC is stage ``09_qc`` and can also be run directly:
+
+.. code-block:: bash
+
+   python3 scripts/run_cross_dataset_qc.py --config config.yaml --help
+
+Review entrypoint:
+
+- ``notebooks/SEGMENTATION_REVIEW.ipynb``
 
 Dash App
 --------
 
-The current interactive app entrypoint is:
+Current interactive app entrypoint:
 
-``pyologger/dash/minimal_interactive/app.py``
+- ``pyologger/dash/minimal_interactive/app.py``
 
-Run it from the repository root:
+Run from repository root:
 
 .. code-block:: bash
 
    python pyologger/dash/minimal_interactive/app.py --dataset <dataset_id> --deployment <deployment_id> --port 8061
 
-Then open:
+Open:
 
-``http://127.0.0.1:8061``
-
-Notes:
-
-- The app reads paths from ``CONFIG_PATH`` (environment variable) via ``pyologger/utils/folder_manager.py``.
-- ``--dataset`` and ``--deployment`` are required by this entrypoint.
+- ``http://127.0.0.1:8061``
+- ``http://127.0.0.1:8061/segmentation``

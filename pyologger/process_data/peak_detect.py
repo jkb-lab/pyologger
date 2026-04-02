@@ -6,6 +6,29 @@ from scipy.signal.windows import bartlett
 from scipy import stats
 from wfdb import processing
 
+QUADRUPED_SPECIES_CODES = { # For these species codes, detected stroke_rate will be converted to stride_rate by dividing by 2.
+    "pale",  # Panthera leo
+}
+
+
+def _get_species_code_from_animal_id(animal_id):
+    """Extract the species code prefix from an animal ID like 'pale-001'."""
+    if animal_id is None:
+        return ""
+    animal_id_text = str(animal_id).strip().lower()
+    if not animal_id_text:
+        return ""
+    return animal_id_text.split("-", 1)[0]
+
+
+def _should_convert_stroke_to_stride_rate(data_pkl, mode):
+    """Return True when stroke detections should be reported as stride rate."""
+    if mode != "stroke_rate":
+        return False
+    animal_info = getattr(data_pkl, "animal_info", {}) or {}
+    species_code = _get_species_code_from_animal_id(animal_info.get("Animal_ID"))
+    return species_code in QUADRUPED_SPECIES_CODES
+
 # Configuration Section
 BROAD_LOW_CUTOFF = 1  # Hz for bandpass filter
 BROAD_HIGH_CUTOFF = 35  # Hz for bandpass filter
@@ -340,6 +363,14 @@ def process_rate(
         if mode == "heart_rate"
         else "calculated stroke rate from detected peaks"
     )
+    convert_stroke_to_stride_rate = _should_convert_stroke_to_stride_rate(data_pkl, mode)
+    if convert_stroke_to_stride_rate:
+        animal_info = getattr(data_pkl, "animal_info", {}) or {}
+        species_code = _get_species_code_from_animal_id(animal_info.get("Animal_ID"))
+        description = "calculated stride rate from detected peaks"
+        print(
+            f"[peak_detect] Converting stroke_rate to stride_rate for quadruped species code '{species_code}'."
+        )
 
     peak_df = results["peak_df"]
 
@@ -353,6 +384,9 @@ def process_rate(
     else:
         rr_intervals = np.array([])
         rate_values = np.array([])
+
+    if convert_stroke_to_stride_rate and len(rate_values) > 0:
+        rate_values = rate_values / 2.0
 
     # Initialize the rate data array
     rate_data = np.full(len(signal_subset_df), np.nan)
@@ -412,6 +446,10 @@ def process_rate(
         f"Parameters used: {', '.join(f'{k}={v}' for k, v in params.items())}.",
         f"{rate_key} was calculated using RR intervals derived from peaks.",
     ]
+    if convert_stroke_to_stride_rate:
+        transformation_log.append(
+            "Quadruped adjustment applied: divided detected stroke rate by 2 to estimate stride rate."
+        )
 
     # Save rate data and metadata via shared utility.
     upsert_rate_signal(

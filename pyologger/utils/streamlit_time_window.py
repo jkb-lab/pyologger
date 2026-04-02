@@ -17,6 +17,21 @@ def _to_aware(ts_value, tz_name: str):
 
 
 def deployment_time_span(data_pkl, tz_name: str):
+    header_start = getattr(data_pkl, "global_start", None)
+    header_end = getattr(data_pkl, "global_end", None)
+    if header_start is not None and header_end is not None:
+        start_ts = pd.Timestamp(header_start)
+        end_ts = pd.Timestamp(header_end)
+        if start_ts.tzinfo is None:
+            start_ts = start_ts.tz_localize(tz_name)
+        else:
+            start_ts = start_ts.tz_convert(tz_name)
+        if end_ts.tzinfo is None:
+            end_ts = end_ts.tz_localize(tz_name)
+        else:
+            end_ts = end_ts.tz_convert(tz_name)
+        return start_ts, end_ts
+
     mins = []
     maxs = []
     for sig_df in getattr(data_pkl, "signal_data", {}).values():

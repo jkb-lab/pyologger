@@ -40,6 +40,7 @@ MANIFEST
 token.txt
 
 .snakemake
+*.done
 
 dash/assets/*
 config_backups
@@ -97,6 +98,10 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+notebooks/MA*.ipynb
+notebooks/WK*.ipynb
+notebooks/xx*.ipynb
+notebooks/xx_sandbox/
 
 # IPython
 profile_default/

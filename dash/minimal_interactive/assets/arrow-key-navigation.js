@@ -1,6 +1,6 @@
 /*
  * Arrow key nudging for playhead control.
- * Left/Right arrows nudge playhead by -/+1.0s via hidden Dash input.
+ * Left/Right arrows nudge playhead by -/+5.0s via hidden Dash input.
  */
 (function () {
   "use strict";

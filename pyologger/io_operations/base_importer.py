@@ -21,6 +21,14 @@ class BaseImporter:
         # Load the custom JSON mapping for column names if available
         if self.montage_path:
             self.load_custom_mapping()
+
+    @staticmethod
+    def normalize_channel_key(value):
+        """Normalize channel identifiers so importer labels and JSON keys compare reliably."""
+        normalized = re.sub(r"[^\w]", "", str(value).strip().lower().replace(" ", ""))
+        if normalized.startswith("magn"):
+            normalized = "mag" + normalized[4:]
+        return normalized
         
     def read_csv(self, csv_path):
         """Reads a CSV file with multiple encoding attempts."""
@@ -104,12 +112,35 @@ class BaseImporter:
                     )
                     self.montage = None
                     return
-                if montage_id not in full_mapping[manufacturer]:
-                    raise ValueError(f"Montage ID '{montage_id}' not found under manufacturer '{manufacturer}'.")
+
+                manufacturer_mappings = full_mapping[manufacturer]
+                resolved_montage_id = montage_id
+                if montage_id not in manufacturer_mappings:
+                    case_insensitive_match = next(
+                        (candidate for candidate in manufacturer_mappings if str(candidate).strip().lower() == montage_id_text),
+                        None,
+                    )
+                    if case_insensitive_match is not None:
+                        resolved_montage_id = case_insensitive_match
+                    elif len(manufacturer_mappings) == 1:
+                        resolved_montage_id = next(iter(manufacturer_mappings))
+                        print(
+                            f"⚠️ Montage ID '{montage_id}' not found under manufacturer '{manufacturer}'. "
+                            f"Falling back to the only available montage '{resolved_montage_id}'."
+                        )
+                        self.data_reader.logger_info[self.logger_id]["Requested Montage ID"] = montage_id
+                        self.data_reader.logger_info[self.logger_id]["Montage ID"] = resolved_montage_id
+                        self.montage_id = resolved_montage_id
+                    else:
+                        available = sorted(str(candidate) for candidate in manufacturer_mappings.keys())
+                        raise ValueError(
+                            f"Montage ID '{montage_id}' not found under manufacturer '{manufacturer}'. "
+                            f"Available montages: {available}"
+                        )
 
                 # Extract only the relevant part of the mapping
-                self.montage = full_mapping[manufacturer][montage_id]
-                print(f"Column mapping loaded for manufacturer '{manufacturer}', montage '{montage_id}'.")
+                self.montage = manufacturer_mappings[resolved_montage_id]
+                print(f"Column mapping loaded for manufacturer '{manufacturer}', montage '{resolved_montage_id}'.")
                 print(f"Mapping content {self.montage}.")
         except FileNotFoundError:
             print(f"Custom mapping file not found at {self.montage_path}. Proceeding without it.")
@@ -396,8 +427,8 @@ class BaseImporter:
             original_unit = original_units.pop() if original_units else "unknown"
 
             print("16i")
-            # Calculate current frequency - beware this does not fix gaps, just uses the first few values to calculate freq.
-            original_frequency = calculate_sampling_frequency(signal_df['datetime'].head()) # round(1 / signal_df['datetime'].diff().dt.total_seconds().mean())
+            # Estimate cadence from the full sorted datetime series.
+            original_frequency = calculate_sampling_frequency(signal_df['datetime'])
             print(f"Original frequency for {signal_name}: {original_frequency} Hz")
 
             print("16j")
@@ -421,8 +452,7 @@ class BaseImporter:
                 decimation_factor = max(1, int(round(original_frequency / downsample_target)))
                 print(f"Downsampling {signal_name} by {decimation_factor}x from {original_frequency:.2f}Hz to {downsample_target:.2f}Hz.")
                 signal_df = signal_df.iloc[::decimation_factor]
-                # Calculate new frequency after downsampling - beware this does not fix gaps, just uses the first few values to calculate freq.
-                new_frequency = calculate_sampling_frequency(signal_df['datetime'].head()) # round(1 / signal_df['datetime'].diff().dt.total_seconds().mean())
+                new_frequency = calculate_sampling_frequency(signal_df['datetime'])
                 print(f"New frequency after downsampling: {new_frequency} Hz")
             else:
                 new_frequency = original_frequency

@@ -1,59 +1,4 @@
 {
-    "__event_targets__": {
-        "heartbeat_auto_detect_accepted": [
-            "heart_rate_fixed"
-        ],
-        "heartbeat_auto_detect_suggested": [
-            "ecg"
-        ],
-        "heartbeat_manual_ok": [
-            "heart_rate_fixed",
-            "ecg"
-        ],
-        "logger_status": [
-            "ecg"
-        ],
-        "dive": [
-            "depth"
-        ],
-        "heartbeat_auto_detect_gap": [
-            "ecg"
-        ],
-        "strokebeat_auto_detect_accepted": [
-            "ecg"
-        ],
-        "heartbeat_manual_reject": [
-            "heart_rate_fixed",
-            "ecg"
-        ],
-        "cluster_0": [
-            "heart_rate_fixed",
-            "prh"
-        ],
-        "cluster_1": [
-            "heart_rate_fixed",
-            "prh"
-        ],
-        "cluster_2": [
-            "heart_rate_fixed",
-            "prh"
-        ],
-        "cluster_3": [
-            "heart_rate_fixed",
-            "prh"
-        ],
-        "cluster_4": [
-            "heart_rate_fixed",
-            "prh"
-        ],
-        "cluster_5": [
-            "heart_rate_fixed",
-            "prh"
-        ],
-        "logger_restart": [
-            "pressure"
-        ]
-    },
     "ax": "#6CA1C3",
     "ay": "#99d8b5",
     "az": "#e4d596",
@@ -77,7 +22,7 @@
     "sr_narrow_bandpass": "#e64747",
     "sr_smoothed": "#9f76ba",
     "sr_normalized": "#6c4e7f",
-    "depth": "#385C73",
+    "depth": "#1c3d51",
     "pressure": "#94B6C3",
     "odba": "#87c577",
     "field_intensity_acc": "#88ba92",
@@ -86,10 +31,10 @@
     "field_intensity_acc2": "#957684",
     "field_intensity_mag2": "#fc9e6d",
     "inclination_angle2": "#d6e1ff",
-    "light": "#a5e591",
+    "light": "#D3D622",
     "temperature": "#a39fc0",
     "smoothed": "#ab65af",
-    "depth.depth": "#385C73",
+    "depth.depth": "#1c3d51",
     "depth:depth": "#385C73",
     "heart_rate_fixed": "#D09191",
     "pressure.pressure": "#94B6C3",
@@ -112,7 +57,7 @@
     "narrow_bandpass": "#64fbdd",
     "heart_rate_nan": "#b0a877",
     "light_extra1": "#9fe793",
-    "temp_ext": "#72ff8c",
+    "temp_ext": "#FC9E6D",
     "temp_ext_extra2": "#7e67ef",
     "datetimenum_utc": "#e0c4be",
     "dive_num": "#94e7f4",
@@ -127,122 +72,605 @@
     "geopos_y_perdive": "#65bc8f",
     "hr_normalized.normalized": "#804E7B",
     "hr_normalized:normalized": "#804E7B",
-    "cluster_0": "#d66a6a",
-    "cluster_1": "#9b7fc9",
-    "cluster_2": "#77b77a",
-    "cluster_3": "#d8c66a",
-    "cluster_4": "#d99263",
-    "cluster_5": "#6f97d6",
-    "cluster_6": "#e377c2",
-    "cluster_7": "#7f7f7f",
-    "cluster_8": "#bcbd22",
-    "cluster_9": "#17becf",
+    "cluster_0": "#5e4fa2",
+    "cluster_1": "#388eba",
+    "cluster_2": "#75c8a5",
+    "cluster_3": "#bfe5a0",
+    "cluster_4": "#f1f9a9",
+    "cluster_5": "#feeea2",
+    "cluster_6": "#fdbf6f",
+    "cluster_7": "#f67b4a",
+    "cluster_8": "#d8434e",
+    "cluster_9": "#9e0142",
+    "eeg_f3": "#e6a2a6",
+    "eeg_f4": "#69896b",
+    "eeg_p4": "#a2c5c2",
+    "eeg_p3": "#948fc8",
+    "depth2": "#b5b0dd",
+    "posture": "#94B6C3",
+    "sway": "#6772C9",
+    "__supervised_confusion_colors__": {
+        "true_negative": {
+            "label": "Active When Actually Active",
+            "color": "#454c4e"
+        },
+        "false_positive": {
+            "label": "False Detection Of Sleep",
+            "color": "#F6E7A8"
+        },
+        "false_negative": {
+            "label": "Missed Sleep",
+            "color": "#9fd7dd"
+        },
+        "true_positive": {
+            "label": "Sleep When Actually Sleep",
+            "color": "#9ed09e"
+        }
+    },
     "__event_styles__": {
-        "heartbeat_auto_detect_accepted": {
-            "color": "#80DB78",
-            "shade_color": "#4DAEF8",
-            "symbol": "diamond",
+        "dive-type_resting": {
+            "color": "#E3E650",
+            "shade_color": "#E3E650",
+            "symbol": "triangle-down",
             "shade_enabled": true,
-            "shade_opacity": 0.2,
-            "shade_mode": "all_y",
+            "shade_opacity": 0.58,
+            "shade_mode": "fill_trace_split",
             "shade_pct_min": 0.0,
             "shade_pct_max": 100.0
         },
-        "heartbeat_manual_ok": {
-            "color": "#E377C2",
-            "shade_color": "#4DAEF8",
+        "dive-type_foraging": {
+            "color": "#5E4FA2",
+            "shade_color": "#5E4FA2",
+            "symbol": "triangle-down",
+            "shade_enabled": true,
+            "shade_opacity": 0.49,
+            "shade_mode": "fill_trace",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        },
+        "dive-type_transit": {
+            "color": "#75C8A5",
+            "shade_color": "#75C8A5",
+            "symbol": "triangle-down",
+            "shade_enabled": true,
+            "shade_opacity": 0.43,
+            "shade_mode": "fill_trace_split",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        },
+        "dive": {
+            "color": "#385C73",
+            "shade_color": "#385C73",
+            "symbol": "triangle-down",
+            "shade_enabled": true,
+            "shade_opacity": 0.88,
+            "shade_mode": "fill_trace_above",
+            "shade_pct_min": 90.0,
+            "shade_pct_max": 100.0
+        },
+        "find_rest.initial": {
+            "color": "#BAD1D9",
+            "shade_color": "#BAD1D9",
+            "symbol": "circle",
+            "shade_enabled": true,
+            "shade_opacity": 0.76,
+            "shade_mode": "fill_trace",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        },
+        "find_rest.filtered": {
+            "color": "#7795B6",
+            "shade_color": "#7795B6",
+            "symbol": "circle",
+            "shade_enabled": true,
+            "shade_opacity": 0.72,
+            "shade_mode": "fill_trace_above",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        },
+        "rest.surface": {
+            "color": "#EBED61",
+            "shade_color": "#EBED61",
+            "symbol": "circle",
+            "shade_enabled": true,
+            "shade_opacity": 0.75,
+            "shade_mode": "fill_trace_above",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        },
+        "rest.benthic": {
+            "color": "#26CEA6",
+            "shade_color": "#26CEA6",
+            "symbol": "circle",
+            "shade_enabled": true,
+            "shade_opacity": 0.75,
+            "shade_mode": "fill_trace_above",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        },
+        "rest.drift": {
+            "color": "#93A2FF",
+            "shade_color": "#93A2FF",
+            "symbol": "circle",
+            "shade_enabled": true,
+            "shade_opacity": 0.76,
+            "shade_mode": "fill_trace_above",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        },
+        "active_walking": {
+            "color": "#F67B4A",
+            "shade_color": "#F67B4A",
+            "symbol": "circle",
+            "shade_enabled": true,
+            "shade_opacity": 0.77,
+            "shade_mode": "fill_trace_above",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        },
+        "heartbeat_auto_detect_gap": {
+            "color": "#E64747",
+            "shade_color": "#E64747",
             "symbol": "diamond",
             "shade_enabled": true,
-            "shade_opacity": 0.2,
-            "shade_mode": "all_y",
+            "shade_opacity": 0.25,
+            "shade_mode": "fill_trace_split",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        },
+        "heartbeat_auto_detect_accepted": {
+            "color": "#68C0F7",
+            "shade_color": "#EECA3B",
+            "symbol": "diamond",
+            "shade_enabled": true,
+            "shade_opacity": 0.25,
+            "shade_mode": "fill_trace_split",
             "shade_pct_min": 0.0,
             "shade_pct_max": 100.0
         }
     },
-    "__peak_detect_defaults__": {
-        "heart_rate": {
-            "signals": [
-                "ecg",
-                "depth",
-                "prh",
-                "heart_rate",
-                "hr_broad_bandpass",
-                "hr_narrow_bandpass",
-                "hr_smoothed",
-                "hr_normalized",
-                "heart_rate_fixed"
-            ],
-            "order": [
-                "ecg",
-                "depth",
-                "prh",
-                "heart_rate",
-                "hr_broad_bandpass",
-                "hr_narrow_bandpass",
-                "hr_smoothed",
-                "hr_normalized",
-                "heart_rate_fixed"
-            ],
-            "channels": {
-                "ecg": [
-                    "ecg"
-                ],
-                "depth": [
-                    "depth"
-                ],
-                "prh": [
-                    "pitch",
-                    "roll"
-                ],
-                "heart_rate": [
-                    "heart_rate"
-                ],
-                "hr_broad_bandpass": [
-                    "broad_bandpass"
-                ],
-                "hr_narrow_bandpass": [
-                    "narrow_bandpass"
-                ],
-                "hr_smoothed": [
-                    "smoothed"
-                ],
-                "hr_normalized": [
-                    "normalized"
-                ],
-                "heart_rate_fixed": [
-                    "heart_rate_fixed"
-                ]
-            },
-            "channel_order": {
-                "ecg": [
-                    "ecg"
-                ],
-                "depth": [
-                    "depth"
-                ],
-                "prh": [
-                    "pitch",
-                    "roll"
-                ],
-                "heart_rate": [
-                    "heart_rate"
-                ],
-                "hr_broad_bandpass": [
-                    "broad_bandpass"
-                ],
-                "hr_narrow_bandpass": [
-                    "narrow_bandpass"
-                ],
-                "hr_smoothed": [
-                    "smoothed"
-                ],
-                "hr_normalized": [
-                    "normalized"
-                ],
-                "heart_rate_fixed": [
-                    "heart_rate_fixed"
-                ]
-            }
-        }
-    }
+    "__event_targets__": {
+        "dive": [
+            "depth",
+            "pressure"
+        ],
+        "heartbeat_auto_detect_accepted": [
+            "heart_rate",
+            "heart_rate_fixed",
+            "ecg",
+            "corrected_gyr"
+        ],
+        "heartbeat_auto_detect_gap": [
+            "heart_rate",
+            "heart_rate_fixed",
+            "ecg",
+            "corrected_gyr"
+        ],
+        "heartbeat_auto_detect_suggested": [
+            "heart_rate",
+            "heart_rate_fixed",
+            "ecg",
+            "corrected_gyr"
+        ],
+        "heartbeat_manual_ok": [
+            "heart_rate",
+            "heart_rate_fixed",
+            "ecg",
+            "corrected_gyr"
+        ],
+        "logger_status": [
+            "depth"
+        ],
+        "strokebeat_auto_detect_accepted": [
+            "sr_smoothed",
+            "corrected_acc"
+        ],
+        "2_dynX+dynY+odba+pitch+roll_full_30S_PCA": [
+            "accelerometer"
+        ],
+        "3_dynX+dynY+odba+pitch+roll_full_30S_PCA": [
+            "accelerometer"
+        ],
+        "4_dynX+dynY+odba+pitch+roll_full_30S_PCA": [
+            "accelerometer"
+        ],
+        "5_dynX+dynY+odba+pitch+roll_full_30S_PCA": [
+            "accelerometer"
+        ],
+        "1_k5_dynX+dynY+odba+pitch+roll+stroke_rate_full-medium_fixed_W30s_PCA": [
+            "sr_smoothed",
+            "stroke_rate",
+            "dynamic_accel",
+            "corrected_acc",
+            "accelerometer"
+        ],
+        "2_k5_dynX+dynY+odba+pitch+roll+stroke_rate_full-medium_fixed_W30s_PCA": [
+            "sr_smoothed",
+            "stroke_rate",
+            "dynamic_accel",
+            "corrected_acc",
+            "accelerometer"
+        ],
+        "3_k5_dynX+dynY+odba+pitch+roll+stroke_rate_full-medium_fixed_W30s_PCA": [
+            "sr_smoothed",
+            "stroke_rate",
+            "dynamic_accel",
+            "corrected_acc",
+            "accelerometer"
+        ],
+        "4_k5_dynX+dynY+odba+pitch+roll+stroke_rate_full-medium_fixed_W30s_PCA": [
+            "sr_smoothed",
+            "stroke_rate",
+            "dynamic_accel",
+            "corrected_acc",
+            "accelerometer"
+        ],
+        "5_k5_dynX+dynY+odba+pitch+roll+stroke_rate_full-medium_fixed_W30s_PCA": [
+            "sr_smoothed",
+            "stroke_rate",
+            "dynamic_accel",
+            "corrected_acc",
+            "accelerometer"
+        ],
+        "active_running": [
+            "accelerometer"
+        ],
+        "active_trotting": [
+            "accelerometer"
+        ],
+        "active_walking": [
+            "accelerometer"
+        ],
+        "calm_drinking": [
+            "accelerometer"
+        ],
+        "calm_feeding": [
+            "accelerometer"
+        ],
+        "calm_grooming": [
+            "accelerometer"
+        ],
+        "calm_other": [
+            "accelerometer"
+        ],
+        "calm_repositioning": [
+            "accelerometer"
+        ],
+        "calm_resting": [
+            "accelerometer"
+        ],
+        "calm_scanning": [
+            "accelerometer"
+        ],
+        "calm_watching": [
+            "accelerometer"
+        ],
+        "motionless_resting": [
+            "accelerometer"
+        ],
+        "1_k2_depth_std_full_var_S10s_W30s_PCA": [
+            "depth"
+        ],
+        "1_k5_depth_d1_std+depth_d2_std_full_var_S10s_W30s_PCA": [
+            "clock"
+        ],
+        "2_k2_depth_std_full_var_S10s_W30s_PCA": [
+            "depth"
+        ],
+        "2_k5_depth_d1_std+depth_d2_std_full_var_S10s_W30s_PCA": [
+            "clock"
+        ],
+        "3_k5_depth_d1_std+depth_d2_std_full_var_S10s_W30s_PCA": [
+            "clock"
+        ],
+        "4_k5_depth_d1_std+depth_d2_std_full_var_S10s_W30s_PCA": [
+            "clock"
+        ],
+        "5_k5_depth_d1_std+depth_d2_std_full_var_S10s_W30s_PCA": [
+            "clock"
+        ],
+        "dive-type_foraging": [
+            "depth",
+            "prh"
+        ],
+        "dive-type_resting": [
+            "depth",
+            "prh"
+        ],
+        "dive-type_transit": [
+            "depth",
+            "prh"
+        ],
+        "find_rest.long_drift": [
+            "depth"
+        ],
+        "putative_rest.drift_sleep": [
+            "depth"
+        ],
+        "find_rest.long_flat": [
+            "depth"
+        ],
+        "putative_rest.benthic_sleep": [
+            "depth"
+        ],
+        "find_rest.surface_sleep": [
+            "depth"
+        ],
+        "putative_rest.surface_sleep": [
+            "depth"
+        ],
+        "find_rest.initial": [
+            "depth"
+        ],
+        "find_rest.filtered": [
+            "depth",
+            "pressure"
+        ],
+        "rf_active": [
+            "accelerometer"
+        ],
+        "exhalation_breath": [
+            "accelerometer"
+        ],
+        "heartbeat_manual_reject": [
+            "heart_rate",
+            "heart_rate_fixed",
+            "ecg",
+            "corrected_gyr",
+            "gyroscope",
+            "accelerometer"
+        ],
+        "behavior_active_swimming_surface": [
+            "depth",
+            "velocity"
+        ],
+        "behavior_calm_gliding_diving": [
+            "depth"
+        ],
+        "behavior_calm_gliding_surface": [
+            "depth"
+        ],
+        "behavior_motionless_resting_benthic": [
+            "depth"
+        ],
+        "behavior_motionless_resting_drift": [
+            "depth",
+            "velocity"
+        ],
+        "behavior_motionless_resting_surface": [
+            "depth"
+        ],
+        "behavior_unscorable": [
+            "depth"
+        ],
+        "behavior_active_swimming_diving": [
+            "depth"
+        ],
+        "behavior_resting_surface": [
+            "depth"
+        ],
+        "behavior_gliding_surface": [
+            "depth"
+        ],
+        "behavior_swimming_surface": [
+            "depth"
+        ],
+        "behavior_resting_benthic": [
+            "depth"
+        ],
+        "behavior_resting_drift": [
+            "depth"
+        ],
+        "behavior_gliding_uw": [
+            "depth"
+        ],
+        "behavior_swimming_uw": [
+            "depth"
+        ],
+        "behavior_unscorable_noncandidate": [
+            "depth"
+        ],
+        "behavior_context_rejected": [
+            "depth"
+        ],
+        "behavior_Unknown": [
+            "depth"
+        ],
+        "behavior_unknown": [
+            "depth"
+        ]
+    },
+    "corrected_depth": "#385C73",
+    "depth.corrected_depth": "#385C73",
+    "depth:corrected_depth": "#385C73",
+    "temperature_ext.temp_ext": "#FC9E6D",
+    "temperature_ext:temp_ext": "#FC9E6D",
+    "sway.sway": "#6772C9",
+    "sway:sway": "#6772C9",
+    "posture.posture": "#94B6C3",
+    "posture:posture": "#94B6C3",
+    "light.light": "#D3D622",
+    "light:light": "#D3D622",
+    "o2_pressure_hepaticsinus": "#def978",
+    "o2_pressure_hepaticsinus2": "#6e8deb",
+    "temp_int_extra1": "#c791ab",
+    "temp_int": "#d98fad",
+    "o2_pressure_arterial": "#9E0142",
+    "o2_pressure_arterial2": "#E64747",
+    "o2_pressure2.o2_pressure_arterial2": "#E64747",
+    "o2_pressure2:o2_pressure_arterial2": "#E64747",
+    "o2_pressure.o2_pressure_arterial": "#9E0142",
+    "o2_pressure:o2_pressure_arterial": "#9E0142",
+    "Certain REM Sleep": "#FCBE46",
+    "Putative REM Sleep": "#FCBE46",
+    "HV Slow Wave Sleep": "#41b6c4",
+    "LV Slow Wave Sleep": "#c7e9b4",
+    "Drowsiness": "#BBA9CF",
+    "Quiet Waking": "#225ea8",
+    "Active Waking": "#0c2c84",
+    "Unscorable": "#D7D7D7",
+    "WAKE": "#0c2c84",
+    "ACTIVE": "#0c2c84",
+    "REM": "#FCBE46",
+    "SWS": "#41b6c4",
+    "SWS1": "#c7e9b4",
+    "SWS2": "#41b6c4",
+    "Eupnea": "#CDEBE6",
+    "transition to Eupnea": "#80cdc1",
+    "Apnea": "#018571",
+    "transition to Apnea": "#80cdc1",
+    "LAND": "#DBBFA2",
+    "SHALLOW WATER": "#39CCCA",
+    "DEEP WATER": "#225ea8",
+    "OPEN OCEAN": "#0c2c84",
+    "Active": "#FF7D19",
+    "Feeding": "#53D05A",
+    "Drinking": "#467DFF",
+    "Vigilant": "#1BABDB",
+    "Resting": "#9E9E9E",
+    "Calm": "#A5D6A7",
+    "active_walking": "#FFAF26",
+    "active_running": "#B31D12",
+    "active_trotting": "#FF7D19",
+    "active_galumphing": "#B31D12",
+    "active_swimming": "#FF5722",
+    "active_unspecified": "#FFAF26",
+    "calm_scanning": "#1BABDB",
+    "calm_watching": "#1BABDB",
+    "calm_feeding": "#53D05A",
+    "calm_drinking": "#467DFF",
+    "calm_grooming": "#A5D6A7",
+    "calm_repositioning": "#C8E6C9",
+    "calm_other": "#C2D2B0",
+    "calm_vocalizing": "#A5D6A7",
+    "calm_yawning": "#C8E6C9",
+    "calm_unspecified": "#C2D2B0",
+    "calm_resting": "#9E9E9E",
+    "motionless_resting": "#9E9E9E",
+    "motionless_sleeping": "#757575",
+    "behavior_active_walking": "#FFAF26",
+    "behavior_active_running": "#B31D12",
+    "behavior_active_trotting": "#FF7D19",
+    "behavior_active_galumphing": "#B31D12",
+    "behavior_active_swimming": "#FF5722",
+    "behavior_active_unspecified": "#FFAF26",
+    "behavior_calm_scanning": "#1BABDB",
+    "behavior_calm_watching": "#1BABDB",
+    "behavior_calm_feeding": "#53D05A",
+    "behavior_calm_drinking": "#467DFF",
+    "behavior_calm_grooming": "#A5D6A7",
+    "behavior_calm_repositioning": "#C8E6C9",
+    "behavior_calm_other": "#C2D2B0",
+    "behavior_calm_vocalizing": "#A5D6A7",
+    "behavior_calm_yawning": "#C8E6C9",
+    "behavior_calm_unspecified": "#C2D2B0",
+    "behavior_calm_resting": "#9E9E9E",
+    "behavior_motionless_resting": "#9E9E9E",
+    "behavior_motionless_sleeping": "#757575",
+    "No Annotation": "#CCCCCC",
+    "__lion_behavior_palette__": {
+        "Active": "#FF7D19",
+        "Feeding": "#53D05A",
+        "Drinking": "#467DFF",
+        "Vigilant": "#1BABDB",
+        "Resting": "#9E9E9E",
+        "Calm": "#A5D6A7",
+        "active_walking": "#FFAF26",
+        "active_running": "#B31D12",
+        "active_trotting": "#FF7D19",
+        "calm_scanning": "#1BABDB",
+        "calm_watching": "#1BABDB",
+        "calm_feeding": "#53D05A",
+        "calm_drinking": "#467DFF",
+        "calm_grooming": "#A5D6A7",
+        "calm_repositioning": "#C8E6C9",
+        "calm_other": "#C2D2B0",
+        "motionless_resting": "#9E9E9E",
+        "motionless_sleeping": "#757575",
+        "No Annotation": "#CCCCCC"
+    },
+    "__sleep_palette_primary__": {
+        "Certain REM Sleep": "#FCBE46",
+        "Putative REM Sleep": "#FCBE46",
+        "HV Slow Wave Sleep": "#41b6c4",
+        "LV Slow Wave Sleep": "#c7e9b4",
+        "Drowsiness": "#BBA9CF",
+        "Quiet Waking": "#225ea8",
+        "Active Waking": "#0c2c84",
+        "Unscorable": "#D7D7D7",
+        "WAKE": "#0c2c84"
+    },
+    "__sleep_palette_alt__": {
+        "Active Waking": "#FF7F7F",
+        "Quiet Waking": "#ACD7CA",
+        "HV Slow Wave Sleep": "#A3CEED",
+        "LV Slow Wave Sleep": "#A3CEED",
+        "Certain REM Sleep": "#FFC000",
+        "Putative REM Sleep": "#FFC000"
+    },
+    "__simple_sleep_palette__": {
+        "Unscorable": "#D7D7D7",
+        "Active Waking": "#0c2c84",
+        "Quiet Waking": "#225ea8",
+        "Drowsiness": "#BBA9CF",
+        "REM": "#FCBE46",
+        "SWS": "#41b6c4"
+    },
+    "__simple_sleep_only_palette__": {
+        "SWS1": "#c7e9b4",
+        "REM": "#FCBE46",
+        "SWS2": "#41b6c4"
+    },
+    "__resp_palette_primary__": {
+        "Eupnea": "#CDEBE6",
+        "transition to Eupnea": "#80cdc1",
+        "Apnea": "#018571",
+        "transition to Apnea": "#80cdc1",
+        "Unscorable": "#D7D7D7"
+    },
+    "__resp_palette_alt__": {
+        "Eupnea": "#a6611a",
+        "transition to Eupnea": "#dfc27d",
+        "Apnea": "#018571",
+        "transition to Apnea": "#80cdc1"
+    },
+    "__location_palette__": {
+        "LAND": "#DBBFA2",
+        "SHALLOW WATER": "#39CCCA",
+        "DEEP WATER": "#225ea8",
+        "OPEN OCEAN": "#0c2c84"
+    },
+    "behavior_calm_gliding_surface": "#C0C0C0",
+    "behavior_calm_gliding_dive": "#8BC34A",
+    "behavior_active_swimming_dive": "#FF5722",
+    "behavior_active_swimming_surface": "#5E5E5E",
+    "behavior_motionless_resting_surface": "#FFE659",
+    "behavior_motionless_resting_benthic": "#BB8DF3",
+    "behavior_motionless_resting_drift": "#70DBE7",
+    "behavior_unscorable": "#252525",
+    "behavior_active_swimming_diving": "#081732",
+    "behavior_calm_gliding_diving": "#173265",
+    "behavior_resting_surface": "#FFE659",
+    "behavior_gliding_surface": "#C0C0C0",
+    "behavior_swimming_surface": "#5E5E5E",
+    "behavior_resting_benthic": "#BB8DF3",
+    "behavior_resting_drift": "#70DBE7",
+    "behavior_gliding_uw": "#173265",
+    "behavior_swimming_uw": "#081732",
+    "behavior_unscorable_noncandidate": "#9CFF86",
+    "behavior_context_rejected": "#FF5E5E",
+    "behavior_Unknown": "#8C8C8C",
+    "behavior_unknown": "#8C8C8C",
+    "context_rejected": "#FF5E5E",
+    "resting_surface": "#FFE659",
+    "gliding_surface": "#C0C0C0",
+    "swimming_surface": "#5E5E5E",
+    "Unknown": "#8C8C8C",
+    "unknown": "#8C8C8C",
+    "unscorable_noncandidate": "#9CFF86",
+    "unscorable": "#252525",
+    "swimming_uw": "#081732",
+    "gliding_uw": "#173265",
+    "resting_drift": "#70DBE7",
+    "resting_benthic": "#BB8DF3"
 }

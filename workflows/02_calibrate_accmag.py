@@ -1,9 +1,17 @@
 # Script to calibrate accelerometer and magnetometer data: generates calibrated_acc and calibrated_mag in signal_data
 # See 02_calibrate_accmag.ipynb notebook for more detailed description and view intermediate outputs
-# Run with shell command: python pyologger/workflows/02_calibrate_accmag.py --dataset oror-adult-orca_hr-sr-vid_sw_JKB-PP --deployment 2024-01-16_oror-002
+# Run with shell command: python3 pyologger/workflows/02_calibrate_accmag.py --dataset oror-adult-orca_hr-sr-vid_sw_JKB-PP --deployment 2024-01-16_oror-002
 import os
+import pickle
 import argparse
+import sys
 import pandas as pd
+
+# Ensure direct workflow execution resolves the repo-local pyologger package.
+WORKFLOW_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(WORKFLOW_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # Import necessary pyologger utilities
 from pyologger.utils.folder_manager import *
@@ -12,6 +20,11 @@ from pyologger.plot_data.plotter import *
 from pyologger.io_operations.base_exporter import *
 from pyologger.utils.data_manager import *
 from pyologger.calibrate_data.calibrate_acc_mag import *
+from pyologger.utils.workflow_netcdf import (
+    latest_processing_netcdf_path,
+    netcdf_has_signal,
+    save_step_netcdf_if_changed,
+)
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Zero Offset Correction - Calibrate Pressure Sensor")
@@ -22,15 +35,24 @@ args = parser.parse_args()
 # Load environment variables
 config, data_dir, color_mapping_path, montage_path = load_configuration()
 
-# Load data with optional arguments
+# Resolve deployment first so missing critical signals can short-circuit via NetCDF metadata.
 if args.dataset and args.deployment:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager = resolve_deployment_context(
         data_dir, dataset_id=args.dataset, deployment_id=args.deployment
     )
 else:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(data_dir)
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager = resolve_deployment_context(data_dir)
 
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
+latest_netcdf_path = latest_processing_netcdf_path(deployment_folder, deployment_id)
+
+if not netcdf_has_signal(latest_netcdf_path, "magnetometer"):
+    print("Skipping Step 02 based on NetCDF metadata: magnetometer signal not available.")
+    param_manager.add_to_config("current_processing_step", "Processing Step 02 skipped: missing magnetometer input.")
+    raise SystemExit(0)
+
+with open(pkl_path, "rb") as file:
+    data_pkl = pickle.load(file)
 
 # Load key time points
 timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
@@ -44,6 +66,7 @@ if None in {OVERLAP_START_TIME, OVERLAP_END_TIME, ZOOM_WINDOW_START_TIME, ZOOM_W
 
 current_processing_step = "Processing Step 02 IN PROGRESS."
 param_manager.add_to_config("current_processing_step", current_processing_step)
+data_changed = False
 
 # Check accelerometer units: if not , convert to g. This code works fine for either unit, but we prefer to work in g for consistency.
 
@@ -57,6 +80,7 @@ else:
     skip_step = False
 
 if not skip_step:
+    data_changed = True
     acc_unit = data_pkl.signal_info['accelerometer']['units']
 
     if acc_unit == 'g':
@@ -411,10 +435,9 @@ print(current_processing_step)
 param_manager.add_to_config("current_processing_step", current_processing_step)
 
 # Optional: save new pickle file
-with open(pkl_path, 'wb') as file:
-        pickle.dump(data_pkl, file)
-print("Pickle file updated.")
+if data_changed:
+    with open(pkl_path, 'wb') as file:
+            pickle.dump(data_pkl, file)
+    print("Pickle file updated.")
 
-exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
-netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step00.nc') # Define the export path
-exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format
+save_step_netcdf_if_changed(data_pkl, deployment_folder, deployment_id, 2, changed=data_changed)

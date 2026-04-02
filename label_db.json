@@ -1,0 +1,966 @@
+{
+  "version": 1,
+  "by_key": {
+    "sleep-state_waking_active-quiet-drowsiness": {
+      "group": "sleep-state",
+      "subgroup": "waking",
+      "suffix": "active quiet drowsiness",
+      "unique_key_per_group": 1,
+      "key": "sleep-state_waking_active-quiet-drowsiness",
+      "short_description": "sleep-state waking: active quiet drowsiness",
+      "event_name": "waking active quiet drowsiness",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "active quiet drowsiness",
+        "waking active quiet drowsiness"
+      ]
+    },
+    "sleep-state_waking_active-quiet": {
+      "group": "sleep-state",
+      "subgroup": "waking",
+      "suffix": "active quiet",
+      "unique_key_per_group": 2,
+      "key": "sleep-state_waking_active-quiet",
+      "short_description": "sleep-state waking: active quiet",
+      "event_name": "waking active quiet",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "active quiet",
+        "waking active quiet"
+      ]
+    },
+    "sleep-state_waking_active": {
+      "group": "sleep-state",
+      "subgroup": "waking",
+      "suffix": "active",
+      "unique_key_per_group": 3,
+      "key": "sleep-state_waking_active",
+      "short_description": "sleep-state waking: active",
+      "event_name": "waking active",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "active",
+        "active waking",
+        "waking active"
+      ]
+    },
+    "sleep-state_waking_quiet": {
+      "group": "sleep-state",
+      "subgroup": "waking",
+      "suffix": "quiet",
+      "unique_key_per_group": 4,
+      "key": "sleep-state_waking_quiet",
+      "short_description": "sleep-state waking: quiet",
+      "event_name": "waking quiet",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "quiet",
+        "quiet waking",
+        "waking quiet"
+      ]
+    },
+    "sleep-state_waking_drowsiness": {
+      "group": "sleep-state",
+      "subgroup": "waking",
+      "suffix": "drowsiness",
+      "unique_key_per_group": 5,
+      "key": "sleep-state_waking_drowsiness",
+      "short_description": "sleep-state waking: drowsiness",
+      "event_name": "waking drowsiness",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "drowsiness",
+        "waking drowsiness"
+      ]
+    },
+    "sleep-state_sleep_slow-wave-sleep": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "slow wave sleep",
+      "unique_key_per_group": 6,
+      "key": "sleep-state_sleep_slow-wave-sleep",
+      "short_description": "sleep-state sleep: slow wave sleep",
+      "event_name": "sleep slow wave sleep",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "slow wave sleep",
+        "sleep slow wave sleep",
+        "sws"
+      ]
+    },
+    "sleep-state_sleep_lowest-voltage-sws": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "lowest voltage sws",
+      "unique_key_per_group": 7,
+      "key": "sleep-state_sleep_lowest-voltage-sws",
+      "short_description": "sleep-state sleep: lowest voltage sws",
+      "event_name": "sleep lowest voltage sws",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "lowest voltage sws",
+        "sleep lowest voltage sws"
+      ]
+    },
+    "sleep-state_sleep_low-voltage-sws": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "low voltage sws",
+      "unique_key_per_group": 8,
+      "key": "sleep-state_sleep_low-voltage-sws",
+      "short_description": "sleep-state sleep: low voltage sws",
+      "event_name": "sleep low voltage sws",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "low voltage sws",
+        "lv slow wave sleep",
+        "sleep low voltage sws"
+      ]
+    },
+    "sleep-state_sleep_highest-voltage-sws": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "highest voltage sws",
+      "unique_key_per_group": 9,
+      "key": "sleep-state_sleep_highest-voltage-sws",
+      "short_description": "sleep-state sleep: highest voltage sws",
+      "event_name": "sleep highest voltage sws",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "highest voltage sws",
+        "hv slow wave sleep",
+        "sleep highest voltage sws"
+      ]
+    },
+    "sleep-state_sleep_unihemispheric-sws": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "unihemispheric sws",
+      "unique_key_per_group": 10,
+      "key": "sleep-state_sleep_unihemispheric-sws",
+      "short_description": "sleep-state sleep: unihemispheric sws",
+      "event_name": "sleep unihemispheric sws",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "unihemispheric sws",
+        "usws",
+        "sleep unihemispheric sws"
+      ]
+    },
+    "sleep-state_sleep_asymmetrical-sws": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "asymmetrical sws",
+      "unique_key_per_group": 11,
+      "key": "sleep-state_sleep_asymmetrical-sws",
+      "short_description": "sleep-state sleep: asymmetrical sws",
+      "event_name": "sleep asymmetrical sws",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "asymmetrical sws",
+        "sleep asymmetrical sws"
+      ]
+    },
+    "sleep-state_sleep_unihemispheric-sws-right": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "unihemispheric sws right",
+      "unique_key_per_group": 12,
+      "key": "sleep-state_sleep_unihemispheric-sws-right",
+      "short_description": "sleep-state sleep: unihemispheric sws right",
+      "event_name": "sleep unihemispheric sws right",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "unihemispheric sws right",
+        "usws right",
+        "sleep unihemispheric sws right"
+      ]
+    },
+    "sleep-state_sleep_unihemispheric-sws-left": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "unihemispheric sws left",
+      "unique_key_per_group": 13,
+      "key": "sleep-state_sleep_unihemispheric-sws-left",
+      "short_description": "sleep-state sleep: unihemispheric sws left",
+      "event_name": "sleep unihemispheric sws left",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "unihemispheric sws left",
+        "usws left",
+        "sleep unihemispheric sws left"
+      ]
+    },
+    "sleep-state_sleep_bilateral-sws": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "bilateral sws",
+      "unique_key_per_group": 14,
+      "key": "sleep-state_sleep_bilateral-sws",
+      "short_description": "sleep-state sleep: bilateral sws",
+      "event_name": "sleep bilateral sws",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "bilateral sws",
+        "sleep bilateral sws"
+      ]
+    },
+    "sleep-state_sleep_certain-rem": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "certain rem",
+      "unique_key_per_group": 15,
+      "key": "sleep-state_sleep_certain-rem",
+      "short_description": "sleep-state sleep: certain rem",
+      "event_name": "sleep certain rem",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "certain rem",
+        "sleep certain rem"
+      ]
+    },
+    "sleep-state_sleep_putative-rem": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "putative rem",
+      "unique_key_per_group": 16,
+      "key": "sleep-state_sleep_putative-rem",
+      "short_description": "sleep-state sleep: putative rem",
+      "event_name": "sleep putative rem",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "putative rem",
+        "sleep putative rem"
+      ]
+    },
+    "sleep-state_sleep_rem-bilateral-sws": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "rem bilateral sws",
+      "unique_key_per_group": 17,
+      "key": "sleep-state_sleep_rem-bilateral-sws",
+      "short_description": "sleep-state sleep: rem bilateral sws",
+      "event_name": "sleep rem bilateral sws",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "rem bilateral sws",
+        "sleep rem bilateral sws"
+      ]
+    },
+    "sleep-state_unscorable_unclear": {
+      "group": "sleep-state",
+      "subgroup": "unscorable",
+      "suffix": "unclear",
+      "unique_key_per_group": 18,
+      "key": "sleep-state_unscorable_unclear",
+      "short_description": "sleep-state unscorable: unclear",
+      "event_name": "unscorable unclear",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "unclear",
+        "unscorable unclear"
+      ]
+    },
+    "sleep-state_sleep_unspecified": {
+      "group": "sleep-state",
+      "subgroup": "sleep",
+      "suffix": "unspecified",
+      "unique_key_per_group": 19,
+      "key": "sleep-state_sleep_unspecified",
+      "short_description": "sleep-state sleep: unspecified",
+      "event_name": "sleep unspecified",
+      "type": "state",
+      "color_hex": null,
+      "long_description": null,
+      "aliases": [
+        "unspecified",
+        "sleep unspecified"
+      ]
+    },
+    "behavior_active_galumphing": {
+      "group": "behavior",
+      "subgroup": "active",
+      "suffix": "galumphing",
+      "unique_key_per_group": 1,
+      "key": "behavior_active_galumphing",
+      "short_description": "behavior active: galumphing",
+      "event_name": "active galumphing",
+      "type": "state",
+      "color_hex": "#C96A6A",
+      "long_description": "Active forward terrestrial movement with bounding or loping gait",
+      "aliases": [
+        "active galumphing",
+        "galumphing"
+      ]
+    },
+    "behavior_active_walking": {
+      "group": "behavior",
+      "subgroup": "active",
+      "suffix": "walking",
+      "unique_key_per_group": 2,
+      "key": "behavior_active_walking",
+      "short_description": "behavior active: walking",
+      "event_name": "active walking",
+      "type": "state",
+      "color_hex": "#E07B5F",
+      "long_description": "Sustained forward terrestrial movement",
+      "aliases": [
+        "active walking",
+        "walking"
+      ]
+    },
+    "behavior_active_trotting": {
+      "group": "behavior",
+      "subgroup": "active",
+      "suffix": "trotting",
+      "unique_key_per_group": 3,
+      "key": "behavior_active_trotting",
+      "short_description": "behavior active: trotting",
+      "event_name": "active trotting",
+      "type": "state",
+      "color_hex": "#F2A06B",
+      "long_description": "Sustained moderate-speed forward movement",
+      "aliases": [
+        "active trotting",
+        "trotting"
+      ]
+    },
+    "behavior_active_running": {
+      "group": "behavior",
+      "subgroup": "active",
+      "suffix": "running",
+      "unique_key_per_group": 4,
+      "key": "behavior_active_running",
+      "short_description": "behavior active: running",
+      "event_name": "active running",
+      "type": "state",
+      "color_hex": "#D84C4C",
+      "long_description": "Sustained high-speed forward movement",
+      "aliases": [
+        "active running",
+        "running"
+      ]
+    },
+    "behavior_active_swimming": {
+      "group": "behavior",
+      "subgroup": "active",
+      "suffix": "swimming",
+      "unique_key_per_group": 5,
+      "key": "behavior_active_swimming",
+      "short_description": "behavior active: swimming",
+      "event_name": "active swimming",
+      "type": "state",
+      "color_hex": "#5BA3C8",
+      "long_description": "Active forward movement through water",
+      "aliases": [
+        "active swimming",
+        "swimming"
+      ]
+    },
+    "behavior_active_unspecified": {
+      "group": "behavior",
+      "subgroup": "active",
+      "suffix": "unspecified",
+      "unique_key_per_group": 6,
+      "key": "behavior_active_unspecified",
+      "short_description": "behavior active: unspecified",
+      "event_name": "active unspecified",
+      "type": "state",
+      "color_hex": "#C96A6A",
+      "long_description": "Active non-distinct behavior",
+      "aliases": [
+        "active unspecified",
+        "active other",
+        "active"
+      ]
+    },
+    "behavior_calm_vocalizing": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "vocalizing",
+      "unique_key_per_group": 8,
+      "key": "behavior_calm_vocalizing",
+      "short_description": "behavior calm: vocalizing",
+      "event_name": "calm vocalizing",
+      "type": "state",
+      "color_hex": "#D6C36A",
+      "long_description": "Calm vocal behavior",
+      "aliases": [
+        "calm vocalizing",
+        "vocalizing"
+      ]
+    },
+    "behavior_calm_grooming": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "grooming",
+      "unique_key_per_group": 9,
+      "key": "behavior_calm_grooming",
+      "short_description": "behavior calm: grooming",
+      "event_name": "calm grooming",
+      "type": "state",
+      "color_hex": "#B8D986",
+      "long_description": "Self-directed grooming",
+      "aliases": [
+        "calm grooming",
+        "grooming"
+      ]
+    },
+    "behavior_calm_repositioning": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "repositioning",
+      "unique_key_per_group": 10,
+      "key": "behavior_calm_repositioning",
+      "short_description": "behavior calm: repositioning",
+      "event_name": "calm repositioning",
+      "type": "state",
+      "color_hex": "#E6E29A",
+      "long_description": "Body position adjustment without travel",
+      "aliases": [
+        "calm repositioning",
+        "repositioning"
+      ]
+    },
+    "behavior_calm_yawning": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "yawning",
+      "unique_key_per_group": 11,
+      "key": "behavior_calm_yawning",
+      "short_description": "behavior calm: yawning",
+      "event_name": "calm yawning",
+      "type": "state",
+      "color_hex": "#F3E9B2",
+      "long_description": "Yawning behavior",
+      "aliases": [
+        "calm yawning",
+        "yawning"
+      ]
+    },
+    "behavior_calm_drinking": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "drinking",
+      "unique_key_per_group": 12,
+      "key": "behavior_calm_drinking",
+      "short_description": "behavior calm: drinking",
+      "event_name": "calm drinking",
+      "type": "state",
+      "color_hex": "#8FD9C6",
+      "long_description": "Drinking from water source",
+      "aliases": [
+        "calm drinking",
+        "drinking"
+      ]
+    },
+    "behavior_calm_feeding": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "feeding",
+      "unique_key_per_group": 13,
+      "key": "behavior_calm_feeding",
+      "short_description": "behavior calm: feeding",
+      "event_name": "calm feeding",
+      "type": "state",
+      "color_hex": "#9AC27E",
+      "long_description": "Consuming food or prey",
+      "aliases": [
+        "calm feeding",
+        "feeding"
+      ]
+    },
+    "behavior_calm_scanning": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "scanning",
+      "unique_key_per_group": 14,
+      "key": "behavior_calm_scanning",
+      "short_description": "behavior calm: scanning",
+      "event_name": "calm scanning",
+      "type": "state",
+      "color_hex": "#A9CFF2",
+      "long_description": "Alert scanning or vigilance",
+      "aliases": [
+        "calm scanning",
+        "scanning"
+      ]
+    },
+    "behavior_calm_other": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "other",
+      "unique_key_per_group": 15,
+      "key": "behavior_calm_other",
+      "short_description": "behavior calm: other",
+      "event_name": "calm other",
+      "type": "state",
+      "color_hex": "#E6E29A",
+      "long_description": "Calm non-distinct behavior",
+      "aliases": [
+        "calm other",
+        "other calm"
+      ]
+    },
+    "behavior_calm_resting": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "resting",
+      "unique_key_per_group": 16,
+      "key": "behavior_calm_resting",
+      "short_description": "behavior calm: resting",
+      "event_name": "calm resting",
+      "type": "state",
+      "color_hex": "#C6E7C1",
+      "long_description": "Calm movement compatible with sleep",
+      "aliases": [
+        "calm resting",
+        "resting calm"
+      ]
+    },
+    "behavior_calm_unspecified": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "unspecified",
+      "unique_key_per_group": 17,
+      "key": "behavior_calm_unspecified",
+      "short_description": "behavior calm: unspecified",
+      "event_name": "calm unspecified",
+      "type": "state",
+      "color_hex": "#E6E29A",
+      "long_description": "Calm non-distinct behavior",
+      "aliases": [
+        "calm unspecified",
+        "calm"
+      ]
+    },
+    "behavior_motionless_resting": {
+      "group": "behavior",
+      "subgroup": "motionless",
+      "suffix": "resting",
+      "unique_key_per_group": 18,
+      "key": "behavior_motionless_resting",
+      "short_description": "behavior motionless: resting",
+      "event_name": "motionless resting",
+      "type": "state",
+      "color_hex": "#8FAFCF",
+      "long_description": "No visible movement compatible with sleep",
+      "aliases": [
+        "motionless resting",
+        "resting motionless"
+      ]
+    },
+    "rest.surface": {
+      "group": "putative-rest",
+      "subgroup": "surface",
+      "suffix": "sleep",
+      "unique_key_per_group": 1,
+      "key": "rest.surface",
+      "short_description": "rest surface: sleep",
+      "event_name": "surface sleep",
+      "type": "state",
+      "color_hex": "#EBED61",
+      "long_description": "Algorithmic rest event detected at the surface.",
+      "aliases": [
+        "surface sleep",
+        "rest surface sleep",
+        "rest.surface"
+      ]
+    },
+    "rest.benthic": {
+      "group": "putative-rest",
+      "subgroup": "benthic",
+      "suffix": "sleep",
+      "unique_key_per_group": 2,
+      "key": "putative_rest.benthic_sleep",
+      "short_description": "putative-rest benthic: sleep",
+      "event_name": "benthic sleep",
+      "type": "state",
+      "color_hex": "#88BA92",
+      "long_description": "Algorithmic putative rest event identified as a benthic or flat rest segment.",
+      "aliases": [
+        "benthic sleep",
+        "putative rest benthic sleep",
+        "benthic_sleep"
+      ]
+    },
+    "putative_rest.drift_sleep": {
+      "group": "putative-rest",
+      "subgroup": "drift",
+      "suffix": "sleep",
+      "unique_key_per_group": 3,
+      "key": "putative_rest.drift_sleep",
+      "short_description": "putative-rest drift: sleep",
+      "event_name": "drift sleep",
+      "type": "state",
+      "color_hex": "#8593FF",
+      "long_description": "Algorithmic putative rest event identified as a drift-like sleep segment.",
+      "aliases": [
+        "drift sleep",
+        "putative rest drift sleep",
+        "drift_sleep"
+      ]
+    },
+    "dive-type_foraging": {
+      "group": "dive-type",
+      "subgroup": null,
+      "suffix": "foraging",
+      "unique_key_per_group": 1,
+      "key": "dive-type_foraging",
+      "short_description": "dive-type: foraging",
+      "event_name": "foraging",
+      "type": "state",
+      "color_hex": null,
+      "long_description": "Dive-type label derived from pred_dive_type code 3",
+      "aliases": [
+        "foraging",
+        "3"
+      ]
+    },
+    "dive-type_resting": {
+      "group": "dive-type",
+      "subgroup": null,
+      "suffix": "resting",
+      "unique_key_per_group": 2,
+      "key": "dive-type_resting",
+      "short_description": "dive-type: resting",
+      "event_name": "resting",
+      "type": "state",
+      "color_hex": null,
+      "long_description": "Dive-type label derived from pred_dive_type code 6",
+      "aliases": [
+        "resting",
+        "6"
+      ]
+    },
+    "dive-type_transit": {
+      "group": "dive-type",
+      "subgroup": null,
+      "suffix": "transit",
+      "unique_key_per_group": 3,
+      "key": "dive-type_transit",
+      "short_description": "dive-type: transit",
+      "event_name": "transit",
+      "type": "state",
+      "color_hex": null,
+      "long_description": "Dive-type label derived from pred_dive_type code 9",
+      "aliases": [
+        "transit",
+        "9"
+      ]
+    },
+    "dive-type_unscorable": {
+      "group": "dive-type",
+      "subgroup": "unscorable",
+      "suffix": "unscorable",
+      "unique_key_per_group": 4,
+      "key": "dive-type_unscorable",
+      "short_description": "dive-type: unscorable",
+      "event_name": "unscorable",
+      "type": "state",
+      "color_hex": null,
+      "long_description": "Dive-type state for dives present in inclusive dive counting but missing scored dive_num labels.",
+      "aliases": [
+        "unscorable",
+        "unclear"
+      ]
+    },
+    "behavior_calm_gliding_surface": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "gliding_surface",
+      "key": "behavior_calm_gliding_surface",
+      "short_description": "behavior calm: gliding surface",
+      "event_name": "calm gliding surface",
+      "long_description": "Calm surface gliding with stroke rate below active threshold (non-rest).",
+      "aliases": [
+        "calm gliding surface",
+        "surface calm gliding",
+        "calm_surface_gliding"
+      ],
+      "type": "state",
+      "color_hex": "#A5D6A7",
+      "unique_key_per_group": 19
+    },
+    "behavior_active_swimming_surface": {
+      "group": "behavior",
+      "subgroup": "active",
+      "suffix": "swimming_surface",
+      "key": "behavior_active_swimming_surface",
+      "short_description": "behavior active: swimming surface",
+      "event_name": "active swimming surface",
+      "long_description": "Active surface swimming with stroke rate above active threshold.",
+      "aliases": [
+        "active swimming surface",
+        "surface active swimming",
+        "active_surface_swimming"
+      ],
+      "type": "state",
+      "color_hex": "#FF7043",
+      "unique_key_per_group": 22
+    },
+    "behavior_motionless_resting_surface": {
+      "group": "behavior",
+      "subgroup": "motionless",
+      "suffix": "resting_surface",
+      "key": "behavior_motionless_resting_surface",
+      "short_description": "behavior motionless: resting surface",
+      "event_name": "motionless resting surface",
+      "long_description": "Motionless surface resting segment compatible with sleep.",
+      "aliases": [
+        "motionless resting surface",
+        "surface resting motionless",
+        "rest_surface",
+        "surface_sleep"
+      ],
+      "type": "state",
+      "color_hex": "#9E9E9E",
+      "unique_key_per_group": 23
+    },
+    "behavior_motionless_resting_benthic": {
+      "group": "behavior",
+      "subgroup": "motionless",
+      "suffix": "resting_benthic",
+      "key": "behavior_motionless_resting_benthic",
+      "short_description": "behavior motionless: resting benthic",
+      "event_name": "motionless resting benthic",
+      "long_description": "Motionless benthic resting segment compatible with sleep.",
+      "aliases": [
+        "motionless resting benthic",
+        "benthic resting motionless",
+        "rest_benthic",
+        "long_flat"
+      ],
+      "type": "state",
+      "color_hex": "#757575",
+      "unique_key_per_group": 24
+    },
+    "behavior_motionless_resting_drift": {
+      "group": "behavior",
+      "subgroup": "motionless",
+      "suffix": "resting_drift",
+      "key": "behavior_motionless_resting_drift",
+      "short_description": "behavior motionless: resting drift",
+      "event_name": "motionless resting drift",
+      "long_description": "Motionless drifting resting segment compatible with sleep.",
+      "aliases": [
+        "motionless resting drift",
+        "drift resting motionless",
+        "rest_drift",
+        "long_drift"
+      ],
+      "type": "state",
+      "color_hex": "#607D8B",
+      "unique_key_per_group": 25
+    },
+    "behavior_unscorable": {
+      "group": "behavior",
+      "subgroup": "unscorable",
+      "suffix": "unscorable",
+      "key": "behavior_unscorable",
+      "short_description": "behavior: unscorable",
+      "event_name": "behavior unscorable",
+      "long_description": "Behavior state excluded due to insufficient data quality.",
+      "aliases": [
+        "behavior unscorable",
+        "unscorable behavior",
+        "rest_unscorable",
+        "unscorable"
+      ],
+      "type": "state",
+      "color_hex": "#BDBDBD",
+      "unique_key_per_group": 26
+    },
+    "behavior_active_swimming_diving": {
+      "group": "behavior",
+      "subgroup": "active",
+      "suffix": "swimming_diving",
+      "key": "behavior_active_swimming_diving",
+      "short_description": "behavior active: swimming diving",
+      "event_name": "active swimming diving",
+      "long_description": "Active underwater swimming with stroke rate above active threshold.",
+      "aliases": [
+        "active swimming dive",
+        "dive active swimming",
+        "active_uw_swimming"
+      ],
+      "type": "state",
+      "color_hex": "#FF5722",
+      "unique_key_per_group": 21
+    },
+    "behavior_calm_gliding_diving": {
+      "group": "behavior",
+      "subgroup": "calm",
+      "suffix": "gliding_diving",
+      "key": "behavior_calm_gliding_diving",
+      "short_description": "behavior calm: gliding diving",
+      "event_name": "calm gliding diving",
+      "long_description": "Calm underwater gliding with stroke rate below active threshold (non-rest).",
+      "aliases": [
+        "calm gliding dive",
+        "dive calm gliding",
+        "calm_uw_gliding"
+      ],
+      "type": "state",
+      "color_hex": "#8BC34A",
+      "unique_key_per_group": 20
+    }
+  },
+  "aliases": {
+    "sleep-state": {
+      "active_quiet_drowsiness": "sleep-state_waking_active-quiet-drowsiness",
+      "active_quiet": "sleep-state_waking_active-quiet",
+      "active": "sleep-state_waking_active",
+      "active_waking": "sleep-state_waking_active",
+      "quiet": "sleep-state_waking_quiet",
+      "quiet_waking": "sleep-state_waking_quiet",
+      "drowsiness": "sleep-state_waking_drowsiness",
+      "slow_wave_sleep": "sleep-state_sleep_slow-wave-sleep",
+      "sws": "sleep-state_sleep_slow-wave-sleep",
+      "lowest_voltage_sws": "sleep-state_sleep_lowest-voltage-sws",
+      "low_voltage_sws": "sleep-state_sleep_low-voltage-sws",
+      "lv_slow_wave_sleep": "sleep-state_sleep_low-voltage-sws",
+      "highest_voltage_sws": "sleep-state_sleep_highest-voltage-sws",
+      "hv_slow_wave_sleep": "sleep-state_sleep_highest-voltage-sws",
+      "unihemispheric_sws": "sleep-state_sleep_unihemispheric-sws",
+      "usws": "sleep-state_sleep_unihemispheric-sws",
+      "asymmetrical_sws": "sleep-state_sleep_asymmetrical-sws",
+      "unihemispheric_sws_right": "sleep-state_sleep_unihemispheric-sws-right",
+      "usws_right": "sleep-state_sleep_unihemispheric-sws-right",
+      "unihemispheric_sws_left": "sleep-state_sleep_unihemispheric-sws-left",
+      "usws_left": "sleep-state_sleep_unihemispheric-sws-left",
+      "bilateral_sws": "sleep-state_sleep_bilateral-sws",
+      "certain_rem": "sleep-state_sleep_certain-rem",
+      "certain_rem_sleep": "sleep-state_sleep_certain-rem",
+      "sleep_state_certain_rem_sleep": "sleep-state_sleep_certain-rem",
+      "putative_rem": "sleep-state_sleep_putative-rem",
+      "putative_rem_sleep": "sleep-state_sleep_putative-rem",
+      "sleep_state_putative_rem_sleep": "sleep-state_sleep_putative-rem",
+      "rem_bilateral_sws": "sleep-state_sleep_rem-bilateral-sws",
+      "unclear": "sleep-state_unscorable_unclear",
+      "unscorable": "sleep-state_unscorable_unclear",
+      "sleep_state_unscorable": "sleep-state_unscorable_unclear",
+      "unspecified": "sleep-state_sleep_unspecified"
+    },
+    "behavior": {
+      "active_galumphing": "behavior_active_galumphing",
+      "galumphing": "behavior_active_galumphing",
+      "active_walking": "behavior_active_walking",
+      "walking": "behavior_active_walking",
+      "active_trotting": "behavior_active_trotting",
+      "trotting": "behavior_active_trotting",
+      "active_running": "behavior_active_running",
+      "running": "behavior_active_running",
+      "active_swimming": "behavior_active_swimming",
+      "swimming": "behavior_active_swimming",
+      "active_unspecified": "behavior_active_unspecified",
+      "active_other": "behavior_active_unspecified",
+      "calm_vocalizing": "behavior_calm_vocalizing",
+      "vocalizing": "behavior_calm_vocalizing",
+      "calm_grooming": "behavior_calm_grooming",
+      "grooming": "behavior_calm_grooming",
+      "calm_repositioning": "behavior_calm_repositioning",
+      "repositioning": "behavior_calm_repositioning",
+      "calm_yawning": "behavior_calm_yawning",
+      "yawning": "behavior_calm_yawning",
+      "calm_drinking": "behavior_calm_drinking",
+      "drinking": "behavior_calm_drinking",
+      "calm_feeding": "behavior_calm_feeding",
+      "feeding": "behavior_calm_feeding",
+      "calm_scanning": "behavior_calm_scanning",
+      "scanning": "behavior_calm_scanning",
+      "calm_other": "behavior_calm_other",
+      "calm_resting": "behavior_calm_resting",
+      "calm_unspecified": "behavior_calm_unspecified",
+      "motionless_resting": "behavior_motionless_resting"
+    },
+    "putative-rest": {
+      "surface_sleep": "putative_rest.surface_sleep",
+      "surface sleep": "putative_rest.surface_sleep",
+      "putative_rest.surface_sleep": "putative_rest.surface_sleep",
+      "benthic_sleep": "putative_rest.benthic_sleep",
+      "benthic sleep": "putative_rest.benthic_sleep",
+      "putative_rest.benthic_sleep": "putative_rest.benthic_sleep",
+      "drift_sleep": "putative_rest.drift_sleep",
+      "drift sleep": "putative_rest.drift_sleep",
+      "putative_rest.drift_sleep": "putative_rest.drift_sleep"
+    },
+    "dive-type": {
+      "3": "dive-type_foraging",
+      "foraging": "dive-type_foraging",
+      "6": "dive-type_resting",
+      "resting": "dive-type_resting",
+      "9": "dive-type_transit",
+      "transit": "dive-type_transit",
+      "unscorable": "dive-type_unscorable",
+      "unclear": "dive-type_unscorable"
+    },
+    "dive-type-project": {
+      "3": "dive-type_foraging",
+      "foraging": "dive-type_foraging",
+      "6": "dive-type_resting",
+      "resting": "dive-type_resting",
+      "9": "dive-type_transit",
+      "transit": "dive-type_transit",
+      "unscorable": "dive-type_unscorable",
+      "unclear": "dive-type_unscorable"
+    },
+    "calm_uw_gliding": "behavior_calm_gliding_diving",
+    "active_uw_swimming": "behavior_active_swimming_diving",
+    "calm_surface_gliding": "behavior_calm_gliding_surface",
+    "active_surface_swimming": "behavior_active_swimming_surface",
+    "rest_surface": "behavior_motionless_resting_surface",
+    "rest_benthic": "behavior_motionless_resting_benthic",
+    "rest_drift": "behavior_motionless_resting_drift",
+    "rest_unscorable": "behavior_unscorable",
+    "surface_sleep": "behavior_motionless_resting_surface",
+    "long_flat": "behavior_motionless_resting_benthic",
+    "long_drift": "behavior_motionless_resting_drift",
+    "unscorable": "behavior_unscorable",
+    "behavior_active_swimming_dive": "behavior_active_swimming_diving",
+    "behavior_calm_gliding_dive": "behavior_calm_gliding_diving",
+    "swimming_uw": "behavior_active_swimming_diving",
+    "gliding_uw": "behavior_calm_gliding_diving",
+    "swimming_surface": "behavior_active_swimming_surface",
+    "gliding_surface": "behavior_calm_gliding_surface",
+    "resting_surface": "behavior_motionless_resting_surface",
+    "resting_benthic": "behavior_motionless_resting_benthic",
+    "resting_drift": "behavior_motionless_resting_drift"
+  }
+}

@@ -86,6 +86,20 @@ class CSVImporter(BaseImporter):
         """Hook for manufacturer-specific transforms after channel renaming."""
         return df
 
+    def _get_signal_columns(self, channel_metadata: dict, parent_signal: str, available_columns) -> list[str]:
+        return [
+            column_name
+            for column_name, metadata in channel_metadata.items()
+            if metadata.get("parent_signal") == parent_signal and column_name in available_columns
+        ]
+
+    def _pick_preferred_column(self, columns: list[str], preferred_name: str) -> str | None:
+        if preferred_name in columns:
+            return preferred_name
+        if len(columns) == 1:
+            return columns[0]
+        return None
+
     # -------- helpers --------
     def _read_file(self, path: str) -> pd.DataFrame:
         """Dispatch to CSV or Parquet reader based on extension."""

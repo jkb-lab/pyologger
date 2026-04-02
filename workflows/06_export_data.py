@@ -1,10 +1,19 @@
 import argparse
+import os
+import sys
+
+from datetime import datetime
+import glob
+
+# Ensure direct workflow execution resolves the repo-local pyologger package.
+WORKFLOW_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(WORKFLOW_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # Import necessary pyologger utilities
 from pyologger.utils.folder_manager import *
 from pyologger.io_operations.base_exporter import *
-from datetime import datetime
-import glob
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Zero Offset Correction - Calibrate Pressure Sensor")

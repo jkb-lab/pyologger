@@ -36,15 +36,17 @@ class LLImporter(BaseImporter):
             print(f"✅ Renamed columns for {self.logger_id}: {new_cols}")
         else:
             print(f"ℹ️ No column renames applied for {self.logger_id}.")
+
+        final_df = self._convert_stroke_rate_count_per_5s_to_spm(final_df, channel_metadata)
         
         # Process datetime and return metadata
         final_df, datetime_metadata = self.data_reader.process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
         self.data_reader.logger_info[self.logger_id]['datetime_metadata'] = datetime_metadata
 
         # Map data to signals and return signal information
-        signal_groups, signal_info = self.group_data_by_signals(final_df, self.logger_id, column_metadata)
+        signal_groups, signal_info = self.group_data_by_signals(final_df, self.logger_id, channel_metadata)
 
-        return final_df, column_metadata, datetime_metadata, signal_groups, signal_info
+        return final_df, channel_metadata, datetime_metadata, signal_groups, signal_info
 
     def concatenate_and_save_csvs(self, csv_files):
         """Concatenates multiple CSV and Parquet files into one DataFrame."""
@@ -70,3 +72,42 @@ class LLImporter(BaseImporter):
         file_path = os.path.join(self.data_reader.data_folder, txt_file)
         with open(file_path, 'r') as file:
             print(file.read())
+
+    def _convert_stroke_rate_count_per_5s_to_spm(self, df: pd.DataFrame, channel_metadata: dict) -> pd.DataFrame:
+        updated_df = df
+        converted_cols = []
+        for column_name, metadata in channel_metadata.items():
+            if column_name not in updated_df.columns:
+                continue
+            if metadata.get("parent_signal") != "stroke_rate":
+                continue
+            raw_unit = str(metadata.get("unit", "")).strip().lower()
+            standardized_unit = str(metadata.get("standardized_unit", "")).strip().lower()
+            if self._is_count_per_5s_unit(raw_unit) or self._is_count_per_5s_unit(standardized_unit):
+                if updated_df is df:
+                    updated_df = updated_df.copy()
+                updated_df[column_name] = pd.to_numeric(updated_df[column_name], errors="coerce") * 12.0
+                metadata["unit"] = "spm"
+                metadata["standardized_unit"] = "spm"
+                channel_metadata[column_name] = metadata
+                converted_cols.append(column_name)
+        if converted_cols:
+            print(
+                "🔁 Converted LL stroke_rate from count/5s to spm for column(s): "
+                f"{converted_cols}"
+            )
+        return updated_df
+
+    @staticmethod
+    def _is_count_per_5s_unit(unit: str) -> bool:
+        normalized = str(unit or "").strip().lower().replace(" ", "")
+        return normalized in {
+            "count/5s",
+            "counts/5s",
+            "countper5s",
+            "countsper5s",
+            "1/5s",
+            "per5s",
+            "count5s",
+            "counts5s",
+        }
