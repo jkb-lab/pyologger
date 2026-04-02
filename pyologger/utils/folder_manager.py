@@ -1,16 +1,70 @@
+from __future__ import annotations
+
 import os
-import yaml
 import pickle
-import streamlit as st
-from dotenv import load_dotenv
+import copy
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+import yaml
 
 from pyologger.utils.param_manager import ParamManager
 
+def resolve_config_path(config_path: str | os.PathLike[str] | None = None) -> Path:
+    if config_path:
+        return Path(config_path).expanduser().resolve()
+    env_path = os.getenv("CONFIG_PATH")
+    if env_path:
+        return Path(env_path).expanduser().resolve()
+    return Path(__file__).resolve().parents[2] / "config.yaml"
+
+
+def resolve_segmentation_runs_path(
+    config_path: str | os.PathLike[str] | None = None,
+    segmentation_runs_path: str | os.PathLike[str] | None = None,
+) -> Path:
+    if segmentation_runs_path:
+        return Path(segmentation_runs_path).expanduser().resolve()
+    env_path = os.getenv("SEGMENTATION_RUNS_PATH")
+    if env_path:
+        return Path(env_path).expanduser().resolve()
+    return resolve_config_path(config_path).with_name("segmentation_runs.yaml")
+
+
+def _load_yaml_file(path: Path) -> dict[str, Any]:
+    with open(path, "r") as f:
+        return yaml.safe_load(f) or {}
+
+
+def load_combined_config(
+    config_path: str | os.PathLike[str] | None = None,
+    segmentation_runs_path: str | os.PathLike[str] | None = None,
+) -> tuple[dict[str, Any], Path, Path]:
+    main_config_path = resolve_config_path(config_path)
+    config = _load_yaml_file(main_config_path)
+    runs_path = resolve_segmentation_runs_path(main_config_path, segmentation_runs_path)
+    if runs_path.exists():
+        runs_payload = _load_yaml_file(runs_path)
+        merged = copy.deepcopy(config)
+        if isinstance(runs_payload.get("segmentation_runs"), dict):
+            merged["segmentation_runs"] = copy.deepcopy(runs_payload["segmentation_runs"])
+        for shared_key in (
+            "context_filter_definitions",
+            "supervised_context_filter_definitions",
+            "supervised_label_group_definitions",
+            "segmentation_event_definitions",
+        ):
+            if isinstance(runs_payload.get(shared_key), dict):
+                merged[shared_key] = copy.deepcopy(runs_payload[shared_key])
+        config = merged
+    return config, main_config_path, runs_path
+
+
 def load_configuration():
+    from dotenv import load_dotenv
     load_dotenv()
-    CONFIG_PATH = os.getenv("CONFIG_PATH")
-    with open(CONFIG_PATH) as f:
-        config = yaml.safe_load(f)
+    config, _, _ = load_combined_config()
     data_dir = config["paths"]["local_private_data"]
     color_mapping_path = os.path.join(config["paths"]["local_repo_path"], "color_mappings.json")
     montage_path = os.path.join(config["paths"]["local_repo_path"], "montage_log.json")
@@ -36,7 +90,8 @@ def select_folder(base_dir, prompt="Select a folder:"):
     
 def select_and_load_deployment_streamlit(data_dir):
     """Streamlit-based deployment selection with dataset and deployment filtering."""
-    
+    import streamlit as st
+
     # Get available datasets (excluding those starting with "00_")
     datasets = sorted([d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d)) and not d.startswith("00_")])
     if not datasets:
@@ -113,9 +168,8 @@ def select_and_load_deployment_streamlit(data_dir):
 
     return animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager
 
-def select_and_load_deployment(data_dir, dataset_id=None, deployment_id=None):
-    """Command-line or function-based deployment selection. Allows selection via index or folder name."""
-
+def resolve_deployment_context(data_dir, dataset_id=None, deployment_id=None):
+    """Resolve dataset/deployment paths without loading data.pkl."""
     # Get available datasets (excluding those starting with "00_")
     datasets = sorted([d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d)) and not d.startswith("00_")])
     if not datasets:
@@ -164,6 +218,18 @@ def select_and_load_deployment(data_dir, dataset_id=None, deployment_id=None):
     except IndexError:
         raise ValueError(f"❌ Unable to extract animal ID from deployment ID: {deployment_id}")
 
+    param_manager = ParamManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
+    return animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager
+
+def select_and_load_deployment(data_dir, dataset_id=None, deployment_id=None):
+    """Command-line or function-based deployment selection. Allows selection via index or folder name."""
+
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager = resolve_deployment_context(
+        data_dir,
+        dataset_id=dataset_id,
+        deployment_id=deployment_id,
+    )
+
     # Load data.pkl
     pkl_path = os.path.join(deployment_folder, "outputs", "data.pkl")
     if not os.path.exists(pkl_path):
@@ -180,9 +246,6 @@ def select_and_load_deployment(data_dir, dataset_id=None, deployment_id=None):
             "Recovery: rerun Step 00 to rebuild the pickle:\n"
             f"python workflows/00_load_data.py --dataset {dataset_id} --deployment {deployment_id}"
         ) from e
-
-    # Initialize ParamManager
-    param_manager = ParamManager(deployment_folder=deployment_folder, deployment_id=deployment_id)
 
     return animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager
 
@@ -360,7 +423,8 @@ def create_dataset_structure(
     mapping_results: dict,
     data_dir: str,
     save_parquet: bool = True,
-    dry_run: bool = False
+    dry_run: bool = False,
+    max_interpolation_gap: str | pd.Timedelta = "2min",
 ):
     """
     Create standardized dataset folder structure organized by deployment.
@@ -468,7 +532,106 @@ def create_dataset_structure(
     --------
     match_to_metadata : Generates mapping_results required by this function
     """
-    from pathlib import Path
+    from pandas.api.types import is_bool_dtype, is_numeric_dtype
+
+    def _resolve_time_column(df: pd.DataFrame) -> str | None:
+        for candidate in ("stroke_time_utc", "tlld_time_utc", "datetime_utc", "datetime", "time"):
+            if candidate in df.columns:
+                return candidate
+        return None
+
+    def _infer_sampling_interval(dt_utc: pd.Series) -> pd.Timedelta:
+        diffs = dt_utc.sort_values().diff().dropna()
+        diffs = diffs[diffs > pd.Timedelta(0)]
+        if diffs.empty:
+            raise ValueError("Cannot infer sampling interval from fewer than 2 unique timestamps.")
+        return diffs.min()
+
+    def _preserve_time_dtype(index_utc: pd.DatetimeIndex, original_time: pd.Series) -> pd.Series:
+        parsed_original = pd.to_datetime(original_time, errors="coerce")
+        original_tz = getattr(parsed_original.dt, "tz", None)
+        if original_tz is None:
+            return pd.Series(index_utc.tz_convert(None), index=index_utc)
+        return pd.Series(index_utc.tz_convert(original_tz), index=index_utc)
+
+    def _fill_short_time_gaps(merged_df: pd.DataFrame, *, label: str) -> tuple[pd.DataFrame, int]:
+        if merged_df is None or merged_df.empty:
+            return merged_df, 0
+
+        time_col = _resolve_time_column(merged_df)
+        if time_col is None:
+            raise ValueError(f"{label}: no datetime column found for gap interpolation.")
+
+        prepared = merged_df.copy()
+        prepared[time_col] = pd.to_datetime(prepared[time_col], utc=True, errors="coerce")
+        prepared = prepared.dropna(subset=[time_col]).sort_values(time_col).reset_index(drop=True)
+        if prepared.empty:
+            return prepared, 0
+
+        duplicated = prepared[time_col].duplicated(keep=False)
+        if duplicated.any():
+            dup_count = int(duplicated.sum())
+            raise ValueError(f"{label}: found {dup_count} duplicate timestamps in {time_col}; cannot interpolate gaps.")
+
+        if len(prepared) < 2:
+            return prepared, 0
+
+        sampling_interval = _infer_sampling_interval(prepared[time_col])
+        gap_limit = pd.to_timedelta(max_interpolation_gap)
+        diffs = prepared[time_col].diff().dropna()
+        gap_sizes = diffs - sampling_interval
+        violating = gap_sizes[gap_sizes >= gap_limit]
+        if not violating.empty:
+            first_bad_idx = violating.index[0]
+            prev_time = prepared.loc[first_bad_idx - 1, time_col]
+            next_time = prepared.loc[first_bad_idx, time_col]
+            raise ValueError(
+                f"{label}: gap from {prev_time} to {next_time} is {violating.iloc[0]}, "
+                f"which meets or exceeds the {gap_limit} interpolation limit."
+            )
+
+        original_index = pd.DatetimeIndex(prepared[time_col])
+        full_index = pd.date_range(
+            start=prepared[time_col].iloc[0],
+            end=prepared[time_col].iloc[-1],
+            freq=sampling_interval,
+            tz="UTC",
+        )
+        reindexed = prepared.set_index(time_col).reindex(full_index)
+        inserted_mask = ~reindexed.index.isin(original_index)
+        inserted_rows = int(inserted_mask.sum())
+
+        if inserted_rows == 0:
+            out = prepared.copy()
+            out[time_col] = _preserve_time_dtype(
+                pd.DatetimeIndex(out[time_col]),
+                merged_df[time_col],
+            ).to_numpy()
+            return out.reset_index(drop=True), 0
+
+        reindexed[time_col] = _preserve_time_dtype(reindexed.index, merged_df[time_col]).to_numpy()
+
+        numeric_cols = [
+            col for col in prepared.columns
+            if col != time_col and is_numeric_dtype(prepared[col]) and not is_bool_dtype(prepared[col])
+        ]
+        bool_cols = [col for col in prepared.columns if col != time_col and is_bool_dtype(prepared[col])]
+        other_cols = [col for col in prepared.columns if col not in set(numeric_cols + bool_cols + [time_col])]
+
+        if numeric_cols:
+            interpolated = reindexed[numeric_cols].interpolate(method="time", limit_area="inside")
+            reindexed.loc[inserted_mask, numeric_cols] = interpolated.loc[inserted_mask, numeric_cols]
+
+        if other_cols:
+            filled = reindexed[other_cols].ffill().bfill()
+            reindexed.loc[inserted_mask, other_cols] = filled.loc[inserted_mask, other_cols]
+
+        if bool_cols:
+            bool_filled = reindexed[bool_cols].ffill().bfill()
+            reindexed.loc[inserted_mask, bool_cols] = bool_filled.loc[inserted_mask, bool_cols]
+
+        out = reindexed.reset_index(drop=True)
+        return out, inserted_rows
     
     # Create main dataset folder
     dataset_folder = Path(data_dir) / f"{dataset_id}_new"
@@ -519,15 +682,24 @@ def create_dataset_structure(
         # Save merged data as parquet if requested (named by Recording ID)
         parquet_path = None
         if save_parquet and "merged_df" in deployment_data:
-            merged_df = deployment_data["merged_df"]
+            merged_df, inserted_rows = _fill_short_time_gaps(
+                deployment_data["merged_df"],
+                label=f"TOPPID {toppid} / deployment {deployment_id}",
+            )
             parquet_filename = f"{recording_id}_merged.parquet"
             parquet_path = rawdata_folder / parquet_filename
             
             if not dry_run:
                 merged_df.to_parquet(parquet_path, index=False)
-                print(f"  ✓ Saved: 01_raw-data/{parquet_filename} ({len(merged_df):,} rows)")
+                print(
+                    f"  ✓ Saved: 01_raw-data/{parquet_filename} "
+                    f"({len(merged_df):,} rows, interpolated {inserted_rows:,} gap rows)"
+                )
             else:
-                print(f"  [DRY RUN] Would save: 01_raw-data/{parquet_filename} ({len(merged_df):,} rows)")
+                print(
+                    f"  [DRY RUN] Would save: 01_raw-data/{parquet_filename} "
+                    f"({len(merged_df):,} rows, interpolated {inserted_rows:,} gap rows)"
+                )
         
         # Track deployment folders (handle multiple TOPPIDs per deployment)
         if deployment_id not in deployment_folders:
@@ -561,3 +733,133 @@ def create_dataset_structure(
         "dataset_folder": dataset_folder,
         "deployment_folders": deployment_folders
     }
+
+
+def map_deployment_to_dataset(root_dir: str | Path) -> dict[str, str]:
+    """Map deployment IDs to dataset IDs by scanning the dataset root directory.
+
+    Walks the first two levels of *root_dir* (dataset / deployment) and returns
+    a dictionary ``{deployment_id: dataset_id}``.  Folders whose names start
+    with ``00_`` are skipped (metadata directories by convention).
+    """
+    root_dir = Path(root_dir)
+    dep_to_ds: dict[str, str] = {}
+    if not root_dir.is_dir():
+        return dep_to_ds
+
+    for dataset_dir in sorted(root_dir.iterdir()):
+        if not dataset_dir.is_dir() or dataset_dir.name.startswith("00_"):
+            continue
+        for deployment_dir in dataset_dir.iterdir():
+            if deployment_dir.is_dir() and not deployment_dir.name.startswith("00_"):
+                dep_to_ds.setdefault(deployment_dir.name, dataset_dir.name)
+    return dep_to_ds
+
+
+def _trim_event_df_to_window(
+    event_df: pd.DataFrame | None,
+    start_utc: pd.Timestamp,
+    end_utc: pd.Timestamp,
+) -> pd.DataFrame | None:
+    """Trim an event table to an analysis window, preserving overlapping events."""
+    if event_df is None or len(event_df) == 0 or "datetime" not in event_df.columns:
+        return event_df
+
+    out = event_df.copy()
+    out["datetime"] = pd.to_datetime(out["datetime"], errors="coerce", utc=True)
+
+    end_col = None
+    for candidate in ("end_datetime", "end_time", "datetime_end", "end"):
+        if candidate in out.columns:
+            out[candidate] = pd.to_datetime(out[candidate], errors="coerce", utc=True)
+            end_col = candidate
+            break
+
+    if end_col is not None:
+        event_end = out[end_col]
+    else:
+        event_end = out["datetime"].copy()
+        duration_col = next(
+            (c for c in ("duration_s", "duration_sec", "duration_pos", "duration") if c in out.columns),
+            None,
+        )
+        if duration_col is not None:
+            duration_s = pd.to_numeric(out[duration_col], errors="coerce").fillna(0.0)
+            event_end = out["datetime"] + pd.to_timedelta(duration_s, unit="s")
+
+    mask = (
+        out["datetime"].notna()
+        & (out["datetime"] <= end_utc)
+        & event_end.notna()
+        & (event_end >= start_utc)
+    )
+    return out.loc[mask].sort_values("datetime").reset_index(drop=True)
+
+
+def trim_data_pkl_to_accelerometer_window(
+    data_pkl: Any,
+    *,
+    anchor_signal: str = "accelerometer",
+    verbose: bool = True,
+) -> tuple[Any, pd.Timestamp | None, pd.Timestamp | None]:
+    """Trim all signal/event tables in *data_pkl* to the anchor signal's time window.
+
+    Returns ``(data_pkl, start_utc, end_utc)`` where the start/end timestamps
+    reflect the anchor signal's extent.  If the anchor signal is missing the
+    object is returned unmodified with ``(None, None)``.
+    """
+    if not hasattr(data_pkl, "signal_data") or data_pkl.signal_data is None:
+        return data_pkl, None, None
+
+    anchor_df = data_pkl.signal_data.get(anchor_signal)
+    if anchor_df is None or len(anchor_df) == 0 or "datetime" not in anchor_df.columns:
+        return data_pkl, None, None
+
+    anchor_dt = pd.to_datetime(anchor_df["datetime"], utc=True, errors="coerce").dropna()
+    if anchor_dt.empty:
+        return data_pkl, None, None
+
+    start_utc = anchor_dt.min()
+    end_utc = anchor_dt.max()
+
+    for signal_name, signal_df in list(data_pkl.signal_data.items()):
+        if signal_df is None or len(signal_df) == 0 or "datetime" not in signal_df.columns:
+            continue
+        dt = pd.to_datetime(signal_df["datetime"], utc=True, errors="coerce")
+        keep = dt.notna() & (dt >= start_utc) & (dt <= end_utc)
+        trimmed = signal_df.loc[keep].copy()
+        if "datetime" in trimmed.columns:
+            ref_dt = pd.to_datetime(signal_df["datetime"], errors="coerce")
+            if getattr(ref_dt.dt, "tz", None) is None:
+                trimmed["datetime"] = dt.loc[keep].dt.tz_convert(None)
+            else:
+                trimmed["datetime"] = dt.loc[keep].dt.tz_convert(ref_dt.dt.tz)
+        data_pkl.signal_data[signal_name] = trimmed.reset_index(drop=True)
+
+    if hasattr(data_pkl, "event_data") and isinstance(data_pkl.event_data, pd.DataFrame):
+        trimmed_events = _trim_event_df_to_window(data_pkl.event_data, start_utc, end_utc)
+        if trimmed_events is not None:
+            ref_signal = next(
+                (
+                    sig_df
+                    for sig_df in data_pkl.signal_data.values()
+                    if isinstance(sig_df, pd.DataFrame)
+                    and len(sig_df) > 0
+                    and "datetime" in sig_df.columns
+                ),
+                None,
+            )
+            if ref_signal is not None and len(trimmed_events) > 0:
+                ref_dt = pd.to_datetime(ref_signal["datetime"], errors="coerce")
+                ref_tz = ref_dt.dt.tz
+                for col in ("datetime", "end_datetime"):
+                    if col in trimmed_events.columns:
+                        dt_col = pd.to_datetime(trimmed_events[col], errors="coerce", utc=True)
+                        trimmed_events[col] = (
+                            dt_col.dt.tz_convert(None) if ref_tz is None else dt_col.dt.tz_convert(ref_tz)
+                        )
+            data_pkl.event_data = trimmed_events
+
+    if verbose:
+        print(f"Trimmed data.pkl to accelerometer window: {start_utc} to {end_utc}")
+    return data_pkl, start_utc, end_utc

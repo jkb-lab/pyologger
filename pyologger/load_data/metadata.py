@@ -119,42 +119,6 @@ class Metadata:
     def parse_metadata_value(self, prop, prop_type, column_name):
         if prop is None or prop_type is None:
             return np.nan
-
-    def _extract_cover_url(self, page):
-        """
-        Extract Notion page cover URL from page-level metadata.
-        Supports both external and Notion-hosted file cover payloads.
-        """
-        if not isinstance(page, dict):
-            return np.nan
-        cover = page.get("cover") or {}
-        if not isinstance(cover, dict):
-            return np.nan
-        cover_type = cover.get("type")
-        if cover_type == "external":
-            return cover.get("external", {}).get("url", np.nan)
-        if cover_type == "file":
-            return cover.get("file", {}).get("url", np.nan)
-        return np.nan
-
-    def _extract_icon(self, page):
-        """
-        Extract Notion page icon as (emoji, image_url).
-        """
-        if not isinstance(page, dict):
-            return np.nan, np.nan
-        icon = page.get("icon") or {}
-        if not isinstance(icon, dict):
-            return np.nan, np.nan
-        icon_type = icon.get("type")
-        if icon_type == "emoji":
-            return icon.get("emoji", np.nan), np.nan
-        if icon_type == "external":
-            return np.nan, icon.get("external", {}).get("url", np.nan)
-        if icon_type == "file":
-            return np.nan, icon.get("file", {}).get("url", np.nan)
-        return np.nan, np.nan
-
         try:
             if prop_type in ["title", "rich_text"]:
                 value = ", ".join(
@@ -245,6 +209,41 @@ class Metadata:
         except Exception as e:
             print(f"Error parsing {column_name}: {e}")
             return np.nan
+
+    def _extract_cover_url(self, page):
+        """
+        Extract Notion page cover URL from page-level metadata.
+        Supports both external and Notion-hosted file cover payloads.
+        """
+        if not isinstance(page, dict):
+            return np.nan
+        cover = page.get("cover") or {}
+        if not isinstance(cover, dict):
+            return np.nan
+        cover_type = cover.get("type")
+        if cover_type == "external":
+            return cover.get("external", {}).get("url", np.nan)
+        if cover_type == "file":
+            return cover.get("file", {}).get("url", np.nan)
+        return np.nan
+
+    def _extract_icon(self, page):
+        """
+        Extract Notion page icon as (emoji, image_url).
+        """
+        if not isinstance(page, dict):
+            return np.nan, np.nan
+        icon = page.get("icon") or {}
+        if not isinstance(icon, dict):
+            return np.nan, np.nan
+        icon_type = icon.get("type")
+        if icon_type == "emoji":
+            return icon.get("emoji", np.nan), np.nan
+        if icon_type == "external":
+            return np.nan, icon.get("external", {}).get("url", np.nan)
+        if icon_type == "file":
+            return np.nan, icon.get("file", {}).get("url", np.nan)
+        return np.nan, np.nan
 
     # ---------------------------
     # STEP 2 (legacy): query database pages via old endpoint
@@ -559,6 +558,26 @@ class Metadata:
         procedure_db = self.get_metadata("procedure_DB")
         location_db = self.get_metadata("location_DB")
 
+        def _normalize_col_name(name):
+            return re.sub(r"[^a-z0-9]+", "_", str(name).strip().lower()).strip("_")
+
+        def _find_column(df, aliases):
+            if df is None or not isinstance(df, pd.DataFrame):
+                return None
+            normalized = {_normalize_col_name(col): col for col in df.columns}
+            for alias in aliases:
+                match = normalized.get(_normalize_col_name(alias))
+                if match is not None:
+                    return match
+            return None
+
+        def _to_scalar_or_none(value):
+            if pd.isna(value):
+                return None
+            if isinstance(value, np.generic):
+                return value.item()
+            return value
+
         # Step 1: recordings for this deployment
         if (
             deployment_db is None
@@ -656,28 +675,124 @@ class Metadata:
             if logger_entry:
                 loggers_used.append(logger_entry)
 
-        # Step 5: pick procedure ending in _attachment
-        procedure_id = None
+        # Step 5: collect all procedure rows for this deployment and store them by unique procedure ID.
+        procedure_rows = pd.DataFrame()
+        procedures_series = pd.Series(dtype=object)
         if "Procedures" in deployment_db.columns:
             procedures_series = deployment_db.loc[
                 deployment_db["Deployment ID"] == deployment_id, "Procedures"
             ].dropna()
-            if not procedures_series.empty:
-                candidate_list = procedures_series.iloc[0].split(", ")
-                procedure_id = next(
-                    (p for p in candidate_list if p.endswith("_attachment")), None
+
+        candidate_procedure_ids = []
+        if not procedures_series.empty:
+            candidate_procedure_ids = procedures_series.iloc[0].split(", ")
+
+        if procedure_db is not None and isinstance(procedure_db, pd.DataFrame):
+            if "Deployment ID" in procedure_db.columns:
+                procedure_rows = procedure_db.loc[
+                    procedure_db["Deployment ID"] == deployment_id
+                ].copy()
+            elif candidate_procedure_ids and "Procedure ID" in procedure_db.columns:
+                procedure_rows = procedure_db.loc[
+                    procedure_db["Procedure ID"].isin(candidate_procedure_ids)
+                ].copy()
+
+        procedure_id_col = _find_column(procedure_rows, ["Procedure ID", "Name", "name"])
+        procedure_location_id_col = _find_column(procedure_rows, ["Location ID", "location_id"])
+        procedure_start_dt_col = _find_column(
+            procedure_rows,
+            ["Start Datetime", "start_datetime", "start date time"],
+        )
+        procedure_end_dt_col = _find_column(
+            procedure_rows,
+            ["End Datetime", "end_datetime", "end date time"],
+        )
+        mass_kg_col = _find_column(
+            procedure_rows,
+            ["mass_kg", "mass kg", "mass (kg)", "procedure_info_mass", "mass"],
+        )
+        mass_estimated_kg_col = _find_column(
+            procedure_rows,
+            ["mass_estimated_kg", "mass estimated kg", "estimated mass kg", "estimated mass (kg)"],
+        )
+        location_name_col = _find_column(location_db, ["Location Name", "location_name", "Name", "name"])
+        location_latitude_col = _find_column(location_db, ["Latitude", "latitude", "lat"])
+        location_longitude_col = _find_column(location_db, ["Longitude", "longitude", "lon", "long"])
+
+        procedure_info = {}
+        preferred_attachment_id = None
+        if not procedure_rows.empty and procedure_id_col is not None:
+            procedure_rows = procedure_rows.drop_duplicates(subset=[procedure_id_col], keep="first")
+
+            for _, row in procedure_rows.iterrows():
+                procedure_key = str(row.get(procedure_id_col, "")).strip()
+                if not procedure_key:
+                    continue
+
+                entry = {}
+                for col in procedure_rows.columns:
+                    value = _to_scalar_or_none(row[col])
+                    entry[_normalize_col_name(col)] = "" if value is None else value
+
+                mass_kg_value = _to_scalar_or_none(row[mass_kg_col]) if mass_kg_col is not None else None
+                mass_estimated_value = _to_scalar_or_none(row[mass_estimated_kg_col]) if mass_estimated_kg_col is not None else None
+                start_dt_value = pd.to_datetime(
+                    row[procedure_start_dt_col], errors="coerce"
+                ) if procedure_start_dt_col is not None else pd.NaT
+                end_dt_value = pd.to_datetime(
+                    row[procedure_end_dt_col], errors="coerce"
+                ) if procedure_end_dt_col is not None else pd.NaT
+                if pd.notna(start_dt_value) and pd.isna(end_dt_value):
+                    end_dt_value = start_dt_value + pd.Timedelta(hours=1)
+
+                procedure_location_id = _to_scalar_or_none(
+                    row[procedure_location_id_col] if procedure_location_id_col is not None else None
                 )
+                location_name_value = ""
+                location_latitude_value = np.nan
+                location_longitude_value = np.nan
+                if (
+                    procedure_location_id is not None
+                    and location_db is not None
+                    and isinstance(location_db, pd.DataFrame)
+                    and "Location ID" in location_db.columns
+                ):
+                    loc_match = location_db.loc[
+                        location_db["Location ID"] == procedure_location_id
+                    ]
+                    if not loc_match.empty:
+                        loc_row = loc_match.iloc[0]
+                        if location_name_col is not None and pd.notna(loc_row.get(location_name_col)):
+                            location_name_value = str(loc_row.get(location_name_col))
+                        if location_latitude_col is not None and pd.notna(loc_row.get(location_latitude_col)):
+                            location_latitude_value = _to_scalar_or_none(loc_row.get(location_latitude_col))
+                        if location_longitude_col is not None and pd.notna(loc_row.get(location_longitude_col)):
+                            location_longitude_value = _to_scalar_or_none(loc_row.get(location_longitude_col))
+
+                entry["id"] = procedure_key
+                entry["mass"] = np.nan if mass_kg_value is None else mass_kg_value
+                entry["mass_kg"] = np.nan if mass_kg_value is None else mass_kg_value
+                entry["mass_estimated_kg"] = np.nan if mass_estimated_value is None else mass_estimated_value
+                entry["start_datetime"] = "" if pd.isna(start_dt_value) else start_dt_value.isoformat()
+                entry["end_datetime"] = "" if pd.isna(end_dt_value) else end_dt_value.isoformat()
+                entry["location_name"] = location_name_value
+                entry["location_latitude"] = location_latitude_value
+                entry["location_longitude"] = location_longitude_value
+                procedure_info[procedure_key] = entry
+
+                if procedure_key.endswith("_attachment") and preferred_attachment_id is None:
+                    preferred_attachment_id = procedure_key
 
         # Step 6: use that to get Location ID
         location_id = None
         if (
-            procedure_id
+            preferred_attachment_id
             and procedure_db is not None
             and "Procedure ID" in procedure_db.columns
             and "Location ID" in procedure_db.columns
         ):
             loc_series = procedure_db.loc[
-                procedure_db["Procedure ID"] == procedure_id, "Location ID"
+                procedure_db["Procedure ID"] == preferred_attachment_id, "Location ID"
             ].dropna()
             if not loc_series.empty:
                 location_id = loc_series.iloc[0]
@@ -714,6 +829,7 @@ class Metadata:
             "Deployment Latitude": deployment_latitude,
             "Deployment Longitude": deployment_longitude,
             "Time Zone": time_zone,
+            "Procedure Info": procedure_info,
         }
 
         print(f"📍 Deployment Metadata: {deployment_info}")

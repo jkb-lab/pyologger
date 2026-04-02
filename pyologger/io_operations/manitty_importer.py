@@ -20,29 +20,40 @@ class ManittyImporter(BaseImporter):
         print(f"📥 Reading EDF: {edf_path}")
         edf = read_edf(edf_path)
 
-        # Clean + normalize label
-        def clean_label(label):
-            return re.sub(r'[^\w]', '', label.lower().replace(' ', ''))
+        if not isinstance(getattr(self, "montage", None), dict) or not self.montage:
+            raise ValueError(
+                f"No valid montage mapping loaded for logger '{self.logger_id}' "
+                f"({self.logger_manufacturer}, requested montage '{self.montage_id}')."
+            )
+
+        normalized_montage = {
+            self.normalize_channel_key(key): value
+            for key, value in self.montage.items()
+        }
 
         # Filter, map and retain
         retained_signals = []
         channel_metadata_all = {}
 
         for signal in edf.signals:
-            cleaned = clean_label(signal.label)
-            if cleaned in self.montage:
-                mapping = self.montage[cleaned]
+            cleaned = self.normalize_channel_key(signal.label)
+            if cleaned in normalized_montage:
+                mapping = normalized_montage[cleaned]
                 parent_signal = mapping['parent_signal'].lower()
                 if parent_signal in ['exg', 'logger_status']:
                     continue
                 standardized_id = mapping['standardized_channel_id']
+                original_label = signal.label
                 signal.label = standardized_id
                 retained_signals.append(signal)
                 channel_metadata_all[standardized_id] = {
-                    'original_name': signal.label,
+                    'original_name': original_label,
                     'unit': mapping.get('original_unit', 'unknown'),
-                    'signal': parent_signal
+                    'signal': parent_signal,
+                    'parent_signal': parent_signal,
                 }
+            else:
+                print(f"ℹ️ Skipping unmapped Manitty EDF channel '{signal.label}' (normalized '{cleaned}').")
 
         if not retained_signals:
             print("❌ No valid signals retained after montage mapping.")

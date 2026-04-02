@@ -1,7 +1,15 @@
 import os
+import pickle
 import argparse
+import sys
 import pandas as pd
 import numpy as np
+
+# Ensure direct workflow execution resolves the repo-local pyologger package.
+WORKFLOW_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(WORKFLOW_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # Import necessary pyologger utilities
 from pyologger.utils.folder_manager import *
@@ -10,6 +18,12 @@ from pyologger.plot_data.plotter import *
 from pyologger.io_operations.base_exporter import *
 from pyologger.utils.data_manager import *
 from pyologger.calibrate_data.tag2animal import *
+from pyologger.utils.workflow_netcdf import (
+    latest_processing_netcdf_path,
+    netcdf_attr,
+    netcdf_has_signal,
+    save_step_netcdf_if_changed,
+)
 
 
 def _normalize_signal_channel_names(data_pkl, signal_name):
@@ -54,6 +68,33 @@ def _normalize_signal_channel_names(data_pkl, signal_name):
     print(f"[tag2animal] normalized channels for '{signal_name}': {rename_map}")
     return True
 
+
+def _compute_norm_jerk(corrected_acc_df: pd.DataFrame, sampling_rate_hz: float) -> pd.DataFrame:
+    """Compute full-rate norm-jerk from corrected accelerometer components."""
+    required = ["ax", "ay", "az"]
+    missing = [c for c in required if c not in corrected_acc_df.columns]
+    if missing:
+        raise KeyError(f"Cannot compute jerk. Missing corrected_acc columns: {missing}")
+
+    acc = corrected_acc_df[required].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+    if acc.shape[0] == 0:
+        return pd.DataFrame(columns=["datetime", "jerk"])
+
+    if sampling_rate_hz is None or not np.isfinite(float(sampling_rate_hz)) or float(sampling_rate_hz) <= 0:
+        raise ValueError(f"Invalid sampling_rate_hz for jerk computation: {sampling_rate_hz}")
+
+    fs = float(sampling_rate_hz)
+
+    # Forward difference with first sample padded to preserve length.
+    dacc = np.diff(acc, axis=0, prepend=acc[[0], :])
+    jerk_components = dacc * fs
+    norm_jerk = np.linalg.norm(jerk_components, axis=1)
+
+    return pd.DataFrame({
+        "datetime": corrected_acc_df["datetime"].values,
+        "jerk": norm_jerk,
+    })
+
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Zero Offset Correction - Calibrate Pressure Sensor")
 parser.add_argument("--dataset", type=str, help="Dataset folder name")
@@ -63,15 +104,34 @@ args = parser.parse_args()
 # Load environment variables
 config, data_dir, color_mapping_path, montage_path = load_configuration()
 
-# Load data with optional arguments
+# Resolve deployment first so metadata-only skip paths do not require loading data.pkl.
 if args.dataset and args.deployment:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager = resolve_deployment_context(
         data_dir, dataset_id=args.dataset, deployment_id=args.deployment
     )
 else:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(data_dir)
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager = resolve_deployment_context(data_dir)
 
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
+latest_netcdf_path = latest_processing_netcdf_path(deployment_folder, deployment_id)
+
+prh_pitch_unit = str(netcdf_attr(latest_netcdf_path, "signal_info_prh_metadata_pitch_unit", "") or "").lower()
+prh_roll_unit = str(netcdf_attr(latest_netcdf_path, "signal_info_prh_metadata_roll_unit", "") or "").lower()
+prh_exists = netcdf_has_signal(latest_netcdf_path, "prh")
+accelerometer_exists = netcdf_has_signal(latest_netcdf_path, "accelerometer")
+
+if prh_exists and "rad" not in prh_pitch_unit and "rad" not in prh_roll_unit:
+    print("Skipping Step 03 based on NetCDF metadata: PRH already exists with non-radian units.")
+    param_manager.add_to_config("current_processing_step", "Processing Step 03 skipped: PRH already available.")
+    raise SystemExit(0)
+
+if not prh_exists and not accelerometer_exists:
+    print("Skipping Step 03 based on NetCDF metadata: accelerometer signal not available.")
+    param_manager.add_to_config("current_processing_step", "Processing Step 03 skipped: missing accelerometer input.")
+    raise SystemExit(0)
+
+with open(pkl_path, "rb") as file:
+    data_pkl = pickle.load(file)
 
 # Load key time points
 timezone = data_pkl.deployment_info.get('Time Zone', 'UTC')
@@ -85,12 +145,14 @@ if None in {OVERLAP_START_TIME, OVERLAP_END_TIME, ZOOM_WINDOW_START_TIME, ZOOM_W
 
 current_processing_step = "Processing Step 03 IN PROGRESS."
 param_manager.add_to_config("current_processing_step", current_processing_step)
+data_changed = False
 
 # Normalize known suffixed channels even if this step later short-circuits.
 normalized_any = False
 for _sig in ("corrected_gyr", "corrected_acc", "corrected_mag", "gyroscope", "accelerometer", "magnetometer"):
     normalized_any = _normalize_signal_channel_names(data_pkl, _sig) or normalized_any
 if normalized_any:
+    data_changed = True
     with open(pkl_path, 'wb') as file:
         pickle.dump(data_pkl, file)
     print("[tag2animal] Saved channel normalization updates to pickle.")
@@ -118,6 +180,7 @@ if 'prh' in data_pkl.signal_data and data_pkl.signal_data['prh'] is not None:
             converted = True
 
     if converted:
+        data_changed = True
         prh_info['metadata'] = metadata
         prh_info['transformation_log'] = prh_info.get('transformation_log', [])
         prh_info['transformation_log'].append('converted_prh_angles_to_degrees')
@@ -164,6 +227,7 @@ else:
             print(f'✅ Proceed - Will use assumed neutral orientation for tag2animal transformation.')
 
 if not skip_step:
+    data_changed = True
     if accel_only_mode:
         # ================================================================
         # ACCELEROMETER-ONLY MODE: Assumed Neutral Orientation Processing
@@ -389,6 +453,26 @@ if not skip_step:
                 f"Euler rotation applied with assumed neutral orientation abar0={abar0}"
             ]
         }
+
+        # ================================================================
+        # Calculate norm-jerk (full rate) from corrected acceleration
+        # ================================================================
+        jerk_df = _compute_norm_jerk(corrected_acc_df, acc_sampling_rate)
+        data_pkl.signal_data['jerk'] = jerk_df
+        data_pkl.signal_info['jerk'] = {
+            "channels": ["jerk"],
+            "metadata": {
+                "jerk": {
+                    "original_name": "Norm-jerk",
+                    "unit": "g/s",
+                    "signal": "corrected_acc",
+                }
+            },
+            "derived_from_signals": ["corrected_acc"],
+            "transformation_log": [
+                f"Norm-jerk calculated at full rate ({acc_sampling_rate} Hz) from first difference of corrected_acc"
+            ],
+        }
         
         # Save abar0 to config
         settings_to_add = {
@@ -404,6 +488,7 @@ if not skip_step:
         print(f"  - corrected_acc: Rotated accelerometer at {acc_sampling_rate} Hz")
         print(f"  - dynamic_accel: dynX, dynY, dynZ at {acc_sampling_rate} Hz")
         print(f"  - odba: ODBA at {acc_sampling_rate} Hz")
+        print(f"  - jerk: Norm-jerk at {acc_sampling_rate} Hz")
         print(f"  - prh: pitch, roll at 1 Hz (no heading)")
         print("="*60 + "\n")
         
@@ -707,6 +792,24 @@ if not skip_step:
             "transformation_log": ["corrected_orientation"]
         }
 
+        # Calculate norm-jerk (full rate) from corrected acceleration.
+        jerk_df = _compute_norm_jerk(corrected_acc_df, acc_fs)
+        data_pkl.signal_data['jerk'] = jerk_df
+        data_pkl.signal_info['jerk'] = {
+            "channels": ["jerk"],
+            "metadata": {
+                "jerk": {
+                    "original_name": "Norm-jerk",
+                    "unit": "m/s^3",
+                    "signal": "corrected_acc",
+                }
+            },
+            "derived_from_signals": ["corrected_acc"],
+            "transformation_log": [
+                f"Norm-jerk calculated at full rate ({acc_fs} Hz) from first difference of corrected_acc"
+            ],
+        }
+
         TARGET_SAMPLING_RATE = 10
 
         notes_to_plot = {
@@ -746,10 +849,9 @@ print(current_processing_step)
 param_manager.add_to_config("current_processing_step", current_processing_step)
 
 # Optional: save new pickle file
-with open(pkl_path, 'wb') as file:
-        pickle.dump(data_pkl, file)
-print("Pickle file updated.")
+if data_changed:
+    with open(pkl_path, 'wb') as file:
+            pickle.dump(data_pkl, file)
+    print("Pickle file updated.")
 
-exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
-netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step03.nc') # Define the export path
-exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format
+save_step_netcdf_if_changed(data_pkl, deployment_folder, deployment_id, 3, changed=data_changed)

@@ -6,12 +6,17 @@
 Welcome to pyologger's documentation!
 =====================================
 
+`GitHub Repository <https://github.com/jmkendallbar/pyologger>`_
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
    intro
    workflows_and_dash
+   adaptive_channel_standardization
+   state_event_plotting_standardization
+   tag2animal_equations
    modules
    docs_maintenance
    examples

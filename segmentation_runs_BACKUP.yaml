@@ -1,0 +1,1827 @@
+segmentation_runs:
+  
+  lions_cluster_test:
+    analysis_id: lions_cluster_test
+    dataset_ids:
+    - pale-adult-lion_vid-accel_africa_TW
+    deployment_ids:
+    - 2024-10-21_pale-001
+    - 2024-10-22_pale-002
+    - 2024-10-21_pale-003
+    - 2024-10-22_pale-004
+    - 2015-05-28_pale-005
+    - 2015-07-03_pale-006
+    - 2015-07-01_pale-007
+    - 2015-07-16_pale-008
+    - 2015-10-15_pale-009
+    - 2015-06-16_pale-010
+    - 2015-11-10_pale-011
+    - 2014-11-13_pale-012
+    - 2014-10-03_pale-013
+    - 2014-09-24_pale-015
+    - 2014-09-26_pale-016
+    - 2014-10-01_pale-019
+    - 2014-10-19_pale-020
+    - 2014-11-25_pale-014
+    - 2015-04-13_pale-017
+    groups:
+      Kruger_M:
+      - 2024-10-21_pale-001
+      - 2024-10-22_pale-002
+      Kruger_F:
+      - 2024-10-21_pale-003
+      - 2024-10-22_pale-004
+      Kenya_M:
+      - 2015-05-28_pale-005
+      - 2015-07-03_pale-006
+      - 2015-07-01_pale-007
+      - 2015-07-16_pale-008
+      - 2015-10-15_pale-009
+      - 2015-06-16_pale-010
+      - 2015-11-10_pale-011
+      Kenya_F:
+      - 2014-11-13_pale-012
+      - 2014-10-03_pale-013
+      - 2014-09-24_pale-015
+      - 2014-09-26_pale-016
+      - 2014-10-01_pale-019
+      - 2014-10-19_pale-020
+      - 2014-11-25_pale-014
+      - 2015-04-13_pale-017
+    normalization_level: deployment
+    cluster_length_mode: fixed
+    duration_s: 30
+    min_samples_per_chunk: 10
+    max_chunks_per_deployment: 40000
+    max_chunks_total: 1000000
+    test_run: false
+    test_max_chunks_per_deployment: 1000
+    umap_sample_frac: 0.1
+    random_state: 42
+    include_corrected_acc: false
+    keep_unified_df: false
+    memory_log_interval_s: 30
+    enable_catch22: true
+    catch22_feature_cols: []
+    catch22_max_chunks_per_deployment: null
+    expected_signals:
+    - accelerometer
+    - odba
+    - prh
+    - location
+    - dynamic_accel
+    - stroke_rate
+    - label
+    channel_feature_spec:
+      odba.odba:
+        transforms:
+        - raw
+        feature_set: full
+      prh.pitch:
+        transforms:
+        - raw
+        feature_set: medium
+      prh.roll:
+        transforms:
+        - raw
+        feature_set: medium
+      dynamic_accel.dynX:
+        transforms:
+        - raw
+        feature_set: full
+        required: false
+      dynamic_accel.dynY:
+        transforms:
+        - raw
+        feature_set: full
+        required: false
+      stroke_rate.stroke_rate:
+        transforms:
+        - raw
+        feature_set: medium
+        required: false
+    cluster_passes:
+    - name: k2
+      n_clusters: 2
+      channel_feature_spec:
+        odba.odba:
+          transforms:
+          - raw
+          feature_set: full
+    - name: k5
+      n_clusters: 5
+      channel_feature_spec:
+        odba.odba:
+          transforms:
+          - raw
+          feature_set: full
+        prh.pitch:
+          transforms:
+          - raw
+          feature_set: medium
+        prh.roll:
+          transforms:
+          - raw
+          feature_set: medium
+        dynamic_accel.dynX:
+          transforms:
+          - raw
+          feature_set: full
+          required: false
+        dynamic_accel.dynY:
+          transforms:
+          - raw
+          feature_set: full
+          required: false
+        stroke_rate.stroke_rate:
+          transforms:
+          - raw
+          feature_set: medium
+          required: false
+    primary_input_channel_for_ranking: odba.odba
+    strict_qc: false
+    corr_threshold: 0.8
+    n_clusters: 5
+    max_k: 8
+    run_pca: true
+    run_tsne: false
+    run_umap: false
+    enable_supervised: true
+    supervised:
+      test_size: 0.4
+      rf_n_estimators: 500
+      rf_min_samples_leaf: 2
+      rf_class_weight: balanced_subsample
+      enable_lightgbm: false
+      lightgbm_n_estimators: 300
+      lightgbm_learning_rate: 0.05
+      lightgbm_num_leaves: 31
+      enable_svm: false
+      svm_kernel: rbf
+      svm_c: 1.0
+      svm_gamma: scale
+      enable_knn: false
+      knn_n_neighbors: 25
+      knn_weights: distance
+      enable_channel_ablation: true
+      ablation_mode: grouped_forward_addition
+      ablation_feature_groups:
+      - label: ODBA Only
+        channels:
+        - odba.odba
+      - label: ODBA + PRH
+        channels:
+        - odba.odba
+        - prh.pitch
+        - prh.roll
+      - label: ODBA + PRH + Dyn Accel
+        channels:
+        - odba.odba
+        - prh.pitch
+        - prh.roll
+        - dynamic_accel.dynX
+        - dynamic_accel.dynY
+      - label: ODBA + PRH + Dyn Accel + Stroke
+        channels:
+        - odba.odba
+        - prh.pitch
+        - prh.roll
+        - dynamic_accel.dynX
+        - dynamic_accel.dynY
+        - stroke_rate.stroke_rate
+      include_algorithmic_baseline: false
+      prediction_scope: all_windows
+      confidence_threshold: 0.4
+      use_probability_calibration: true
+      calibration_method: sigmoid
+      calibration_cv: 3
+      export_rf_events: true
+      label_prefixes:
+      - behavior_active_
+      - behavior_calm_
+      - behavior_motionless_
+      label_event_keys: []
+      label_groups:
+        Active:
+        - behavior_active_galumphing
+        - behavior_active_walking
+        - behavior_active_trotting
+        - behavior_active_running
+        - behavior_active_swimming
+        - behavior_active_unspecified
+        - active_galumphing
+        - active_walking
+        - active_trotting
+        - active_running
+        - active_swimming
+        - active_unspecified
+        Feeding:
+        - behavior_calm_feeding
+        - calm_feeding
+        Drinking:
+        - behavior_calm_drinking
+        - calm_drinking
+        Vigilant:
+        - behavior_calm_scanning
+        - calm_scanning
+        - calm_watching
+        Resting:
+        - behavior_motionless_resting
+        - motionless_resting
+        - behavior_calm_resting
+        - calm_resting
+        - motionless_sleeping
+        Calm:
+        - behavior_calm_vocalizing
+        - behavior_calm_grooming
+        - behavior_calm_repositioning
+        - behavior_calm_yawning
+        - behavior_calm_other
+        - behavior_calm_unspecified
+        - calm_vocalizing
+        - calm_grooming
+        - calm_repositioning
+        - calm_yawning
+        - calm_other
+        - calm_unspecified
+  
+  mian_sleep_rf_test:
+    analysis_id: mian_sleep_rf_test
+    dataset_ids:
+    - mian-juv-nese_sleep_lml-ano_JKB
+    deployment_ids:
+    - 2021-04-04_mian-009
+    - 2021-04-17_mian-011
+    - 2022-04-01_mian-013
+    groups:
+      mian_sleep:
+      - 2021-04-04_mian-009
+      - 2021-04-17_mian-011
+      - 2022-04-01_mian-013
+    normalization_level: deployment
+    cluster_length_mode: fixed
+    duration_s: 30
+    min_samples_per_chunk: 10
+    max_chunks_per_deployment: 40000
+    max_chunks_total: 1000000
+    test_run: false
+    test_max_chunks_per_deployment: 1000
+    umap_sample_frac: 0.1
+    random_state: 42
+    strict_qc: false
+    sampling_compatibility_tolerance: 0.05
+    supervised_context_filter_definitions:
+      inferred_buoyancy_must-be-aligned:
+        enabled: true
+        applies_when:
+          predicted_label_pre_context: __positive_label__
+        rule:
+          mode: threshold_gate
+          field: algorithmic_context_keep
+          keep_if:
+            comparator: ==
+            threshold: 1
+        on_missing_covariate: reject
+        action_on_fail: reject
+        reject_reason: rf_sleep_context_rejected
+      gliding_must-be-true:
+        enabled: true
+        applies_when:
+          predicted_label_pre_context: __positive_label__
+        rule:
+          mode: threshold_gate
+          field: algorithmic_segment_mean_stroke_rate_spm
+          keep_if:
+            comparator: <
+            threshold: 10.0
+        on_missing_covariate: reject
+        action_on_fail: reject
+        reject_reason: rf_sleep_not_gliding
+    expected_signals:
+    - depth
+    - prh
+    - velocity
+    - stroke_rate
+    - label
+    channel_feature_spec:
+      depth.depth:
+        transforms:
+        - raw
+        - diff
+        - diff2
+        feature_set: full
+      prh.pitch:
+        transforms:
+        - raw
+        feature_set: full
+      prh.roll:
+        transforms:
+        - raw
+        feature_set: full
+      prh.heading:
+        transforms:
+        - raw
+        feature_set: full
+        required: false
+      velocity.velocity:
+        transforms:
+        - raw
+        feature_set: full
+        required: false
+      stroke_rate.stroke_rate:
+        transforms:
+        - raw
+        feature_set: medium
+        required: false
+    primary_input_channel_for_ranking: depth.depth
+    corr_threshold: 0.8
+    n_clusters: 5
+    max_k: 8
+    run_pca: true
+    run_tsne: false
+    run_umap: true
+    algorithmic_segments:
+      enabled: true
+      method: depth_drift_thresholds
+      method_name: find_rest
+      source_channel: depth.depth
+      standardize: true
+      quantize_step: 1.0
+      base_smooth_seconds: 6
+      coarse_smooth_seconds: 12
+      coarse_interval_threshold_s: 5
+      coarse_resolution_threshold: 1.0
+      end_segments_upon_d1_sign_change: true
+      event_keys:
+        initial: find_rest.initial
+        filtered: find_rest.filtered
+        surface_sleep: find_rest.surface_sleep
+        long_flat: find_rest.long_flat
+        long_drift: find_rest.long_drift
+      label_codes:
+        not_sleep: 0
+        surface_sleep: 1
+        long_flat: 2
+        long_drift: 3
+      label_names:
+        not_sleep: find_rest.not_sleep
+        surface_sleep: putative_rest.surface_sleep
+        long_flat: putative_rest.benthic_sleep
+        long_drift: putative_rest.drift_sleep
+      thresholds:
+        dive_depth_min_m: 2.0
+        first_deriv_abs_max_ms: 0.6
+        second_deriv_abs_max_ms2: 0.05
+        min_duration_s: 180.0
+        surface_sleep_min_duration_s: 600.0
+        drift_rate_abs_max_ms: 0.3
+        curvature_abs_max_ms: 0.1
+        end_flat_abs_mean_d1_max_ms: 0.01
+      covariates:
+        intrinsic:
+          inferred_buoyancy:
+            enabled: true
+            provider: smoothed_segment_metric
+            source_metric: drift_rate_ms
+            subset_filters:
+              min_duration_s: 180.0
+              max_start_depth_m: 500.0
+              exclude_long_flats: true
+            smoothing:
+              method: rolling_fraction
+              window_fraction_of_trip: 0.05
+              min_periods: 1
+            phase_thresholds:
+              negative_max: -0.03
+              positive_min: 0.0
+            trip_phase_inference:
+              min_positive_elapsed_days: 20.0
+              backtrack_days: 20.0
+              always_positive_max_day: 20.0
+              near_arrival_exclusion_days: 5.0
+              early_window_days: 15.0
+              late_window_days: 15.0
+              reference_max_start_depth_m: 500.0
+            outputs:
+              segment_value_field: inferred_buoyancy_value
+              segment_phase_field: inferred_buoyancy_phase
+              segment_positive_likely_day_field: inferred_positive_likely_day
+              segment_trip_phase_field: inferred_trip_phase
+              segment_early_reference_field: inferred_buoyancy_early_reference_value
+              segment_late_reference_field: inferred_buoyancy_late_reference_value
+          stroke_rate_rest_gate:
+            enabled: true
+            provider: segment_channel_stat
+            source_channel: stroke_rate.stroke_rate
+            agg: mean
+            outputs:
+              segment_value_field: segment_mean_stroke_rate_spm
+              segment_phase_field: segment_stroke_rate_phase
+              segment_trip_phase_field: segment_stroke_rate_trip_phase
+        extrinsic: {}
+      context_filters:
+      - id: low_stroke_rate_required
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          segment_family: drift_candidate
+        covariate_ref: intrinsic.stroke_rate_rest_gate
+        rule:
+          mode: threshold_gate
+          keep_if:
+            comparator: <
+            threshold: 10.0
+        on_missing_covariate: reject
+        action_on_fail: reject
+        reject_reason: stroke_rate_too_high
+      - id: drift_within_intrinsic_context
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          segment_family: drift_candidate
+        covariate_ref: intrinsic.inferred_buoyancy
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms - inferred_buoyancy_value)
+          keep_if:
+            comparator: <
+            threshold: 0.3
+        on_missing_covariate: reject
+        action_on_fail: reject
+        reject_reason: intrinsic_context_mismatch
+      - id: prepositive_negative_only
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+        rule:
+          mode: category_gate
+          field: segment_sign
+          allowed_values:
+          - negative
+        action_on_fail: reject
+        reject_reason: prepositive_positive_drift_rejected
+      - id: prepositive_negative_long_enough
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          field: duration_s
+          keep_if:
+            comparator: '>='
+            threshold: 200.0
+        action_on_fail: reject
+        reject_reason: prepositive_negative_too_short
+      - id: prepositive_negative_not_benthic_transit
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms)
+          keep_if:
+            comparator: '>'
+            threshold: 0.08
+        action_on_fail: reject
+        reject_reason: prepositive_negative_too_flat
+      - id: postpositive_negative_deep_enough
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - post_positive
+          - always_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          field: start_depth_m
+          keep_if:
+            comparator: '>='
+            threshold: 200.0
+        action_on_fail: reject
+        reject_reason: postpositive_negative_too_shallow
+      - id: postpositive_negative_long_enough
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - post_positive
+          - always_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          field: duration_s
+          keep_if:
+            comparator: '>='
+            threshold: 200.0
+        action_on_fail: reject
+        reject_reason: postpositive_negative_too_short
+      - id: early_trip_refinement
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+          elapsed_days:
+            comparator: <
+            threshold: 15.0
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms - inferred_buoyancy_early_reference_value)
+          keep_if:
+            comparator: <
+            threshold: 0.15
+        on_missing_covariate: skip_filter
+        action_on_fail: reject
+        reject_reason: early_trip_refinement_failed
+      - id: late_trip_refinement
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - never_positive
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms - inferred_buoyancy_late_reference_value)
+          keep_if:
+            comparator: <
+            threshold: 0.15
+        on_missing_covariate: skip_filter
+        action_on_fail: reject
+        reject_reason: late_trip_refinement_failed
+      debug:
+        write_context_review_table: true
+        persist_context_helper_channels: false
+        persist_intermediate_channels: true
+    enable_supervised: true
+    supervised:
+      test_size: 0.4
+      rf_n_estimators: 500
+      rf_min_samples_leaf: 2
+      rf_class_weight: balanced_subsample
+      enable_lightgbm: false
+      lightgbm_n_estimators: 300
+      lightgbm_learning_rate: 0.05
+      lightgbm_num_leaves: 31
+      enable_svm: false
+      svm_kernel: rbf
+      svm_c: 1.0
+      svm_gamma: scale
+      enable_knn: false
+      knn_n_neighbors: 25
+      knn_weights: distance
+      enable_channel_ablation: true
+      ablation_mode: grouped_forward_addition
+      ablation_feature_groups:
+      - label: Depth Only
+        channels:
+        - depth.depth
+      - label: Depth + Accel
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+        - prh.pitch
+        - prh.roll
+      - label: Depth + Accel + Mag
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+        - prh.pitch
+        - prh.roll
+        - prh.heading
+      - label: Depth + Accel + Mag + Speed
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+        - prh.pitch
+        - prh.roll
+        - prh.heading
+        - velocity.velocity
+      include_algorithmic_baseline: true
+      confidence_threshold: 0.4
+      use_probability_calibration: true
+      calibration_method: sigmoid
+      calibration_cv: 3
+      export_rf_events: true
+      context_filters:
+      - inferred_buoyancy_must-be-aligned
+      - gliding_must-be-true
+      label_prefixes:
+      - sleep-state_
+      - sleep_state.
+      label_event_keys: []
+      label_groups:
+        WAKE:
+        - sleep-state_waking_active-quiet-drowsiness
+        - sleep-state_waking_active-quiet
+        - sleep-state_waking_active
+        - sleep-state_waking_quiet
+        - sleep-state_waking_drowsiness
+        - active_quiet_drowsiness
+        - active_quiet
+        - active
+        - quiet
+        - drowsiness
+        SLEEP:
+        - sleep-state_sleep_slow-wave-sleep
+        - sleep-state_sleep_lowest-voltage-sws
+        - sleep-state_sleep_low-voltage-sws
+        - sleep-state_sleep_highest-voltage-sws
+        - sleep-state_sleep_unihemispheric-sws
+        - sleep-state_sleep_asymmetrical-sws
+        - sleep-state_sleep_unihemispheric-sws-right
+        - sleep-state_sleep_unihemispheric-sws-left
+        - sleep-state_sleep_bilateral-sws
+        - sleep-state_sleep_certain-rem
+        - sleep-state_sleep_putative-rem
+        - sleep-state_sleep_rem-bilateral-sws
+        - sleep-state_sleep_unspecified
+        - slow_wave_sleep
+        - sws
+        - lowest_voltage_sws
+        - low_voltage_sws
+        - highest_voltage_sws
+        - unihemispheric_sws
+        - asymmetrical_sws
+        - unihemispheric_sws_right
+        - unihemispheric_sws_left
+        - bilateral_sws
+        - certain_rem
+        - certain_rem_sleep
+        - putative_rem
+        - putative_rem_sleep
+        - rem_bilateral_sws
+        - unspecified
+      drop_labels:
+      - sleep-state_unscorable_unclear
+      - sleep_state.unscorable
+      - sleep_state_unscorable
+      - unclear
+      - unscorable
+  
+  mian_mile_depth_standardized_30s:
+    analysis_id: mian_mile_depth_standardized_30s
+    dataset_ids:
+    - mile-adult-sese_vdr_argentina_RD-KM
+    - mian-adult-nese_tdr-sr_TA-AT-YN-DC
+    - mian-juv-nese_sleep_lml-ano_JKB
+    deployment_ids:
+    - 2021-04-04_mian-009
+    - 2021-04-17_mian-011
+    - 2022-04-01_mian-013
+    - 2012-11-02_mile-001
+    - 2012-11-02_mile-002
+    - 2012-11-01_mile-003
+    - 2013-11-10_mile-006
+    - 2013-11-09_mile-008
+    - 2015-11-05_mile-011
+    - 2015-11-05_mile-013
+    - 2015-11-06_mile-014
+    - 2011-02-21_mian-1001
+    - 2011-02-23_mian-1002
+    - 2011-02-23_mian-1003
+    - 2011-06-09_mian-1005
+    - 2011-06-11_mian-1004
+    - 2011-06-14_mian-1006
+    - 2011-06-22_mian-1002
+    - 2012-02-07_mian-1008
+    - 2012-02-04_mian-1009
+    - 2012-02-06_mian-1010
+    - 2012-02-09_mian-1011
+    - 2012-02-11_mian-1012
+    - 2012-06-04_mian-1013
+    - 2012-06-03_mian-1014
+    - 2012-05-30_mian-1016
+    - 2012-06-05_mian-1015
+    normalization_level: deployment
+    cluster_length_mode: variable
+    window_s: 30
+    stride_s: 10
+    min_samples_per_chunk: 5
+    max_chunks_per_deployment: 40000
+    max_chunks_total: 1000000
+    test_run: false
+    test_max_chunks_per_deployment: 1000
+    umap_sample_frac: 0.1
+    random_state: 42
+    strict_qc: false
+    sampling_compatibility_tolerance: 0.05
+    expected_signals:
+    - depth
+    - stroke_rate
+    algorithmic_segments:
+      enabled: true
+      method: depth_drift_thresholds
+      method_name: find_rest
+      source_channel: depth.depth
+      standardize: true
+      quantize_step: 1.0
+      base_smooth_seconds: 6
+      coarse_smooth_seconds: 12
+      coarse_interval_threshold_s: 5
+      coarse_resolution_threshold: 1.0
+      end_segments_upon_d1_sign_change: true
+      event_keys:
+        initial: find_rest.initial
+        filtered: find_rest.filtered
+        surface_sleep: find_rest.surface_sleep
+        long_flat: find_rest.long_flat
+        long_drift: find_rest.long_drift
+      label_codes:
+        not_sleep: 0
+        surface_sleep: 1
+        long_flat: 2
+        long_drift: 3
+      label_names:
+        not_sleep: find_rest.not_sleep
+        surface_sleep: putative_rest.surface_sleep
+        long_flat: putative_rest.benthic_sleep
+        long_drift: putative_rest.drift_sleep
+      thresholds:
+        dive_depth_min_m: 2.0
+        first_deriv_abs_max_ms: 0.6
+        second_deriv_abs_max_ms2: 0.05
+        min_duration_s: 180.0
+        surface_sleep_min_duration_s: 600.0
+        drift_rate_abs_max_ms: 0.3
+        curvature_abs_max_ms: 0.1
+        end_flat_abs_mean_d1_max_ms: 0.01
+      debug:
+        write_context_review_table: true
+        persist_context_helper_channels: false
+        persist_intermediate_channels: true
+      covariates:
+        intrinsic:
+          inferred_buoyancy:
+            enabled: true
+            provider: smoothed_segment_metric
+            source_metric: drift_rate_ms
+            subset_filters:
+              min_duration_s: 180.0
+              max_start_depth_m: 500.0
+              exclude_long_flats: true
+            smoothing:
+              method: rolling_fraction
+              window_fraction_of_trip: 0.05
+              min_periods: 1
+            phase_thresholds:
+              negative_max: -0.03
+              positive_min: 0.0
+            trip_phase_inference:
+              min_positive_elapsed_days: 20.0
+              backtrack_days: 20.0
+              always_positive_max_day: 20.0
+              near_arrival_exclusion_days: 5.0
+              early_window_days: 15.0
+              late_window_days: 15.0
+              reference_max_start_depth_m: 500.0
+            outputs:
+              segment_value_field: inferred_buoyancy_value
+              segment_phase_field: inferred_buoyancy_phase
+              segment_positive_likely_day_field: inferred_positive_likely_day
+              segment_trip_phase_field: inferred_trip_phase
+              segment_early_reference_field: inferred_buoyancy_early_reference_value
+              segment_late_reference_field: inferred_buoyancy_late_reference_value
+          stroke_rate_rest_gate:
+            enabled: true
+            provider: segment_channel_stat
+            source_channel: stroke_rate.stroke_rate
+            agg: mean
+            outputs:
+              segment_value_field: segment_mean_stroke_rate_spm
+              segment_phase_field: segment_stroke_rate_phase
+              segment_trip_phase_field: segment_stroke_rate_trip_phase
+        extrinsic: {}
+      context_filters:
+      - id: low_stroke_rate_required
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          segment_family: drift_candidate
+        covariate_ref: intrinsic.stroke_rate_rest_gate
+        rule:
+          mode: threshold_gate
+          keep_if:
+            comparator: <
+            threshold: 10.0
+        on_missing_covariate: reject
+        action_on_fail: reject
+        reject_reason: stroke_rate_too_high
+      - id: drift_within_intrinsic_context
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          segment_family: drift_candidate
+        covariate_ref: intrinsic.inferred_buoyancy
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms - inferred_buoyancy_value)
+          keep_if:
+            comparator: <
+            threshold: 0.3
+        on_missing_covariate: reject
+        action_on_fail: reject
+        reject_reason: intrinsic_context_mismatch
+      - id: prepositive_negative_only
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+        rule:
+          mode: category_gate
+          field: segment_sign
+          allowed_values:
+          - negative
+        action_on_fail: reject
+        reject_reason: prepositive_positive_drift_rejected
+      - id: prepositive_negative_long_enough
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          field: duration_s
+          keep_if:
+            comparator: '>='
+            threshold: 200.0
+        action_on_fail: reject
+        reject_reason: prepositive_negative_too_short
+      - id: prepositive_negative_not_benthic_transit
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms)
+          keep_if:
+            comparator: '>'
+            threshold: 0.08
+        action_on_fail: reject
+        reject_reason: prepositive_negative_too_flat
+      - id: postpositive_negative_deep_enough
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - post_positive
+          - always_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          field: start_depth_m
+          keep_if:
+            comparator: '>='
+            threshold: 200.0
+        action_on_fail: reject
+        reject_reason: postpositive_negative_too_shallow
+      - id: postpositive_negative_long_enough
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - post_positive
+          - always_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          field: duration_s
+          keep_if:
+            comparator: '>='
+            threshold: 200.0
+        action_on_fail: reject
+        reject_reason: postpositive_negative_too_short
+      - id: early_trip_refinement
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+          elapsed_days:
+            comparator: <
+            threshold: 15.0
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms - inferred_buoyancy_early_reference_value)
+          keep_if:
+            comparator: <
+            threshold: 0.15
+        on_missing_covariate: skip_filter
+        action_on_fail: reject
+        reject_reason: early_trip_refinement_failed
+      - id: late_trip_refinement
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - never_positive
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms - inferred_buoyancy_late_reference_value)
+          keep_if:
+            comparator: <
+            threshold: 0.15
+        on_missing_covariate: skip_filter
+        action_on_fail: reject
+        reject_reason: late_trip_refinement_failed
+    preprocessing:
+      standardized_channels:
+        depth.depth:
+          method: adaptive_gaussian_quantized
+          quantize_step: 1.0
+          base_smooth_seconds: 6
+          coarse_smooth_seconds: 12
+          coarse_interval_threshold_s: 5
+          coarse_resolution_threshold: 1.0
+          derivative_orders:
+          - 0
+          - 1
+          - 2
+          output_prefix: standardized_depth
+    channel_feature_spec:
+      standardized_depth.depth_std:
+        transforms:
+        - raw
+        feature_set: full
+      standardized_depth.depth_d1_std:
+        transforms:
+        - raw
+        feature_set: full
+      standardized_depth.depth_d2_std:
+        transforms:
+        - raw
+        feature_set: full
+    cluster_passes:
+    - name: k2
+      n_clusters: 2
+      channel_feature_spec:
+        standardized_depth.depth_std:
+          transforms:
+          - raw
+          feature_set: full
+    - name: k5
+      n_clusters: 5
+      channel_feature_spec:
+        standardized_depth.depth_d1_std:
+          transforms:
+          - raw
+          feature_set: full
+        standardized_depth.depth_d2_std:
+          transforms:
+          - raw
+          feature_set: full
+    primary_input_channel_for_ranking: standardized_depth.depth_std
+    corr_threshold: 0.8
+    n_clusters: auto
+    max_k: 8
+    run_pca: true
+    run_tsne: false
+    run_umap: false
+    enable_supervised: false
+    supervised:
+      test_size: 0.4
+      rf_n_estimators: 500
+      rf_min_samples_leaf: 2
+      rf_class_weight: balanced_subsample
+      confidence_threshold: 0.4
+      label_event_keys: []
+  
+  # Test/Train SLEEP v WAKE with mian_juv-nese_sleep_lml-ano_JKB 
+  # Transferred to mile-adult-sese_vdr_argentina_RD-KM & mian-adult-nese_tdr-sr_TA-AT-YN-DC
+  # Assessed alongside algorithmic approach.
+  mian_mile_sleep_transfer_rf:
+    analysis_id: mian_mile_sleep_transfer_rf
+    dataset_ids:
+    - mile-adult-sese_vdr_argentina_RD-KM
+    - mian-adult-nese_tdr-sr_TA-AT-YN-DC
+    - mian-juv-nese_sleep_lml-ano_JKB
+    deployment_ids:
+    - 2021-04-04_mian-009
+    - 2021-04-17_mian-011
+    - 2022-04-01_mian-013
+    - 2012-11-02_mile-001
+    - 2012-11-02_mile-002
+    - 2012-11-01_mile-003
+    - 2013-11-10_mile-006
+    - 2013-11-09_mile-008
+    - 2015-11-05_mile-011
+    - 2015-11-05_mile-013
+    - 2015-11-06_mile-014
+    - 2011-02-21_mian-1001
+    - 2011-02-23_mian-1002
+    - 2011-02-23_mian-1003
+    - 2011-06-09_mian-1005
+    - 2011-06-11_mian-1004
+    - 2011-06-14_mian-1006
+    - 2011-06-22_mian-1002
+    - 2012-02-07_mian-1008
+    - 2012-02-04_mian-1009
+    - 2012-02-06_mian-1010
+    - 2012-02-09_mian-1011
+    - 2012-02-11_mian-1012
+    - 2012-06-04_mian-1013
+    - 2012-06-03_mian-1014
+    - 2012-05-30_mian-1016
+    - 2012-06-05_mian-1015
+    normalization_level: deployment
+    cluster_length_mode: variable
+    window_s: 30
+    stride_s: 10
+    min_samples_per_chunk: 5
+    max_chunks_per_deployment: 50000
+    max_chunks_total: 1000000
+    test_run: false
+    test_max_chunks_per_deployment: 1000
+    umap_sample_frac: 0.1
+    random_state: 42
+    strict_qc: false
+    sampling_compatibility_tolerance: 0.05
+    plots:
+      interactive_review:
+        enabled: true
+        deployment_scope: first_per_dataset
+        time_range_mode: full_deployment
+    window_trim:
+      enabled: false
+      source_channel: depth.depth
+      rule: first_last_depth_threshold
+      depth_threshold_m: 10.0
+    context_filter_definitions:
+      low_stroke_rate_required:
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          segment_family: drift_candidate
+        covariate_ref: intrinsic.stroke_rate_rest_gate
+        rule:
+          mode: threshold_gate
+          keep_if:
+            comparator: <
+            threshold: 10.0
+        on_missing_covariate: reject
+        action_on_fail: reject
+        reject_reason: stroke_rate_too_high
+      drift_within_intrinsic_context:
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          segment_family: drift_candidate
+        covariate_ref: intrinsic.inferred_buoyancy
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms - inferred_buoyancy_value)
+          keep_if:
+            comparator: <
+            threshold: 0.3
+        on_missing_covariate: reject
+        action_on_fail: reject
+        reject_reason: intrinsic_context_mismatch
+      prepositive_negative_only:
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+        rule:
+          mode: category_gate
+          field: segment_sign
+          allowed_values:
+          - negative
+        action_on_fail: reject
+        reject_reason: prepositive_positive_drift_rejected
+      prepositive_negative_long_enough:
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          field: duration_s
+          keep_if:
+            comparator: '>='
+            threshold: 200.0
+        action_on_fail: reject
+        reject_reason: prepositive_negative_too_short
+      prepositive_negative_not_benthic_transit:
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms)
+          keep_if:
+            comparator: '>'
+            threshold: 0.08
+        action_on_fail: reject
+        reject_reason: prepositive_negative_too_flat
+      postpositive_negative_deep_enough:
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - post_positive
+          - always_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          field: start_depth_m
+          keep_if:
+            comparator: '>='
+            threshold: 200.0
+        action_on_fail: reject
+        reject_reason: postpositive_negative_too_shallow
+      postpositive_negative_long_enough:
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - post_positive
+          - always_positive
+          segment_sign: negative
+        rule:
+          mode: threshold_gate
+          field: duration_s
+          keep_if:
+            comparator: '>='
+            threshold: 200.0
+        action_on_fail: reject
+        reject_reason: postpositive_negative_too_short
+      early_trip_refinement:
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - pre_positive
+          - never_positive
+          elapsed_days:
+            comparator: <
+            threshold: 15.0
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms - inferred_buoyancy_early_reference_value)
+          keep_if:
+            comparator: <
+            threshold: 0.15
+        on_missing_covariate: skip_filter
+        action_on_fail: reject
+        reject_reason: early_trip_refinement_failed
+      late_trip_refinement:
+        enabled: true
+        target_state_keys:
+        - find_rest.long_drift
+        applies_when:
+          inferred_trip_phase_in:
+          - never_positive
+        rule:
+          mode: threshold_gate
+          value_expr: abs(drift_rate_ms - inferred_buoyancy_late_reference_value)
+          keep_if:
+            comparator: <
+            threshold: 0.15
+        on_missing_covariate: skip_filter
+        action_on_fail: reject
+        reject_reason: late_trip_refinement_failed
+    supervised_context_filter_definitions:
+      inferred_buoyancy_must-be-aligned:
+        enabled: true
+        applies_when:
+          predicted_label_pre_context: __positive_label__
+        rule:
+          mode: threshold_gate
+          field: algorithmic_context_keep
+          keep_if:
+            comparator: ==
+            threshold: 1
+        on_missing_covariate: reject
+        action_on_fail: reject
+        reject_reason: rf_sleep_context_rejected
+      gliding_must-be-true:
+        enabled: true
+        applies_when:
+          predicted_label_pre_context: __positive_label__
+        rule:
+          mode: threshold_gate
+          field: algorithmic_segment_mean_stroke_rate_spm
+          keep_if:
+            comparator: <
+            threshold: 10.0
+        on_missing_covariate: reject
+        action_on_fail: reject
+        reject_reason: rf_sleep_not_gliding
+    expected_signals:
+    - depth
+    - prh
+    - velocity
+    - stroke_rate
+    algorithmic_segments:
+      enabled: true
+      method: depth_drift_thresholds
+      method_name: find_rest
+      source_channel: depth.depth
+      standardize: true
+      quantize_step: 1.0
+      base_smooth_seconds: 6
+      coarse_smooth_seconds: 12
+      coarse_interval_threshold_s: 5
+      coarse_resolution_threshold: 1.0
+      end_segments_upon_d1_sign_change: true
+      event_keys:
+        initial: find_rest.initial
+        filtered: find_rest.filtered
+        surface_sleep: find_rest.surface_sleep
+        long_flat: find_rest.long_flat
+        long_drift: find_rest.long_drift
+      label_codes:
+        not_sleep: 0
+        surface_sleep: 1
+        long_flat: 2
+        long_drift: 3
+      label_names:
+        not_sleep: find_rest.not_sleep
+        surface_sleep: putative_rest.surface_sleep
+        long_flat: putative_rest.benthic_sleep
+        long_drift: putative_rest.drift_sleep
+      thresholds:
+        dive_depth_min_m: 2.0
+        first_deriv_abs_max_ms: 0.6
+        second_deriv_abs_max_ms2: 0.05
+        min_duration_s: 180.0
+        surface_sleep_min_duration_s: 600.0
+        drift_rate_abs_max_ms: 0.3
+        curvature_abs_max_ms: 0.1
+        end_flat_abs_mean_d1_max_ms: 0.01
+      debug:
+        write_context_review_table: true
+        persist_context_helper_channels: false
+        persist_intermediate_channels: true
+      covariates:
+        intrinsic:
+          inferred_buoyancy:
+            enabled: true
+            provider: smoothed_segment_metric
+            source_metric: drift_rate_ms
+            subset_filters:
+              min_duration_s: 180.0
+              max_start_depth_m: 500.0
+              exclude_long_flats: true
+            smoothing:
+              method: rolling_fraction
+              window_fraction_of_trip: 0.05
+              min_periods: 1
+            phase_thresholds:
+              negative_max: -0.03
+              positive_min: 0.0
+            trip_phase_inference:
+              min_positive_elapsed_days: 20.0
+              backtrack_days: 20.0
+              always_positive_max_day: 20.0
+              near_arrival_exclusion_days: 5.0
+              early_window_days: 15.0
+              late_window_days: 15.0
+              reference_max_start_depth_m: 500.0
+            outputs:
+              segment_value_field: inferred_buoyancy_value
+              segment_phase_field: inferred_buoyancy_phase
+              segment_positive_likely_day_field: inferred_positive_likely_day
+              segment_trip_phase_field: inferred_trip_phase
+              segment_early_reference_field: inferred_buoyancy_early_reference_value
+              segment_late_reference_field: inferred_buoyancy_late_reference_value
+          stroke_rate_rest_gate:
+            enabled: true
+            provider: segment_channel_stat
+            source_channel: stroke_rate.stroke_rate
+            agg: mean
+            outputs:
+              segment_value_field: segment_mean_stroke_rate_spm
+              segment_phase_field: segment_stroke_rate_phase
+              segment_trip_phase_field: segment_stroke_rate_trip_phase
+        extrinsic: {}
+      context_filters:
+      - low_stroke_rate_required
+      - drift_within_intrinsic_context
+      - prepositive_negative_only
+      - prepositive_negative_long_enough
+      - prepositive_negative_not_benthic_transit
+      - postpositive_negative_deep_enough
+      - postpositive_negative_long_enough
+      - early_trip_refinement
+      - late_trip_refinement
+    preprocessing:
+      standardized_channels:
+        depth.depth:
+          method: adaptive_gaussian_quantized
+          quantize_step: 1.0
+          base_smooth_seconds: 6
+          coarse_smooth_seconds: 12
+          coarse_interval_threshold_s: 5
+          coarse_resolution_threshold: 1.0
+          derivative_orders:
+          - 0
+          - 1
+          - 2
+          output_prefix: standardized_depth
+    channel_feature_spec:
+      depth.depth:
+        transforms:
+        - raw
+        - diff
+        - diff2
+        feature_set: full
+      prh.pitch:
+        transforms:
+        - raw
+        feature_set: full
+        required: false
+      prh.roll:
+        transforms:
+        - raw
+        feature_set: full
+        required: false
+      prh.heading:
+        transforms:
+        - raw
+        feature_set: full
+        required: false
+      velocity.velocity:
+        transforms:
+        - raw
+        feature_set: full
+        required: false
+      stroke_rate.stroke_rate:
+        transforms:
+        - raw
+        feature_set: medium
+        required: false
+    cluster_passes:
+    - name: k2
+      n_clusters: 2
+      channel_feature_spec:
+        depth.depth:
+          transforms:
+          - raw
+          feature_set: full
+    - name: k5
+      n_clusters: 5
+      channel_feature_spec:
+        depth.depth:
+          transforms:
+          - diff
+          - diff2
+          feature_set: full
+    primary_input_channel_for_ranking: depth.depth
+    clustering_window_scope: all_windows
+    corr_threshold: 0.8
+    n_clusters: auto
+    max_k: 8
+    run_pca: true
+    run_tsne: false
+    run_umap: false
+    enable_supervised: true
+    supervised:
+      test_size: 0.3
+      stratify_split_by_dataset_label: true
+      rf_n_estimators: 500
+      rf_min_samples_leaf: 2
+      rf_class_weight: balanced_subsample
+      enable_lightgbm: false
+      enable_svm: false
+      enable_knn: false
+      enable_channel_ablation: true
+      ablation_mode: grouped_forward_addition
+      ablation_feature_groups:
+      - label: TDR Only
+        channels:
+        - depth.depth
+      - label: TDR + SR
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+      - label: TDR + SR + PR
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+        - prh.pitch
+        - prh.roll
+      - label: TDR + SR + PR + H
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+        - prh.pitch
+        - prh.roll
+        - prh.heading
+      - label: TDR + SR + PR + H + V
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+        - prh.pitch
+        - prh.roll
+        - prh.heading
+        - velocity.velocity
+      include_algorithmic_baseline: true
+      prediction_scope: all_windows
+      confidence_threshold: 0.4
+      use_probability_calibration: true
+      calibration_method: sigmoid
+      calibration_cv: 3
+      export_rf_events: true
+      context_filters:
+      - inferred_buoyancy_must-be-aligned
+      - gliding_must-be-true
+      label_prefixes:
+      - sleep-state_
+      - sleep_state.
+      label_event_keys: []
+      label_groups:
+        WAKE:
+        - sleep-state_waking_active-quiet-drowsiness
+        - sleep-state_waking_active-quiet
+        - sleep-state_waking_active
+        - sleep-state_waking_quiet
+        - sleep-state_waking_drowsiness
+        - active_quiet_drowsiness
+        - active_quiet
+        - active
+        - quiet
+        - drowsiness
+        SLEEP:
+        - sleep-state_sleep_slow-wave-sleep
+        - sleep-state_sleep_lowest-voltage-sws
+        - sleep-state_sleep_low-voltage-sws
+        - sleep-state_sleep_highest-voltage-sws
+        - sleep-state_sleep_unihemispheric-sws
+        - sleep-state_sleep_asymmetrical-sws
+        - sleep-state_sleep_unihemispheric-sws-right
+        - sleep-state_sleep_unihemispheric-sws-left
+        - sleep-state_sleep_bilateral-sws
+        - sleep-state_sleep_certain-rem
+        - sleep-state_sleep_putative-rem
+        - sleep-state_sleep_rem-bilateral-sws
+        - sleep-state_sleep_unspecified
+        - slow_wave_sleep
+        - sws
+        - lowest_voltage_sws
+        - low_voltage_sws
+        - highest_voltage_sws
+        - unihemispheric_sws
+        - asymmetrical_sws
+        - unihemispheric_sws_right
+        - unihemispheric_sws_left
+        - bilateral_sws
+        - certain_rem
+        - certain_rem_sleep
+        - putative_rem
+        - putative_rem_sleep
+        - rem_bilateral_sws
+        - unspecified
+      drop_labels:
+      - sleep-state_unscorable_unclear
+      - sleep_state.unscorable
+      - sleep_state_unscorable
+      - unclear
+      - unscorable
+  
+  # Test/Train REM v SWS with mian_juv-nese_sleep_lml-ano_JKB sleep state
+  mian_sleep_state_rf_test: 
+    
+    # RF with limited data and features to validate configuration and workflow before scaling up to mian_mile_sleep_transfer_rf
+    analysis_id: mian_sleep_state_rf_test
+    dataset_ids:
+    - mian-juv-nese_sleep_lml-ano_JKB
+    deployment_ids:
+    - 2021-04-04_mian-009
+    - 2021-04-17_mian-011
+    - 2022-04-01_mian-013
+    normalization_level: deployment
+    cluster_length_mode: variable
+    window_s: 30
+    stride_s: 10
+    min_samples_per_chunk: 5
+    max_chunks_per_deployment: 40000
+    max_chunks_total: 1000000
+    test_run: false
+    test_max_chunks_per_deployment: 1000
+    umap_sample_frac: 0.1
+    random_state: 42
+    strict_qc: false
+    sampling_compatibility_tolerance: 0.05
+    plots:
+      interactive_review:
+        enabled: true
+        deployment_scope: first_per_dataset
+        time_range_mode: full_deployment
+    window_trim:
+      enabled: false
+      source_channel: depth.depth
+      rule: first_last_depth_threshold
+      depth_threshold_m: 10.0
+    expected_signals:
+    - depth
+    - prh
+    - stroke_rate
+    - heart_rate
+    - heart_rate_analysis
+    - eeg_analysis
+    preprocessing:
+      standardized_channels:
+        depth.depth:
+          method: adaptive_gaussian_quantized
+          quantize_step: 1.0
+          base_smooth_seconds: 6
+          coarse_smooth_seconds: 12
+          coarse_interval_threshold_s: 5
+          coarse_resolution_threshold: 1.0
+          derivative_orders:
+          - 0
+          - 1
+          - 2
+          output_prefix: standardized_depth
+    channel_feature_spec:
+      depth.depth:
+        transforms:
+        - raw
+        - diff
+        - diff2
+        feature_set: full
+      stroke_rate.stroke_rate:
+        transforms:
+        - raw
+        feature_set: medium
+        required: false
+      prh.pitch:
+        transforms:
+        - raw
+        feature_set: full
+        required: false
+      prh.roll:
+        transforms:
+        - raw
+        feature_set: full
+        required: false
+      prh.heading:
+        transforms:
+        - raw
+        feature_set: full
+        required: false
+      heart_rate.heart_rate:
+        transforms:
+        - raw
+        feature_set: medium
+        required: false
+      heart_rate_analysis.heart_rate_vlf_power:
+        transforms:
+        - raw
+        feature_set: medium
+        required: false
+      is_sleepspiral.is_sleepspiral:
+        transforms:
+        - raw
+        feature_set: minimal
+        required: false
+      eeg_analysis.eeg_f3_delta_power:
+        transforms:
+        - raw
+        feature_set: medium
+        required: false
+    cluster_passes:
+    - name: k2
+      n_clusters: 2
+      channel_feature_spec:
+        depth.depth:
+          transforms:
+          - raw
+          feature_set: full
+    - name: k5
+      n_clusters: 5
+      channel_feature_spec:
+        depth.depth:
+          transforms:
+          - diff
+          - diff2
+          feature_set: full
+    primary_input_channel_for_ranking: depth.depth
+    clustering_window_scope: all_windows
+    corr_threshold: 0.8
+    n_clusters: auto
+    max_k: 8
+    run_pca: true
+    run_tsne: false
+    run_umap: false
+    enable_supervised: true
+    supervised:
+      prediction_scope: labeled_windows_only
+      source_dataset_ids:
+      - mian-juv-nese_sleep_lml-ano_JKB
+      source_training_deployment_ids_always: []
+      source_holdout_folds:
+      - id: jkb_holdout_2021-04-04_mian-009
+        holdout_deployment_ids:
+        - 2021-04-04_mian-009
+        additional_train_deployment_ids:
+        - 2021-04-17_mian-011
+        - 2022-04-01_mian-013
+      - id: jkb_holdout_2021-04-17_mian-011
+        holdout_deployment_ids:
+        - 2021-04-17_mian-011
+        additional_train_deployment_ids:
+        - 2021-04-04_mian-009
+        - 2022-04-01_mian-013
+      - id: jkb_holdout_2022-04-01_mian-013
+        holdout_deployment_ids:
+        - 2022-04-01_mian-013
+        additional_train_deployment_ids:
+        - 2021-04-04_mian-009
+        - 2021-04-17_mian-011
+      test_size: 0.3
+      transfer_target_scope: all_non_source
+      transfer_normalization: per_dataset_zscore
+      transfer_fusion_modes:
+      - none
+      rf_n_estimators: 500
+      rf_min_samples_leaf: 2
+      rf_class_weight: balanced_subsample
+      enable_lightgbm: false
+      enable_svm: false
+      enable_knn: false
+      enable_channel_ablation: true
+      ablation_mode: grouped_forward_addition
+      ablation_feature_groups:
+      - label: TDR Only
+        channels:
+        - depth.depth
+      - label: TDR + SR
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+      - label: TDR + SR + PR
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+        - prh.pitch
+        - prh.roll
+      - label: TDR + SR + PRH
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+        - prh.pitch
+        - prh.roll
+        - prh.heading
+        - is_sleepspiral.is_sleepspiral
+      - label: TDR + SR + PRH + HR
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+        - prh.pitch
+        - prh.roll
+        - prh.heading
+        - is_sleepspiral.is_sleepspiral
+        - heart_rate.heart_rate
+      - label: TDR + SR + PRH + HR + HRV
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+        - prh.pitch
+        - prh.roll
+        - prh.heading
+        - is_sleepspiral.is_sleepspiral
+        - heart_rate.heart_rate
+        - heart_rate_analysis.heart_rate_vlf_power
+      - label: TDR + SR + PRH + HR + HRV + EEG_DELTA
+        channels:
+        - depth.depth
+        - stroke_rate.stroke_rate
+        - prh.pitch
+        - prh.roll
+        - prh.heading
+        - heart_rate.heart_rate
+        - is_sleepspiral.is_sleepspiral
+        - heart_rate_analysis.heart_rate_vlf_power
+        - eeg_analysis.eeg_f3_delta_power
+      include_algorithmic_baseline: false
+      confidence_threshold: 0.4
+      use_probability_calibration: true
+      calibration_method: sigmoid
+      calibration_cv: 3
+      export_rf_events: false
+      label_prefixes:
+      - sleep-state_
+      - sleep_state.
+      label_event_keys:
+      - sleep-state_sleep_slow-wave-sleep
+      - sleep-state_sleep_lowest-voltage-sws
+      - sleep-state_sleep_low-voltage-sws
+      - sleep-state_sleep_highest-voltage-sws
+      - sleep-state_sleep_unihemispheric-sws
+      - sleep-state_sleep_asymmetrical-sws
+      - sleep-state_sleep_unihemispheric-sws-right
+      - sleep-state_sleep_unihemispheric-sws-left
+      - sleep-state_sleep_bilateral-sws
+      - slow_wave_sleep
+      - sws
+      - lowest_voltage_sws
+      - low_voltage_sws
+      - highest_voltage_sws
+      - unihemispheric_sws
+      - asymmetrical_sws
+      - unihemispheric_sws_right
+      - unihemispheric_sws_left
+      - bilateral_sws
+      - sleep-state_sleep_certain-rem
+      - sleep-state_sleep_putative-rem
+      - certain_rem
+      - certain_rem_sleep
+      - putative_rem
+      - putative_rem_sleep
+      label_groups:
+        SWS:
+        - sleep-state_sleep_slow-wave-sleep
+        - sleep-state_sleep_lowest-voltage-sws
+        - sleep-state_sleep_low-voltage-sws
+        - sleep-state_sleep_highest-voltage-sws
+        - sleep-state_sleep_unihemispheric-sws
+        - sleep-state_sleep_asymmetrical-sws
+        - sleep-state_sleep_unihemispheric-sws-right
+        - sleep-state_sleep_unihemispheric-sws-left
+        - sleep-state_sleep_bilateral-sws
+        - slow_wave_sleep
+        - sws
+        - lowest_voltage_sws
+        - low_voltage_sws
+        - highest_voltage_sws
+        - unihemispheric_sws
+        - asymmetrical_sws
+        - unihemispheric_sws_right
+        - unihemispheric_sws_left
+        - bilateral_sws
+        REM:
+        - sleep-state_sleep_certain-rem
+        - sleep-state_sleep_putative-rem
+        - certain_rem
+        - certain_rem_sleep
+        - putative_rem
+        - putative_rem_sleep
+      drop_labels:
+      - sleep-state_sleep_rem-bilateral-sws
+      - rem_bilateral_sws
+      - sleep-state_sleep_unspecified
+      - unspecified
+      - sleep-state_unscorable_unclear
+      - sleep_state.unscorable
+      - sleep_state_unscorable
+      - unclear
+      - unscorable

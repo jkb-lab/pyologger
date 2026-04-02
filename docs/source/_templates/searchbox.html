@@ -1,0 +1,16 @@
+{%- if 'singlehtml' not in builder %}
+<div class="wy-menu wy-menu-vertical" role="navigation" aria-label="{{ _('Navigation menu') }}">
+  <p style="margin: 0 0 0.6rem 0;">
+    <a href="https://github.com/jmkendallbar/pyologger" target="_blank" rel="noopener noreferrer">
+      GitHub Repository
+    </a>
+  </p>
+</div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="{{ pathto('search') }}" method="get">
+    <input type="text" name="q" placeholder="{{ _('Search docs') }}" aria-label="{{ _('Search docs') }}" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+{%- endif %}

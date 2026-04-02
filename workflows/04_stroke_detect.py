@@ -1,7 +1,15 @@
 import os
+import pickle
 import argparse
+import sys
 import pandas as pd
 import numpy as np
+
+# Ensure direct workflow execution resolves the repo-local pyologger package.
+WORKFLOW_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(WORKFLOW_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # Import necessary pyologger utilities
 from pyologger.utils.folder_manager import *
@@ -11,6 +19,12 @@ from pyologger.io_operations.base_exporter import *
 from pyologger.utils.data_manager import *
 from pyologger.process_data.peak_detect import *
 from pyologger.process_data.odba import *
+from pyologger.utils.workflow_netcdf import (
+    latest_processing_netcdf_path,
+    netcdf_attr,
+    netcdf_has_signal,
+    save_step_netcdf_if_changed,
+)
 
 def _resolve_channel_alias(requested_channel, available_channels):
     """Allow x/y/z <-> ax/ay/az aliases for accel channels."""
@@ -164,15 +178,34 @@ args = parser.parse_args()
 # Load environment variables
 config, data_dir, color_mapping_path, montage_path = load_configuration()
 
-# Load data with optional arguments
+# Resolve deployment first so we can decide from NetCDF metadata whether the step is needed.
 if args.dataset and args.deployment:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager = resolve_deployment_context(
         data_dir, dataset_id=args.dataset, deployment_id=args.deployment
     )
 else:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(data_dir)
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager = resolve_deployment_context(data_dir)
 
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
+latest_netcdf_path = latest_processing_netcdf_path(deployment_folder, deployment_id)
+
+stroke_rate_unit = str(netcdf_attr(latest_netcdf_path, "signal_info_stroke_rate_metadata_stroke_rate_unit", "") or "").lower()
+stroke_rate_exists = netcdf_has_signal(latest_netcdf_path, "stroke_rate")
+critical_signal_candidates = ['dynamic_accel', 'corrected_acc', 'calibrated_acc', 'accelerometer']
+critical_signal_available = any(netcdf_has_signal(latest_netcdf_path, sig) for sig in critical_signal_candidates)
+
+if stroke_rate_exists and "hz" not in stroke_rate_unit:
+    print("Skipping Step 04 based on NetCDF metadata: stroke_rate already exists in final units.")
+    param_manager.add_to_config("current_processing_step", "Processing Step 04 skipped: stroke_rate already available.")
+    raise SystemExit(0)
+
+if not stroke_rate_exists and not critical_signal_available:
+    print(f"Skipping Step 04 based on NetCDF metadata: none of {critical_signal_candidates} are available.")
+    param_manager.add_to_config("current_processing_step", "Processing Step 04 skipped: missing stroke input.")
+    raise SystemExit(0)
+
+with open(pkl_path, "rb") as file:
+    data_pkl = pickle.load(file)
 
 # Retrieve values from config (derive fallback values when missing)
 settings = _resolve_time_settings(param_manager, data_pkl)
@@ -190,6 +223,7 @@ if None in {OVERLAP_START_TIME, OVERLAP_END_TIME, ZOOM_WINDOW_START_TIME, ZOOM_W
 
 current_processing_step = "Processing Step 04 IN PROGRESS."
 param_manager.add_to_config("current_processing_step", current_processing_step)
+data_changed = False
 
 # For stroke workflow we can operate with corrected/dynamic/calibrated accelerometer signals.
 critical_signal_candidates = ['dynamic_accel', 'corrected_acc', 'calibrated_acc', 'accelerometer']
@@ -199,7 +233,7 @@ critical_signal = next(
     None
 )
 
-# Check if stroke_rate exists; if so, ensure units are strokes per minute (spm)
+# Check if stroke_rate exists; if so, ensure units are spm.
 converted = False
 if 'stroke_rate' in data_pkl.signal_data and data_pkl.signal_data['stroke_rate'] is not None:
     sr_df = data_pkl.signal_data['stroke_rate']
@@ -208,14 +242,14 @@ if 'stroke_rate' in data_pkl.signal_data and data_pkl.signal_data['stroke_rate']
     channels = sr_info.get('channels', [c for c in sr_df.columns if c != 'datetime'])
 
     hz_aliases = {'hz', 'hertz', '1/s', '1/sec', 'sec^-1', 's^-1', 'per second'}
-    spm_aliases = {'spm', 'strokes per minute', 'strokes/min', 'strokes/minute', '1/min', 'min^-1', 'per minute'}
+    spm_aliases = {'spm', '1/min', 'min^-1', 'per minute'}
 
     for ch in channels:
         if ch not in sr_df.columns:
             continue
         unit = str(metadata.get(ch, {}).get('unit', '')).lower()
         is_hz = (unit in hz_aliases) or ('hz' in unit)
-        is_spm = (unit in spm_aliases) or ('spm' in unit)
+        is_spm = (unit in spm_aliases) or ('spm' in unit) or (('stroke' in unit) and ('min' in unit))
 
         if is_hz and not is_spm:
             sr_df[ch] = sr_df[ch] * 60.0
@@ -224,12 +258,13 @@ if 'stroke_rate' in data_pkl.signal_data and data_pkl.signal_data['stroke_rate']
             converted = True
 
     if converted:
+        data_changed = True
         sr_info['metadata'] = metadata
         sr_info['transformation_log'] = sr_info.get('transformation_log', [])
         sr_info['transformation_log'].append('converted_stroke_rate_hz_to_spm')
         data_pkl.signal_data['stroke_rate'] = sr_df
         data_pkl.signal_info['stroke_rate'] = sr_info
-        print("Converted stroke_rate from Hz to strokes per minute (spm).")
+        print("Converted stroke_rate from Hz to spm.")
 
 # If stroke_rate was converted above, persist the change immediately
 if converted:
@@ -256,6 +291,7 @@ else:
         print(f'✅ Proceed - Skip_step: {skip_step}. Using accelerometer source signal: {critical_signal}.')
 
 if not skip_step:
+    data_changed = True
     # Retrieve timezone from deployment info
     timezone = data_pkl.deployment_info['Time Zone']
 
@@ -691,10 +727,9 @@ print(current_processing_step)
 param_manager.add_to_config("current_processing_step", current_processing_step)
 
 # Optional: save new pickle file
-with open(pkl_path, 'wb') as file:
-        pickle.dump(data_pkl, file)
-print("Pickle file updated.")
+if data_changed:
+    with open(pkl_path, 'wb') as file:
+            pickle.dump(data_pkl, file)
+    print("Pickle file updated.")
 
-exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
-netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step04.nc') # Define the export path
-exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format
+save_step_netcdf_if_changed(data_pkl, deployment_folder, deployment_id, 4, changed=data_changed)

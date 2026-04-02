@@ -1,13 +1,20 @@
-# Run with shell command: python pyologger/workflows/00_load_data.py --dataset oror-adult-orca_hr-sr-vid_sw_JKB-PP --deployment 2024-01-16_oror-002
+# Run with shell command: python3 pyologger/workflows/00_load_data.py --dataset oror-adult-orca_hr-sr-vid_sw_JKB-PP --deployment 2024-01-16_oror-002
 import os
 import json
 import re
 import pickle
 import tempfile
 import argparse
+import sys
 import pandas as pd
 import xarray as xr
 from datetime import datetime, timedelta
+
+# Ensure direct workflow execution resolves the repo-local pyologger package.
+WORKFLOW_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(WORKFLOW_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # Import pyologger utilities
 from pyologger.utils.folder_manager import *
@@ -243,6 +250,87 @@ else:
 
 deployment_info, loggers_used = metadata.extract_essential_metadata(deployment_id)
 
+def _pick_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
+    cols = {str(c).strip().lower(): c for c in df.columns}
+    for c in candidates:
+        hit = cols.get(str(c).strip().lower())
+        if hit is not None:
+            return hit
+    return None
+
+
+def _enrich_signal_metadata_from_standardized_db(data_obj, std_db: pd.DataFrame) -> int:
+    """
+    Attach standardized channel label/description metadata onto data_pkl.signal_info[*].metadata[*].
+    Returns number of channel metadata entries updated.
+    """
+    if not isinstance(std_db, pd.DataFrame) or std_db.empty:
+        return 0
+
+    parent_col = _pick_col(std_db, ["Parent signal", "parent_signal"])
+    channel_col = _pick_col(std_db, ["Channel ID", "Standardized Channel ID", "standardized_channel_id", "channel_id"])
+    label_col = _pick_col(std_db, ["Signal Label", "Label", "signal_label", "label"])
+    desc_col = _pick_col(std_db, ["Signal Description", "Description", "signal_description", "description"])
+    if parent_col is None or channel_col is None:
+        return 0
+
+    # Use explicit composite key signal.channel to avoid collisions across duplicated
+    # standardized channel IDs that belong to different parent signals.
+    lookup: dict[str, dict[str, str]] = {}
+    for _, row in std_db.iterrows():
+        parent = str(row.get(parent_col, "") or "").strip().lower()
+        channel = str(row.get(channel_col, "") or "").strip().lower()
+        if not parent or not channel:
+            continue
+        label_text = str(row.get(label_col, "") or "").strip() if label_col else ""
+        desc_text = str(row.get(desc_col, "") or "").strip() if desc_col else ""
+        key = f"{parent}.{channel}"
+        existing = lookup.get(key, {"label": "", "description": ""})
+        # Keep first non-empty value so blank duplicate rows do not erase metadata.
+        if label_text and not existing.get("label"):
+            existing["label"] = label_text
+        if desc_text and not existing.get("description"):
+            existing["description"] = desc_text
+        lookup[key] = existing
+
+    updated = 0
+    signal_info = getattr(data_obj, "signal_info", {}) or {}
+    for signal_id, sinfo in signal_info.items():
+        if not isinstance(sinfo, dict):
+            continue
+        metadata = sinfo.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        sig_key = str(signal_id).strip().lower()
+        for channel_id, cmeta in metadata.items():
+            if not isinstance(cmeta, dict):
+                continue
+            ch_key = str(channel_id).strip().lower()
+            enrich = lookup.get(f"{sig_key}.{ch_key}")
+            if not enrich:
+                # Fallback: some channels carry parent_signal that may differ from the
+                # signal_info dict key naming.
+                parent_key = str(cmeta.get("parent_signal") or "").strip().lower()
+                if parent_key:
+                    enrich = lookup.get(f"{parent_key}.{ch_key}")
+            if not enrich:
+                continue
+            changed = False
+            if enrich["label"] and str(cmeta.get("label") or "").strip() != enrich["label"]:
+                cmeta["label"] = enrich["label"]
+                changed = True
+            if enrich["description"] and str(cmeta.get("description") or "").strip() != enrich["description"]:
+                cmeta["description"] = enrich["description"]
+                changed = True
+            if changed:
+                metadata[channel_id] = cmeta
+                updated += 1
+        sinfo["metadata"] = metadata
+        signal_info[signal_id] = sinfo
+    data_obj.signal_info = signal_info
+    return updated
+
+
 # Step 5: Initialize DataReader - will find actual folder with suffix if it exists
 data_pkl = DataReader(
     dataset_folder=dataset_folder,
@@ -323,6 +411,12 @@ if not existing_pickle_ok:
 
 # Get timezone
 timezone = data_pkl.deployment_info.get("Time Zone", "UTC")
+
+# Ensure standardized channel label/description metadata is carried in signal_info
+# so NetCDF exports include it as global attrs.
+updated_channel_metadata = _enrich_signal_metadata_from_standardized_db(data_pkl, standardizedchannel_db)
+if updated_channel_metadata:
+    print(f"🧾 Enriched signal metadata from standardizedchannel_db for {updated_channel_metadata} channel(s).")
 
 
 def _normalize_timestamp(ts_value, timezone_str):
@@ -435,6 +529,7 @@ truncate_times = param_manager.get_from_config(
     section="settings"
 )
 
+truncation_wrote_pickle = False
 if not any(v is None for v in truncate_times.values()):
     print("Truncating with provided cropping times.")
     # Update overlap window with selected range
@@ -467,6 +562,13 @@ if not any(v is None for v in truncate_times.values()):
     }
     param_manager.add_to_config(entries=time_settings_update, section="settings")
 
+    pkl_path = os.path.join(actual_deployment_folder, 'outputs', 'data.pkl')
+    with open(pkl_path, "wb") as file:
+        pickle.dump(data_pkl, file)
+    truncation_wrote_pickle = True
+
+# Persist metadata enrichment even when no truncation branch writes data.pkl.
+if updated_channel_metadata and not truncation_wrote_pickle:
     pkl_path = os.path.join(actual_deployment_folder, 'outputs', 'data.pkl')
     with open(pkl_path, "wb") as file:
         pickle.dump(data_pkl, file)

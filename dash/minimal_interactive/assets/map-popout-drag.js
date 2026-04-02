@@ -44,6 +44,18 @@
       defaultLeft: 84,
       defaultTop: 116,
     },
+    {
+      cardId: "seg-workflow-diagram-card",
+      handleId: "seg-workflow-diagram-drag-handle",
+      toggleBtnId: "seg-workflow-diagram-popout-btn",
+      storageKey: "popout_seg_workflow_diagram_v1",
+      minW: 360,
+      minH: 360,
+      defaultW: 500,
+      defaultH: 680,
+      defaultLeft: 140,
+      defaultTop: 96,
+    },
   ];
 
   let drag = null;
@@ -184,6 +196,7 @@
     };
     card.classList.add("dragging");
     document.body.style.userSelect = "none";
+    e.stopPropagation();
     e.preventDefault();
   }
 
@@ -218,6 +231,23 @@
       if (e.target.closest("button, input, select, textarea, a")) return;
       e.preventDefault();
       e.stopPropagation();
+      return;
+    }
+  }
+
+  function onDoubleClickCapture(e) {
+    for (const cfg of PANELS) {
+      const card = document.getElementById(cfg.cardId);
+      if (!isOpen(card) || !cfg.toggleBtnId) continue;
+      const titleRow = e.target && e.target.closest(`#${cfg.cardId} .card-title-row`);
+      if (!titleRow) continue;
+      if (e.target.closest("button, input, select, textarea, a")) return;
+      const toggleBtn = document.getElementById(cfg.toggleBtnId);
+      if (toggleBtn && typeof toggleBtn.click === "function") {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleBtn.click();
+      }
       return;
     }
   }
@@ -270,6 +300,7 @@
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
   document.addEventListener("click", onSummaryClickCapture, true);
+  document.addEventListener("dblclick", onDoubleClickCapture, true);
   window.addEventListener("resize", () => {
     PANELS.forEach((cfg) => {
       const card = document.getElementById(cfg.cardId);

@@ -1,7 +1,15 @@
 import os
+import pickle
 import argparse
+import sys
 import numpy as np
 import pandas as pd
+
+# Ensure direct workflow execution resolves the repo-local pyologger package.
+WORKFLOW_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(WORKFLOW_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # Import necessary pyologger utilities
 from pyologger.utils.folder_manager import *
@@ -11,6 +19,11 @@ from pyologger.io_operations.base_exporter import *
 from pyologger.utils.data_manager import *
 from pyologger.process_data.peak_detect import *
 from pyologger.utils.event_manager import create_state_event
+from pyologger.utils.workflow_netcdf import (
+    latest_processing_netcdf_path,
+    netcdf_has_signal,
+    save_step_netcdf_if_changed,
+)
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Zero Offset Correction - Calibrate Pressure Sensor")
@@ -21,15 +34,24 @@ args = parser.parse_args()
 # Load environment variables
 config, data_dir, color_mapping_path, montage_path = load_configuration()
 
-# Load data with optional arguments
+# Resolve deployment first so metadata-only skip paths can avoid loading data.pkl.
 if args.dataset and args.deployment:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager = resolve_deployment_context(
         data_dir, dataset_id=args.dataset, deployment_id=args.deployment
     )
 else:
-    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, data_pkl, param_manager = select_and_load_deployment(data_dir)
+    animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder, param_manager = resolve_deployment_context(data_dir)
 
 pkl_path = os.path.join(deployment_folder, 'outputs', 'data.pkl')
+latest_netcdf_path = latest_processing_netcdf_path(deployment_folder, deployment_id)
+
+if not netcdf_has_signal(latest_netcdf_path, "ecg"):
+    print("Skipping Step 05 based on NetCDF metadata: ecg signal not available.")
+    param_manager.add_to_config("current_processing_step", "Processing Step 05 skipped: missing ECG input.")
+    raise SystemExit(0)
+
+with open(pkl_path, "rb") as file:
+    data_pkl = pickle.load(file)
 
 # Retrieve values from config
 variables = ["calm_horizontal_start_time", "calm_horizontal_end_time", 
@@ -59,6 +81,7 @@ def _as_bool(value, default=False):
 
 detection_mode = "heart_rate"
 overwrite = False
+data_changed = False
 
 critical_signal = 'ecg'
 # If critical signal doesn't exist, create flag to skip step.
@@ -70,6 +93,7 @@ else:
     skip_step = False
 
 if not skip_step:
+    data_changed = True
     # Define parent signal options
     # parent_signal_options = list(data_pkl.signal_data.keys()) + list(data_pkl.signal_data.keys())
 
@@ -812,10 +836,9 @@ print(current_processing_step)
 param_manager.add_to_config("current_processing_step", current_processing_step)
 
 # Optional: save new pickle file
-with open(pkl_path, 'wb') as file:
-        pickle.dump(data_pkl, file)
-print("Pickle file updated.")
+if data_changed:
+    with open(pkl_path, 'wb') as file:
+            pickle.dump(data_pkl, file)
+    print("Pickle file updated.")
 
-exporter = BaseExporter(data_pkl) # Create a BaseExporter instance using data pickle object
-netcdf_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_step05.nc') # Define the export path
-exporter.save_to_netcdf(data_pkl, filepath=netcdf_file_path) # Save to NetCDF format
+save_step_netcdf_if_changed(data_pkl, deployment_folder, deployment_id, 5, changed=data_changed)

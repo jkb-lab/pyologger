@@ -439,9 +439,13 @@ def process_datetime(df, time_zone=None,
     # Use int64 ns -> seconds for a stable Unix timestamp column
     df['datetimenum_utc'] = df['datetime_utc'].astype('int64') // 10**9
 
-    # Step 3: Check monotonicity
+    # Step 3: enforce chronological row order before downstream grouping.
     if not df['datetime'].is_monotonic_increasing:
-        print("❌ The 'datetime' column is not monotonically increasing.")
+        print("⚠️ The 'datetime' column is not monotonically increasing. Sorting rows by datetime.")
+        df = df.sort_values('datetime', kind='stable').reset_index(drop=True)
+
+    if not df['datetime'].is_monotonic_increasing:
+        print("❌ The 'datetime' column is still not monotonically increasing after sorting.")
     else:
         print("✅ The 'datetime' column is monotonically increasing.")
 

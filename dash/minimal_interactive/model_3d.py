@@ -6,10 +6,36 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
+import numpy as np
 
 
 _MODEL_INFO_CACHE = {}
 _ANIMAL_ID_PATTERN = re.compile(r"([a-z]{4}-\d{3}[a-z]?)", re.IGNORECASE)
+_TRACK_MERGE_TOLERANCE = pd.Timedelta(seconds=5)
+_ORIENTATION_MAX_RAW_ROWS = int(os.getenv("PYOLOGGER_ORIENTATION_MAX_RAW_ROWS", "15000"))
+_ORIENTATION_MAX_OUTPUT_ROWS = int(os.getenv("PYOLOGGER_ORIENTATION_MAX_OUTPUT_ROWS", "5000"))
+
+_ORIENTATION_SIGNAL_ALIASES = {
+    "prh",
+    "orientation",
+    "attitude",
+}
+
+_ORIENTATION_COLUMN_ALIASES = {
+    "pitch": ("pitch", "pitchdeg", "pitchdegrees", "prhpitch"),
+    "roll": ("roll", "rolldeg", "rolldegrees", "prhroll"),
+    "heading": (
+        "heading",
+        "heading2",
+        "head",
+        "yaw",
+        "yawdeg",
+        "yawdegrees",
+        "prhheading",
+    ),
+}
+
+_DATETIME_COLUMN_ALIASES = ("datetime", "timestamp", "time")
 
 
 def _build_empty_orientation_json():
@@ -18,6 +44,17 @@ def _build_empty_orientation_json():
 
 
 EMPTY_ORIENTATION_JSON = _build_empty_orientation_json()
+
+
+def _downsample_frame_preserve_ends(frame: pd.DataFrame, max_rows: int) -> pd.DataFrame:
+    if not isinstance(frame, pd.DataFrame) or frame.empty:
+        return frame
+    max_rows = int(max_rows or 0)
+    if max_rows <= 0 or len(frame) <= max_rows:
+        return frame
+    idx = np.linspace(0, len(frame) - 1, num=max_rows, dtype=int)
+    idx = np.unique(idx)
+    return frame.iloc[idx].copy()
 
 
 def _extract_animal_id(value):
@@ -49,32 +86,81 @@ def infer_animal_id(data_pkl_obj, deployment_id_fallback=None):
     return None
 
 
-def build_orientation_data_json(data_pkl_obj):
-    prh_df = (getattr(data_pkl_obj, "signal_data", {}) or {}).get("prh")
-    if prh_df is None or prh_df.empty:
-        return {
-            "ok": False,
-            "message": "No PRH signal found; using empty orientation stream.",
-            "data_json": EMPTY_ORIENTATION_JSON,
+def _normalize_token(value):
+    return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+
+
+def _first_matching_column(df, aliases):
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return None
+    alias_tokens = {_normalize_token(a) for a in aliases}
+    for col in df.columns:
+        if _normalize_token(col) in alias_tokens:
+            return col
+    return None
+
+
+def _first_matching_signal_df(signal_data, aliases):
+    name, frame = _first_matching_signal(signal_data, aliases)
+    if name is None:
+        return None
+    return frame
+
+
+def _first_matching_signal(signal_data, aliases):
+    if not isinstance(signal_data, dict):
+        return None, None
+    alias_tokens = {_normalize_token(a) for a in aliases}
+    for key, value in signal_data.items():
+        if _normalize_token(key) not in alias_tokens:
+            continue
+        if isinstance(value, pd.DataFrame) and not value.empty:
+            return str(key), value
+    return None, None
+
+
+def _extract_scalar_signal(signal_data, signal_aliases, value_aliases):
+    frame = _first_matching_signal_df(signal_data, signal_aliases)
+    if not isinstance(frame, pd.DataFrame) or frame.empty:
+        return None
+    datetime_col = _first_matching_column(frame, _DATETIME_COLUMN_ALIASES)
+    if datetime_col is None:
+        return None
+
+    value_col = _first_matching_column(frame, value_aliases)
+    if value_col is None:
+        non_time_cols = [c for c in frame.columns if c != datetime_col]
+        if len(non_time_cols) != 1:
+            return None
+        value_col = non_time_cols[0]
+
+    out = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(frame[datetime_col], errors="coerce", utc=True),
+            "value": pd.to_numeric(frame[value_col], errors="coerce"),
         }
+    ).dropna(subset=["datetime", "value"])
+    if out.empty:
+        return None
+    return out.sort_values("datetime").reset_index(drop=True)
 
-    cols = {str(c): c for c in prh_df.columns}
-    pitch_col = cols.get("pitch")
-    roll_col = cols.get("roll")
-    heading_col = cols.get("heading") or cols.get("heading2") or cols.get("head")
 
-    if pitch_col is None or roll_col is None:
-        return {
-            "ok": False,
-            "message": "PRH is missing pitch/roll columns; using empty orientation stream.",
-            "data_json": EMPTY_ORIENTATION_JSON,
-        }
+def _build_orientation_frame_from_grouped_signal(prh_df):
+    if not isinstance(prh_df, pd.DataFrame) or prh_df.empty:
+        return None, {"status": "missing_grouped_signal"}
 
-    if "datetime" not in prh_df.columns:
-        return {
-            "ok": False,
-            "message": "PRH is missing datetime; using empty orientation stream.",
-            "data_json": EMPTY_ORIENTATION_JSON,
+    datetime_col = _first_matching_column(prh_df, _DATETIME_COLUMN_ALIASES)
+    pitch_col = _first_matching_column(prh_df, _ORIENTATION_COLUMN_ALIASES["pitch"])
+    roll_col = _first_matching_column(prh_df, _ORIENTATION_COLUMN_ALIASES["roll"])
+    heading_col = _first_matching_column(prh_df, _ORIENTATION_COLUMN_ALIASES["heading"])
+
+    if datetime_col is None or pitch_col is None or roll_col is None:
+        return None, {
+            "status": "missing_grouped_columns",
+            "datetime_col": datetime_col,
+            "pitch_col": pitch_col,
+            "roll_col": roll_col,
+            "heading_col": heading_col,
         }
 
     heading_series = (
@@ -84,30 +170,160 @@ def build_orientation_data_json(data_pkl_obj):
     )
     frame = pd.DataFrame(
         {
-            "datetime": pd.to_datetime(prh_df["datetime"], errors="coerce", utc=True),
+            "datetime": pd.to_datetime(prh_df[datetime_col], errors="coerce", utc=True),
             "pitch": pd.to_numeric(prh_df[pitch_col], errors="coerce"),
             "roll": pd.to_numeric(prh_df[roll_col], errors="coerce"),
             "heading": heading_series,
         }
-    ).dropna(subset=["datetime"])
-
+    ).dropna(subset=["datetime", "pitch", "roll"])
     if frame.empty:
-        return {
-            "ok": False,
-            "message": "PRH datetime parsing produced no rows; using empty orientation stream.",
-            "data_json": EMPTY_ORIENTATION_JSON,
+        return None, {
+            "status": "grouped_frame_empty_after_parse",
+            "datetime_col": datetime_col,
+            "pitch_col": pitch_col,
+            "roll_col": roll_col,
+            "heading_col": heading_col,
+        }
+    return frame.sort_values("datetime").reset_index(drop=True), {
+        "status": "ok",
+        "datetime_col": str(datetime_col),
+        "pitch_col": str(pitch_col),
+        "roll_col": str(roll_col),
+        "heading_col": (str(heading_col) if heading_col is not None else None),
+        "heading_fallback_zero": bool(heading_col is None),
+    }
+
+
+def _build_orientation_frame_from_split_signals(signal_data):
+    pitch_name, _ = _first_matching_signal(signal_data, ("pitch",))
+    roll_name, _ = _first_matching_signal(signal_data, ("roll",))
+    heading_name, _ = _first_matching_signal(signal_data, ("heading", "heading2", "head", "yaw"))
+
+    pitch = _extract_scalar_signal(signal_data, ("pitch",), _ORIENTATION_COLUMN_ALIASES["pitch"])
+    roll = _extract_scalar_signal(signal_data, ("roll",), _ORIENTATION_COLUMN_ALIASES["roll"])
+    heading = _extract_scalar_signal(
+        signal_data,
+        ("heading", "heading2", "head", "yaw"),
+        _ORIENTATION_COLUMN_ALIASES["heading"],
+    )
+
+    if pitch is None or roll is None:
+        return None, {
+            "status": "split_missing_pitch_or_roll",
+            "pitch_signal": pitch_name,
+            "roll_signal": roll_name,
+            "heading_signal": heading_name,
         }
 
-    frame = frame.sort_values("datetime").set_index("datetime")
+    merged = pd.merge_asof(
+        pitch.rename(columns={"value": "pitch"}).sort_values("datetime"),
+        roll.rename(columns={"value": "roll"}).sort_values("datetime"),
+        on="datetime",
+        direction="nearest",
+        tolerance=pd.Timedelta(seconds=1),
+    ).dropna(subset=["pitch", "roll"])
+    if merged.empty:
+        return None, {
+            "status": "split_merge_empty",
+            "pitch_signal": pitch_name,
+            "roll_signal": roll_name,
+            "heading_signal": heading_name,
+        }
+
+    if heading is None:
+        merged["heading"] = 0.0
+    else:
+        merged = pd.merge_asof(
+            merged.sort_values("datetime"),
+            heading.rename(columns={"value": "heading"}).sort_values("datetime"),
+            on="datetime",
+            direction="nearest",
+            tolerance=pd.Timedelta(seconds=1),
+        )
+        merged["heading"] = pd.to_numeric(merged.get("heading"), errors="coerce").fillna(0.0)
+
+    return merged.sort_values("datetime").reset_index(drop=True), {
+        "status": "ok",
+        "pitch_signal": pitch_name,
+        "roll_signal": roll_name,
+        "heading_signal": heading_name,
+        "heading_fallback_zero": bool(heading is None),
+    }
+
+
+def build_orientation_data_json(data_pkl_obj):
+    signal_data = getattr(data_pkl_obj, "signal_data", {}) or {}
+    grouped_name, prh_df = _first_matching_signal(signal_data, _ORIENTATION_SIGNAL_ALIASES)
+    frame, grouped_meta = _build_orientation_frame_from_grouped_signal(prh_df)
+
+    debug = {
+        "source": "none",
+        "grouped_signal": grouped_name,
+        "grouped_meta": grouped_meta,
+        "available_signals": sorted([str(k) for k in signal_data.keys()]),
+    }
+
+    source_msg = ""
+    if frame is None:
+        frame, split_meta = _build_orientation_frame_from_split_signals(signal_data)
+        debug["source"] = "split"
+        debug["split_meta"] = split_meta
+        source_msg = "Orientation assembled from split pitch/roll/heading signals."
+    else:
+        debug["source"] = "grouped"
+
+    if frame is None or frame.empty:
+        debug["status"] = "empty"
+        return {
+            "ok": False,
+            "message": "No usable orientation data found; using empty orientation stream.",
+            "data_json": EMPTY_ORIENTATION_JSON,
+            "debug": debug,
+        }
+
+    frame = frame.sort_values("datetime").reset_index(drop=True)
+    raw_rows_before_cap = int(len(frame))
+    frame = _downsample_frame_preserve_ends(frame, _ORIENTATION_MAX_RAW_ROWS)
+    raw_rows_after_cap = int(len(frame))
+
+    frame = frame.set_index("datetime")
     frame = _augment_orientation_with_track_columns(data_pkl_obj, frame)
-    message = ""
-    if heading_col is None:
+    output_rows_before_cap = int(len(frame))
+    frame = _downsample_frame_preserve_ends(frame.reset_index(), _ORIENTATION_MAX_OUTPUT_ROWS).set_index("datetime")
+    output_rows_after_cap = int(len(frame))
+
+    message = source_msg
+    heading_all_missing = "heading" in frame.columns and not pd.to_numeric(frame["heading"], errors="coerce").notna().any()
+    if heading_all_missing:
         message = "PRH heading column not found; using heading=0 while applying pitch/roll."
+    if output_rows_after_cap < output_rows_before_cap:
+        ds_msg = (
+            f"Orientation stream downsampled {output_rows_before_cap:,} -> {output_rows_after_cap:,} rows "
+            "for browser stability."
+        )
+        message = f"{message} {ds_msg}".strip()
+
+    debug["status"] = "ok"
+    debug["rows"] = int(len(frame))
+    debug["raw_rows_before_cap"] = raw_rows_before_cap
+    debug["raw_rows_after_cap"] = raw_rows_after_cap
+    debug["output_rows_before_cap"] = output_rows_before_cap
+    debug["output_rows_after_cap"] = output_rows_after_cap
+    debug["raw_row_cap"] = int(_ORIENTATION_MAX_RAW_ROWS)
+    debug["output_row_cap"] = int(_ORIENTATION_MAX_OUTPUT_ROWS)
+    debug["columns"] = [str(c) for c in frame.columns]
+    try:
+        debug["start"] = frame.index.min().isoformat()
+        debug["end"] = frame.index.max().isoformat()
+    except Exception:
+        pass
+    debug["heading_all_missing"] = bool(heading_all_missing)
 
     return {
         "ok": True,
         "message": message,
         "data_json": frame.to_json(orient="split", date_format="iso"),
+        "debug": debug,
     }
 
 
@@ -226,6 +442,7 @@ def _augment_orientation_with_track_columns(data_pkl_obj, orientation_df):
                 loc[["datetime", "lat", "lon"]].sort_values("datetime"),
                 on="datetime",
                 direction="nearest",
+                tolerance=_TRACK_MERGE_TOLERANCE,
             )
         except Exception:
             pass
@@ -238,6 +455,7 @@ def _augment_orientation_with_track_columns(data_pkl_obj, orientation_df):
                 dep[["datetime", "depth"]].sort_values("datetime"),
                 on="datetime",
                 direction="nearest",
+                tolerance=_TRACK_MERGE_TOLERANCE,
             )
             vals = pd.to_numeric(orient.get("depth"), errors="coerce").dropna()
             if not vals.empty:
@@ -260,6 +478,7 @@ def _augment_orientation_with_track_columns(data_pkl_obj, orientation_df):
                 sr[["datetime", "stroke_rate"]].sort_values("datetime"),
                 on="datetime",
                 direction="nearest",
+                tolerance=_TRACK_MERGE_TOLERANCE,
             )
         except Exception:
             pass
