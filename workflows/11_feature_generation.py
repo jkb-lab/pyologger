@@ -70,8 +70,10 @@ def main() -> None:
     )
     if args.output:
         merged_features_path = Path(ctx.output_root) / "features" / "features_filtered.parquet"
-        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(merged_features_path, args.output)
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        if merged_features_path.resolve() != output_path.resolve():
+            shutil.copyfile(merged_features_path, args.output)
     Path(log_output).unlink(missing_ok=True)
 
 

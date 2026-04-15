@@ -574,6 +574,173 @@ def _coerce_parquet_friendly(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _prorate_segments_to_hours(seg_df: pd.DataFrame) -> pd.DataFrame:
+    """Split exhaustive segments at hour boundaries, returning one row per (deployment, date, hour, label) chunk."""
+    rows = []
+    for row in seg_df.itertuples(index=False):
+        start = row.start_datetime
+        end = row.end_datetime
+        if pd.isna(start) or pd.isna(end):
+            continue
+        start = pd.Timestamp(start)
+        end = pd.Timestamp(end)
+        if end <= start:
+            continue
+        cursor = start.replace(minute=0, second=0, microsecond=0)
+        while cursor < end:
+            hour_end = cursor + pd.Timedelta(hours=1)
+            chunk_s = (min(hour_end, end) - max(cursor, start)).total_seconds()
+            if chunk_s > 0:
+                rows.append({
+                    "dataset_id": row.dataset_id,
+                    "deployment_id": row.deployment_id,
+                    "date": cursor.date(),
+                    "hour": cursor.hour,
+                    "label": row.label_name,
+                    "duration_s": chunk_s,
+                })
+            cursor = hour_end
+    return pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=["dataset_id", "deployment_id", "date", "hour", "label", "duration_s"]
+    )
+
+
+def write_algorithmic_budget_parquets(
+    run_output_root: str,
+    exhaustive_seg_df: pd.DataFrame,
+    load_data_pkl_for_deployment,
+) -> dict[str, Any]:
+    """Compute hourly and daily behavior budget parquets from exhaustive algorithmic segments.
+
+    Outputs (under run_output_root/summary/):
+      - algorithmic_hourly_budget.parquet
+          dataset_id, deployment_id, date, hour, label, duration_s, pct_of_hour, mean_lat, mean_lon, tz
+      - algorithmic_daily_budget.parquet
+          dataset_id, deployment_id, date, label, duration_s, pct_of_day, mean_lat, mean_lon, tz
+    """
+    if exhaustive_seg_df is None or exhaustive_seg_df.empty:
+        return {}
+
+    seg = exhaustive_seg_df.copy()
+    for col in ("start_datetime", "end_datetime"):
+        if col in seg.columns:
+            seg[col] = pd.to_datetime(seg[col], errors="coerce")
+
+    summary_dir = Path(run_output_root) / "summary"
+    summary_dir.mkdir(parents=True, exist_ok=True)
+
+    hourly_frames: list[pd.DataFrame] = []
+    daily_frames: list[pd.DataFrame] = []
+
+    for (dataset_id, deployment_id), dep in seg.groupby(["dataset_id", "deployment_id"], sort=False):
+        data_pkl = load_data_pkl_for_deployment(str(dataset_id), str(deployment_id))
+        deployment_info = getattr(data_pkl, "deployment_info", {}) or {}
+        tz_name = str(deployment_info.get("Time Zone") or "UTC").strip() or "UTC"
+        fallback_lat = pd.to_numeric(pd.Series([deployment_info.get("Deployment Latitude")]), errors="coerce").iloc[0]
+        fallback_lon = pd.to_numeric(pd.Series([deployment_info.get("Deployment Longitude")]), errors="coerce").iloc[0]
+
+        # Convert to local timezone before splitting at hour boundaries
+        dep = dep.copy()
+        dep["start_datetime"] = _normalize_dt(dep["start_datetime"], tz_name)
+        dep["end_datetime"] = _normalize_dt(dep["end_datetime"], tz_name)
+
+        prorated = _prorate_segments_to_hours(dep)
+        if prorated.empty:
+            continue
+
+        # ── location: average track lat/lon per date and per (date, hour) ──
+        location_df = _pick_location_frame(data_pkl, tz_name)
+        if not location_df.empty:
+            location_df = location_df.copy()
+            location_df["date"] = location_df["datetime"].dt.date
+            location_df["hour"] = location_df["datetime"].dt.hour
+            daily_loc = (
+                location_df.groupby("date", sort=False)[["latitude", "longitude"]]
+                .mean()
+                .rename(columns={"latitude": "mean_lat", "longitude": "mean_lon"})
+                .reset_index()
+            )
+            hourly_loc = (
+                location_df.groupby(["date", "hour"], sort=False)[["latitude", "longitude"]]
+                .mean()
+                .rename(columns={"latitude": "mean_lat", "longitude": "mean_lon"})
+                .reset_index()
+            )
+        else:
+            dates = prorated["date"].drop_duplicates().tolist()
+            daily_loc = pd.DataFrame({"date": dates, "mean_lat": fallback_lat, "mean_lon": fallback_lon})
+            hours = prorated[["date", "hour"]].drop_duplicates()
+            hourly_loc = hours.assign(mean_lat=fallback_lat, mean_lon=fallback_lon)
+
+        if not pd.isna(fallback_lat):
+            daily_loc["mean_lat"] = daily_loc["mean_lat"].fillna(float(fallback_lat))
+            hourly_loc["mean_lat"] = hourly_loc["mean_lat"].fillna(float(fallback_lat))
+        if not pd.isna(fallback_lon):
+            daily_loc["mean_lon"] = daily_loc["mean_lon"].fillna(float(fallback_lon))
+            hourly_loc["mean_lon"] = hourly_loc["mean_lon"].fillna(float(fallback_lon))
+
+        # ── hourly budget ──
+        hourly = (
+            prorated.groupby(["date", "hour", "label"], dropna=False, sort=False)["duration_s"]
+            .sum()
+            .reset_index()
+        )
+        hour_totals = (
+            hourly.groupby(["date", "hour"], dropna=False, sort=False)["duration_s"]
+            .sum()
+            .reset_index(name="hour_total_s")
+        )
+        hourly = hourly.merge(hour_totals, on=["date", "hour"], how="left")
+        hourly["pct_of_hour"] = 100.0 * hourly["duration_s"] / hourly["hour_total_s"].replace(0, np.nan)
+        hourly = hourly.drop(columns=["hour_total_s"])
+        hourly = hourly.merge(hourly_loc, on=["date", "hour"], how="left")
+        hourly["dataset_id"] = str(dataset_id)
+        hourly["deployment_id"] = str(deployment_id)
+        hourly["tz"] = tz_name
+        hourly_frames.append(hourly)
+
+        # ── daily budget ──
+        daily = (
+            prorated.groupby(["date", "label"], dropna=False, sort=False)["duration_s"]
+            .sum()
+            .reset_index()
+        )
+        daily["pct_of_day"] = 100.0 * daily["duration_s"] / 86400.0
+        daily = daily.merge(daily_loc, on="date", how="left")
+        daily["dataset_id"] = str(dataset_id)
+        daily["deployment_id"] = str(deployment_id)
+        daily["tz"] = tz_name
+        daily_frames.append(daily)
+
+    col_order_hourly = ["dataset_id", "deployment_id", "date", "hour", "label", "duration_s", "pct_of_hour", "mean_lat", "mean_lon", "tz"]
+    col_order_daily = ["dataset_id", "deployment_id", "date", "label", "duration_s", "pct_of_day", "mean_lat", "mean_lon", "tz"]
+
+    hourly_budget = pd.concat(hourly_frames, ignore_index=True, sort=False) if hourly_frames else pd.DataFrame(columns=col_order_hourly)
+    daily_budget = pd.concat(daily_frames, ignore_index=True, sort=False) if daily_frames else pd.DataFrame(columns=col_order_daily)
+
+    def _reorder(df, cols):
+        present = [c for c in cols if c in df.columns]
+        rest = [c for c in df.columns if c not in present]
+        return df[present + rest]
+
+    hourly_budget = _reorder(hourly_budget, col_order_hourly)
+    daily_budget = _reorder(daily_budget, col_order_daily)
+
+    hourly_path = summary_dir / "algorithmic_hourly_budget.parquet"
+    daily_path = summary_dir / "algorithmic_daily_budget.parquet"
+    _write_parquet_resilient(hourly_budget, hourly_path)
+    _write_parquet_resilient(daily_budget, daily_path)
+
+    print(f"[budget] hourly: {len(hourly_budget):,} rows → {hourly_path}")
+    print(f"[budget] daily:  {len(daily_budget):,} rows → {daily_path}")
+    return {
+        "algorithmic_hourly_budget_path": str(hourly_path),
+        "algorithmic_daily_budget_path": str(daily_path),
+        "algorithmic_hourly_budget": hourly_budget,
+        "algorithmic_daily_budget": daily_budget,
+    }
+
+
 def _write_parquet_resilient(df: pd.DataFrame, path: Path) -> pd.DataFrame:
     """Write parquet and retry once with dtype coercion if pandas/pyarrow rejects categories."""
     try:

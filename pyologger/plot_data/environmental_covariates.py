@@ -16,11 +16,13 @@ SUPPORTED_COVARIATE_TYPES = {
     "bathymetry_ice",
     "sst",
     "land_cover",
+    "ndvi",
+    "chlorophyll",
     "human_impact",
 }
-TIME_VARYING_COVARIATE_TYPES = {"sst", "human_impact"}
+TIME_VARYING_COVARIATE_TYPES = {"sst", "human_impact", "ndvi", "chlorophyll"}
 CATEGORICAL_COVARIATE_TYPES = {"land_cover"}
-EXECUTABLE_COVARIATE_TYPES = {"bathymetry", "bathymetry_ice"}
+EXECUTABLE_COVARIATE_TYPES = {"bathymetry", "bathymetry_ice", "land_cover", "ndvi", "sst", "chlorophyll"}
 
 
 def default_environmental_covariate_catalog() -> Dict:
@@ -73,6 +75,40 @@ def default_environmental_covariate_catalog() -> Dict:
                         "provider": "ESA WorldCover",
                         "url": "https://esa-worldcover.org/en/data-access",
                         "notes": "Global 10 m categorical land cover for 2020.",
+                    },
+                },
+            },
+            "ndvi": {
+                "default_source": "sentinel2_planetary_computer",
+                "suggestions": {
+                    "sentinel2_planetary_computer": {
+                        "kind": "raster_timevarying",
+                        "provider": "ESA / Microsoft Planetary Computer",
+                        "url": "https://planetarycomputer.microsoft.com/dataset/sentinel-2-l2a",
+                        "notes": "NDVI computed from Sentinel-2 L2A B08 (NIR) and B04 (Red), "
+                                 "median composite over date range, 10 m resolution.",
+                        "max_cloud_cover": 20,
+                        "max_items": 5,
+                        "resolution": 10,
+                    }
+                },
+            },
+            "chlorophyll": {
+                "default_source": "modis_aqua_erddap",
+                "suggestions": {
+                    "modis_aqua_erddap": {
+                        "kind": "raster_timevarying",
+                        "provider": "NASA MODIS-Aqua via NOAA CoastWatch ERDDAP",
+                        "url": "https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1chla8day",
+                        "notes": "Chlorophyll-a concentration (mg m⁻³), 8-day composite, 4 km resolution.",
+                        "erddap_dataset_id": "erdMH1chla8day",
+                    },
+                    "modis_aqua_monthly_erddap": {
+                        "kind": "raster_timevarying",
+                        "provider": "NASA MODIS-Aqua via NOAA CoastWatch ERDDAP",
+                        "url": "https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1chlamday",
+                        "notes": "Chlorophyll-a concentration (mg m⁻³), monthly composite, 4 km resolution.",
+                        "erddap_dataset_id": "erdMH1chlamday",
                     },
                 },
             },
@@ -225,10 +261,59 @@ def load_covariate_overlay(
             max_pixels=int(covariate_cfg.get("max_pixels", 1200) or 1200),
         )
         overlay = {"type": cov_type, "bathy_df": bathy_df, "ice_df": ice_df}
-    elif cov_type in {"sst", "land_cover", "human_impact"}:
+    elif cov_type == "land_cover":
+        from pyologger.utils.geoai_data import download_land_cover
+        year = int(covariate_cfg.get("year") or 2021)
+        lc_da = download_land_cover(
+            bbox=(extent["lon0_180"], extent["lat_min"], extent["lon1_180"], extent["lat_max"]),
+            year=year,
+        )
+        overlay = {"type": cov_type, "data": lc_da}
+    elif cov_type == "ndvi":
+        from pyologger.utils.geoai_data import download_ndvi
+        date_range = covariate_cfg.get("date_range") or covariate_cfg.get("time_range")
+        if not date_range or len(date_range) != 2:
+            raise ValueError(
+                f"Covariate 'ndvi' requires a 'date_range' like [\"YYYY-MM-DD\", \"YYYY-MM-DD\"]"
+            )
+        src_cfg = covariate_cfg.get("source_config") or {}
+        ndvi_da = download_ndvi(
+            bbox=(extent["lon0_180"], extent["lat_min"], extent["lon1_180"], extent["lat_max"]),
+            date_range=tuple(date_range),
+            max_cloud_cover=float(src_cfg.get("max_cloud_cover", 20)),
+            max_items=int(src_cfg.get("max_items", 5)),
+            resolution=int(src_cfg.get("resolution", 10)),
+        )
+        overlay = {"type": cov_type, "data": ndvi_da}
+    elif cov_type == "sst":
+        from pyologger.utils.geoai_data import download_sst
+        date_range = covariate_cfg.get("date_range") or covariate_cfg.get("time_range")
+        if not date_range or len(date_range) != 2:
+            raise ValueError(
+                f"Covariate 'sst' requires a 'date_range' like [\"YYYY-MM-DD\", \"YYYY-MM-DD\"]"
+            )
+        sst_da = download_sst(
+            bbox=(extent["lon0_180"], extent["lat_min"], extent["lon1_180"], extent["lat_max"]),
+            date_range=tuple(date_range),
+        )
+        overlay = {"type": cov_type, "data": sst_da}
+    elif cov_type == "chlorophyll":
+        from pyologger.utils.geoai_data import download_chlorophyll
+        date_range = covariate_cfg.get("date_range") or covariate_cfg.get("time_range")
+        if not date_range or len(date_range) != 2:
+            raise ValueError(
+                f"Covariate 'chlorophyll' requires a 'date_range' like [\"YYYY-MM-DD\", \"YYYY-MM-DD\"]"
+            )
+        src_cfg = covariate_cfg.get("source_config") or {}
+        chl_da = download_chlorophyll(
+            bbox=(extent["lon0_180"], extent["lat_min"], extent["lon1_180"], extent["lat_max"]),
+            date_range=tuple(date_range),
+            dataset_id=src_cfg.get("erddap_dataset_id"),
+        )
+        overlay = {"type": cov_type, "data": chl_da}
+    elif cov_type == "human_impact":
         raise NotImplementedError(
-            f"Environmental covariate '{cov_type}' with source '{source}' is schema-supported but not wired yet. "
-            f"Only GEBCO-backed 'bathymetry' and 'bathymetry_ice' are executable in this pass."
+            f"Environmental covariate 'human_impact' with source '{source}' is schema-supported but not wired yet."
         )
     else:
         raise ValueError(f"Unsupported environmental covariate type '{cov_type}'")
@@ -242,8 +327,15 @@ def validate_covariate_runtime_readiness(map_id: str, covariate_cfg: Dict) -> No
     if cov_type not in EXECUTABLE_COVARIATE_TYPES:
         raise NotImplementedError(
             f"Map '{map_id}' requests environmental covariate '{cov_type}', which is schema-supported but not executable yet. "
-            f"Only 'bathymetry' and 'bathymetry_ice' are wired in this implementation."
+            f"Executable types: {sorted(EXECUTABLE_COVARIATE_TYPES)}"
         )
+    # Time-varying types that aren't bathymetry need a date_range
+    if cov_type in TIME_VARYING_COVARIATE_TYPES and cov_type in EXECUTABLE_COVARIATE_TYPES:
+        if not covariate_cfg.get("date_range") and not covariate_cfg.get("time_range"):
+            raise ValueError(
+                f"Map '{map_id}' covariate '{cov_type}' requires a 'date_range' key "
+                f"e.g. date_range: [\"2023-06-01\", \"2023-08-31\"]"
+            )
 
 
 def _save_plotnine_figure(fig, output_dir: str | Path, output_filename: str) -> Tuple[str, str]:

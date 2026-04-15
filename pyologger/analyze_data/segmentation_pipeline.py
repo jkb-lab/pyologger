@@ -13,6 +13,7 @@ import textwrap
 import time
 import traceback
 from dataclasses import dataclass
+from types import SimpleNamespace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -3086,6 +3087,33 @@ def _feature_columns_for_pass(df: pd.DataFrame, pass_spec: Dict) -> List[str]:
     ]
 
 
+def _load_qc_signal_data_from_netcdf(netcdf_path: str | None) -> Dict[str, Any]:
+    """Read channel presence from NetCDF variable attrs without loading signal arrays.
+
+    Returns a dict compatible with signal_data consumers: {signal_id: obj_with_columns}.
+    """
+    if not netcdf_path or not os.path.exists(netcdf_path):
+        return {}
+    try:
+        import xarray as xr
+        with xr.open_dataset(netcdf_path) as ds:
+            out: Dict[str, Any] = {}
+            for var_name in ds.data_vars:
+                text = str(var_name)
+                if not text.startswith("signal_data_"):
+                    continue
+                signal_id = text[len("signal_data_"):]
+                channels = (
+                    _as_channel_list(ds[var_name].attrs.get("variables"))
+                    or _as_channel_list(ds[var_name].attrs.get("variable"))
+                )
+                if channels:
+                    out[signal_id] = SimpleNamespace(columns=channels)
+        return out
+    except Exception:
+        return {}
+
+
 def cmd_qc(args):
     ctx = _resolve_run_context(args.config, args.run_name)
     spec, standardized_cfg = _normalize_spec_for_processing(ctx.run_cfg)
@@ -3114,7 +3142,8 @@ def cmd_qc(args):
         if ds != last_ds:
             print(f"[qc] dataset {ds}")
             last_ds = ds
-        pkl_path = _data_pkl_path(ctx, ds, dep)
+        deployment_folder = os.path.join(ctx.data_root, str(ds), str(dep))
+        netcdf_path = latest_processing_netcdf_path(deployment_folder, str(dep))
         existing_pairs = []
         existing_all_channels = []
         missing_required_pairs = []
@@ -3128,8 +3157,8 @@ def cmd_qc(args):
         }
         issues = []
 
-        if not os.path.exists(pkl_path):
-            issues.append("missing_data_pkl")
+        if not netcdf_path or not os.path.exists(netcdf_path):
+            issues.append("missing_netcdf")
             for full_key, scfg in spec.items():
                 if scfg.get("required", True):
                     missing_required_pairs.append(full_key)
@@ -3137,19 +3166,8 @@ def cmd_qc(args):
                     missing_optional_pairs.append(full_key)
         else:
             try:
-                data_pkl = _load_data_pkl(pkl_path)
-                patch_info = _patch_netcdf_channel_metadata_from_data_pkl(
-                    ctx=ctx,
-                    dataset_id=ds,
-                    deployment_id=dep,
-                    data_pkl=data_pkl,
-                )
-                if patch_info.get("written"):
-                    print(
-                        f"[qc] patched NetCDF metadata for {ds}/{dep}: "
-                        f"+{patch_info.get('patched_attrs', 0)} attrs"
-                    )
-                signal_data = getattr(data_pkl, "signal_data", {}) or {}
+                signal_data = _load_qc_signal_data_from_netcdf(netcdf_path)
+                fake_data_pkl = SimpleNamespace(signal_data=signal_data, signal_info={})
                 existing_all_channels = _list_existing_signal_channels(signal_data)
                 for full_key, scfg in spec.items():
                     if _has_required_source_for_feature(signal_data, full_key, scfg, standardized_cfg):
@@ -3174,7 +3192,7 @@ def cmd_qc(args):
                     ctx=ctx,
                     dataset_id=ds,
                     deployment_id=dep,
-                    data_pkl=data_pkl,
+                    data_pkl=fake_data_pkl,
                     spec=spec,
                     standardized_cfg=standardized_cfg,
                     extra_required_channels=extra_required_channels,
@@ -3648,11 +3666,11 @@ def _patch_netcdf_channel_metadata_from_data_pkl(
     if patched <= 0:
         return {"path": netcdf_path, "patched_attrs": 0, "written": False}
 
-    ds2.attrs.update(attrs)
-    tmp_path = f"{netcdf_path}.tmp_qc_patch"
-    ds2.to_netcdf(tmp_path)
-    os.replace(tmp_path, netcdf_path)
-    return {"path": netcdf_path, "patched_attrs": int(patched), "written": True}
+    print(
+        f"[qc] warning: {dataset_id}/{deployment_id} NetCDF missing {patched} channel metadata attr(s) "
+        f"(would be backfilled from data.pkl — run outside QC to patch)"
+    )
+    return {"path": netcdf_path, "patched_attrs": int(patched), "written": False}
 
 
 def _channel_units_from_sources(
@@ -5153,8 +5171,9 @@ def _compute_algorithmic_segments_for_deployment(
             summary[f"n_exhaustive_{class_key}_segments"] = 0
             summary[f"exhaustive_{class_key}_duration_s"] = 0.0
 
+    _concat_parts = [df for df in [initial_segments, surface_segments, active_surface_segments, non_candidate_unscorable_segments, surface_unscorable_segments] if not df.empty]
     combined_segments = pd.concat(
-        [initial_segments, surface_segments, active_surface_segments, non_candidate_unscorable_segments, surface_unscorable_segments],
+        _concat_parts if _concat_parts else [initial_segments],
         ignore_index=True,
         sort=False,
     )
@@ -6107,8 +6126,8 @@ def cmd_algorithmic_segments_deployment(args):
         print(f"[segments] ⚠️ {args.dataset_id}/{args.deployment_id} coverage_flags={','.join(coverage_flags)}")
     if not seg_df.empty and "context_reject_reason" in seg_df.columns:
         if {"base_keep_filtered", "context_keep"}.issubset(seg_df.columns):
-            base_mask = seg_df["base_keep_filtered"].fillna(False).astype(bool)
-            keep_mask = seg_df["context_keep"].fillna(True).astype(bool)
+            base_mask = seg_df["base_keep_filtered"].fillna(False).infer_objects(copy=False).astype(bool)
+            keep_mask = seg_df["context_keep"].fillna(True).infer_objects(copy=False).astype(bool)
             rejected_mask = base_mask & (~keep_mask)
         else:
             rejected_mask = seg_df["context_reject_reason"].notna()
@@ -6152,10 +6171,8 @@ def cmd_algorithmic_segments_merge(args):
     detailed_frames = []
     exhaustive_frames = []
     event_frames = []
-    label_frames = []
     missing_segment_paths = []
     missing_summary_paths = []
-    missing_label_paths = []
     for item in ctx.scope:
         ds = item["dataset_id"]
         dep = item["deployment_id"]
@@ -6177,16 +6194,6 @@ def cmd_algorithmic_segments_merge(args):
                     exhaustive_frames.append(ex_df)
             except Exception:
                 pass
-        label_path = _algorithmic_label_timeseries_paths(ctx, ds, dep)
-        if os.path.exists(label_path):
-            try:
-                ldf = pd.read_parquet(label_path)
-                if not ldf.empty:
-                    label_frames.append(ldf)
-            except Exception:
-                pass
-        else:
-            missing_label_paths.append(f"{ds}/{dep}: {label_path}")
         if os.path.exists(summary_path):
             try:
                 with open(summary_path, "r") as f:
@@ -6237,7 +6244,7 @@ def cmd_algorithmic_segments_merge(args):
         else:
             missing_summary_paths.append(f"{ds}/{dep}: {summary_path}")
 
-    if missing_segment_paths or missing_summary_paths or missing_label_paths:
+    if missing_segment_paths or missing_summary_paths:
         if missing_segment_paths:
             print("[segments-merge] missing deployment algorithmic segment parquet files:")
             for line in missing_segment_paths:
@@ -6245,10 +6252,6 @@ def cmd_algorithmic_segments_merge(args):
         if missing_summary_paths:
             print("[segments-merge] missing deployment algorithmic segment summary files:")
             for line in missing_summary_paths:
-                print(f"  - {line}")
-        if missing_label_paths:
-            print("[segments-merge] missing deployment algorithmic label timeseries parquet files:")
-            for line in missing_label_paths:
                 print(f"  - {line}")
         raise ValueError("Incomplete algorithmic-segments outputs for one or more deployments.")
 

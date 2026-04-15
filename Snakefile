@@ -356,7 +356,7 @@ rule segmentation_qc:
     params:
         qc_csv=lambda wildcards: f"{_segmentation_base(wildcards.run_name)}/qc/qc_channels.csv"
     shell:
-        "SEGMENTATION_RUNS_PATH={SEGMENTATION_RUNS_CONFIG} python3 workflows/10_dataset_segmentation.py --config {ACTIVE_SEGMENTATION_CONFIG} --run-name {wildcards.run_name} qc --output {params.qc_csv} && mkdir -p $(dirname {output}) && touch {output}"
+        "SEGMENTATION_RUNS_PATH={SEGMENTATION_RUNS_CONFIG} python3 pyologger/analyze_data/segmentation_pipeline.py --config {ACTIVE_SEGMENTATION_CONFIG} --run-name {wildcards.run_name} qc --output {params.qc_csv} && mkdir -p $(dirname {output}) && touch {output}"
 
 
 rule segmentation_algorithmic_segments:
@@ -370,6 +370,7 @@ rule segmentation_algorithmic_segments:
         "SEGMENTATION_RUNS_PATH={SEGMENTATION_RUNS_CONFIG} "
         "python3 workflows/10_algorithmic_segmentation.py --config {ACTIVE_SEGMENTATION_CONFIG} --run-name {wildcards.run_name} --output {params.merged_output} "
         "--context-filter-pass-mode {SEGMENTATION_CONTEXT_FILTER_PASS_MODE} "
+        "--no-refresh-qc --no-refresh-cross-dataset-qc "
         "&& mkdir -p $(dirname {output}) && touch {output}"
 
 

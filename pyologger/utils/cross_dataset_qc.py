@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import json
 import os
 import pickle
@@ -59,19 +60,35 @@ def _resolve_scope(
     return sorted(scope, key=lambda x: (x["dataset_id"], x["deployment_id"]))
 
 
-def _read_netcdf_attrs(data_root: str, dataset_id: str, deployment_id: str) -> Dict[str, Any]:
+def _scan_netcdf(data_root: str, dataset_id: str, deployment_id: str) -> Tuple[Dict[str, Any], Dict[str, List[str]]]:
+    """Open the netCDF header only (no data loaded) and return (attrs, signal_channels_map)."""
     deployment_folder = os.path.join(data_root, str(dataset_id), str(deployment_id))
     netcdf_path = latest_processing_netcdf_path(deployment_folder, str(deployment_id))
     if not netcdf_path or not os.path.exists(netcdf_path):
-        return {}
+        return {}, {}
+    prefix = "signal_data_"
     try:
         with xr.open_dataset(netcdf_path) as ds:
-            return dict(ds.attrs)
+            attrs = dict(ds.attrs)
+            signals: Dict[str, List[str]] = {}
+            for var in ds.variables:
+                if not str(var).startswith(prefix):
+                    continue
+                signal_id = str(var)[len(prefix):]
+                da = ds[var]
+                raw = da.attrs.get("variables") or da.attrs.get("variable")
+                if raw is None:
+                    continue
+                channels = [str(c) for c in (raw if not isinstance(raw, str) else [raw])]
+                channels = [c for c in channels if c and c != "datetime"]
+                if channels:
+                    signals[signal_id] = sorted(channels)
+            return attrs, signals
     except Exception:
-        return {}
+        return {}, {}
 
 
-def _read_data_pkl(data_root: str, dataset_id: str, deployment_id: str):
+def _read_data_pkl_one(data_root: str, dataset_id: str, deployment_id: str) -> Any:
     pkl_path = os.path.join(data_root, str(dataset_id), str(deployment_id), "outputs", "data.pkl")
     if not os.path.exists(pkl_path):
         return None
@@ -82,33 +99,12 @@ def _read_data_pkl(data_root: str, dataset_id: str, deployment_id: str):
         return None
 
 
-def _extract_signal_channels(data_pkl: Any) -> Dict[str, List[str]]:
-    out: Dict[str, List[str]] = {}
-    signal_data = getattr(data_pkl, "signal_data", {}) or {}
-    for signal_id, sdf in signal_data.items():
-        if sdf is None or not hasattr(sdf, "columns"):
-            continue
-        channels = [str(c) for c in list(sdf.columns) if str(c) != "datetime"]
-        if channels:
-            out[str(signal_id)] = sorted(channels)
-    return out
-
-
 def _extract_channel_units(
-    data_pkl: Any,
     netcdf_attrs: Dict[str, Any],
     signal_id: str,
     channel_id: str,
+    data_pkl: Any = None,
 ) -> Dict[str, str]:
-    signal_info = getattr(data_pkl, "signal_info", {}) or {}
-    sig_info = signal_info.get(signal_id) if isinstance(signal_info, dict) else {}
-    sig_info = sig_info if isinstance(sig_info, dict) else {}
-    meta = sig_info.get("metadata") if isinstance(sig_info.get("metadata"), dict) else {}
-    ch_meta = meta.get(channel_id) if isinstance(meta, dict) else {}
-    ch_meta = ch_meta if isinstance(ch_meta, dict) else {}
-
-    pkl_unit = normalize_unit_token(ch_meta.get("unit") or sig_info.get("units"))
-    pkl_std_unit = normalize_unit_token(ch_meta.get("standardized_unit"))
     nc_unit = normalize_unit_token(
         netcdf_attrs.get(f"signal_info_{signal_id}_metadata_{channel_id}_unit")
         or netcdf_attrs.get(f"signal_info_{signal_id}_units")
@@ -116,6 +112,17 @@ def _extract_channel_units(
     nc_std_unit = normalize_unit_token(
         netcdf_attrs.get(f"signal_info_{signal_id}_metadata_{channel_id}_standardized_unit")
     )
+    pkl_unit = ""
+    pkl_std_unit = ""
+    if data_pkl is not None and not (nc_std_unit or nc_unit):
+        signal_info = getattr(data_pkl, "signal_info", {}) or {}
+        sig_info = signal_info.get(signal_id) if isinstance(signal_info, dict) else {}
+        sig_info = sig_info if isinstance(sig_info, dict) else {}
+        meta = sig_info.get("metadata") if isinstance(sig_info.get("metadata"), dict) else {}
+        ch_meta = meta.get(channel_id) if isinstance(meta, dict) else {}
+        ch_meta = ch_meta if isinstance(ch_meta, dict) else {}
+        pkl_unit = normalize_unit_token(ch_meta.get("unit") or sig_info.get("units"))
+        pkl_std_unit = normalize_unit_token(ch_meta.get("standardized_unit"))
     effective = nc_std_unit or nc_unit or pkl_std_unit or pkl_unit
     return {
         "unit_data_pkl": pkl_std_unit or pkl_unit,
@@ -192,20 +199,18 @@ def run_cross_dataset_qc(
             normalized_values.insert(0, key_text)
         alias_lookup[key_text] = normalized_values
 
+    # Phase 1: scan netCDF headers only — no pkl loaded into memory.
     available_map: Dict[Tuple[str, str], Dict[str, List[str]]] = {}
-    data_obj_map: Dict[Tuple[str, str], Any] = {}
     attrs_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
     channel_universe: Dict[str, set[str]] = {}
 
     for item in scope:
         ds, dep = item["dataset_id"], item["deployment_id"]
         key = (ds, dep)
-        data_pkl = _read_data_pkl(data_root, ds, dep)
-        data_obj_map[key] = data_pkl
-        attrs_map[key] = _read_netcdf_attrs(data_root, ds, dep)
-        avail = _extract_signal_channels(data_pkl) if data_pkl is not None else {}
-        available_map[key] = avail
-        for sig, channels in avail.items():
+        attrs, signals = _scan_netcdf(data_root, ds, dep)
+        attrs_map[key] = attrs
+        available_map[key] = signals
+        for sig, channels in signals.items():
             channel_universe.setdefault(sig, set()).update(channels)
 
     target_channels: Dict[str, List[str]] = {}
@@ -224,19 +229,24 @@ def run_cross_dataset_qc(
     if not target_channels:
         raise ValueError("No signal/channel targets resolved. Check scope and filters.")
 
+    # Phase 2: build detail rows. Units come from netCDF attrs; only load pkl (one at a
+    # time, immediately released) when netCDF attrs lack unit info for a present channel.
     detail_rows: List[Dict[str, Any]] = []
     for item in scope:
         ds, dep = item["dataset_id"], item["deployment_id"]
         key = (ds, dep)
-        data_pkl = data_obj_map[key]
         avail = available_map[key]
         attrs = attrs_map[key]
+
+        # Determine which present channels are missing unit info in the netCDF so we
+        # know whether we need to load the pkl at all for this deployment.
+        needs_pkl_for: List[Tuple[str, str]] = []
+        present_channels: List[Tuple[str, str, str, str]] = []  # (sig, ch, rsig, rch)
         for sig, channels in target_channels.items():
             for ch in channels:
                 target_key = f"{sig}.{ch}"
                 candidate_keys = alias_lookup.get(target_key, [target_key])
-                resolved_signal = sig
-                resolved_channel = ch
+                resolved_signal, resolved_channel = sig, ch
                 present = False
                 for candidate_key in candidate_keys:
                     if "." not in str(candidate_key):
@@ -244,27 +254,48 @@ def run_cross_dataset_qc(
                     cand_sig, cand_ch = str(candidate_key).split(".", 1)
                     if cand_sig in avail and cand_ch in avail[cand_sig]:
                         present = True
-                        resolved_signal = cand_sig
-                        resolved_channel = cand_ch
+                        resolved_signal, resolved_channel = cand_sig, cand_ch
                         break
-                units = {"unit_data_pkl": "", "unit_netcdf": "", "unit_effective": ""}
-                if present and data_pkl is not None:
-                    units = _extract_channel_units(data_pkl, attrs, resolved_signal, resolved_channel)
-                detail_rows.append(
-                    {
-                        "dataset_id": ds,
-                        "deployment_id": dep,
-                        "signal_id": sig,
-                        "channel_id": ch,
-                        "resolved_signal_id": resolved_signal,
-                        "resolved_channel_id": resolved_channel,
-                        "resolved_channel_key": f"{resolved_signal}.{resolved_channel}",
-                        "present": present,
-                        "unit_data_pkl": units["unit_data_pkl"],
-                        "unit_netcdf": units["unit_netcdf"],
-                        "unit_effective": units["unit_effective"],
-                    }
-                )
+                if present:
+                    present_channels.append((sig, ch, resolved_signal, resolved_channel))
+                    nc_unit = attrs.get(f"signal_info_{resolved_signal}_metadata_{resolved_channel}_unit") \
+                        or attrs.get(f"signal_info_{resolved_signal}_units")
+                    nc_std_unit = attrs.get(f"signal_info_{resolved_signal}_metadata_{resolved_channel}_standardized_unit")
+                    if not (nc_std_unit or nc_unit):
+                        needs_pkl_for.append((resolved_signal, resolved_channel))
+                else:
+                    present_channels.append((sig, ch, resolved_signal, resolved_channel))
+
+        # Load pkl only if at least one present channel is missing netCDF unit info.
+        data_pkl = None
+        if needs_pkl_for:
+            data_pkl = _read_data_pkl_one(data_root, ds, dep)
+
+        for sig, ch, resolved_signal, resolved_channel in present_channels:
+            present = (resolved_signal in avail and resolved_channel in avail.get(resolved_signal, []))
+            units = {"unit_data_pkl": "", "unit_netcdf": "", "unit_effective": ""}
+            if present:
+                units = _extract_channel_units(attrs, resolved_signal, resolved_channel, data_pkl)
+            detail_rows.append(
+                {
+                    "dataset_id": ds,
+                    "deployment_id": dep,
+                    "signal_id": sig,
+                    "channel_id": ch,
+                    "resolved_signal_id": resolved_signal,
+                    "resolved_channel_id": resolved_channel,
+                    "resolved_channel_key": f"{resolved_signal}.{resolved_channel}",
+                    "present": present,
+                    "unit_data_pkl": units["unit_data_pkl"],
+                    "unit_netcdf": units["unit_netcdf"],
+                    "unit_effective": units["unit_effective"],
+                }
+            )
+
+        # Release pkl immediately after this deployment is processed.
+        if data_pkl is not None:
+            del data_pkl
+            gc.collect()
 
     detail_df = pd.DataFrame(detail_rows)
     if detail_df.empty:
