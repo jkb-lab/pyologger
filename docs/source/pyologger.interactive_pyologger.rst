@@ -1,5 +1,10 @@
 pyologger.interactive\_pyologger package
-========================================
+=========================================
+
+.. note::
+   This subpackage contains the interactive Dash application. Its heavy
+   runtime dependencies (Dash, Plotly, Streamlit) are mocked during docs
+   build; method signatures are documented but may show simplified type stubs.
 
 Subpackages
 -----------
@@ -8,17 +13,6 @@ Subpackages
    :maxdepth: 4
 
    pyologger.interactive_pyologger.utils
-
-Submodules
-----------
-
-pyologger.interactive\_pyologger.app module
--------------------------------------------
-
-.. automodule:: pyologger.interactive_pyologger.app
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 Module contents
 ---------------

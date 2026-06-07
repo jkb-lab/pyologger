@@ -14,6 +14,8 @@ Welcome to pyologger's documentation!
 
    intro
    workflows_and_dash
+   segmentation_workflow_review
+   ai_docs
    adaptive_channel_standardization
    state_event_plotting_standardization
    tag2animal_equations

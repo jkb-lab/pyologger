@@ -13,6 +13,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('../../pyologger/'))
+sys.path.insert(0, os.path.abspath('../../'))
 
 
 # -- Project information -----------------------------------------------------
@@ -32,8 +33,29 @@ release = '0.0.1'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
     'sphinx.ext.mathjax',
 ]
+
+# Mock heavy deps that are not installed in the docs venv or cause import errors.
+# Do NOT mock pandas or pyarrow — both install cleanly in this venv.
+# Do NOT mock numpy — needed for annotation evaluation in several modules.
+autodoc_mock_imports = [
+    'antropy', 'dash', 'dotenv', 'edfio', 'erddapy', 'geoai',
+    'heartpy', 'ipywidgets', 'leafmap', 'lightgbm', 'matplotlib',
+    'mne', 'netCDF4', 'notion_client', 'planetary_computer',
+    'plotly', 'plotly_resampler', 'pycatch22', 'pystac_client',
+    'rasterio', 'rioxarray', 'scipy', 'sklearn', 'sleepecg',
+    'snakemake', 'streamlit', 'umap', 'wfdb', 'xarray', 'yasa',
+    'DiveDB',
+]
+
+# Suppress nitpick warnings about missing cross-references
+nitpicky = False
+
+# Don't evaluate type annotations at import time — avoids Mock | None errors
+autodoc_typehints = 'description'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

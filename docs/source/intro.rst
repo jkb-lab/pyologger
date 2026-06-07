@@ -48,3 +48,14 @@ Future Developments
 - **User Community and Collaboration:** Encouraging contributions from the research community to enhance the functionality of ``pyologger`` and tailor it to the evolving needs of biologging research.
 
 ``pyologger`` is under active development, and contributions, feedback, and suggestions are welcome from the research community to help refine and expand its capabilities.
+
+Organism / Animal ID Terminology
+*********************************
+
+The pipeline distinguishes between two identifier fields that refer to the study animal:
+
+- **``organism_id``** — the canonical identifier used in all pipeline code and segmentation output Parquet files (e.g. ``clustered_windows.parquet``, ``supervised_predictions.parquet``). All new code should use ``organism_id``.
+
+- **``animal_id``** — a legacy field retained in ``data.pkl`` attributes and NetCDF export files solely for compatibility with DiveDB upload workflows. Do **not** introduce ``animal_id`` in new pipeline code; translate to ``animal_id`` only at the DiveDB upload boundary.
+
+This rename reflects a broader shift toward species-neutral terminology across the codebase.

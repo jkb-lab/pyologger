@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import pickle
 import re
@@ -375,15 +377,15 @@ class DataReader:
             if manufacturer in {"DT", "DTAG"} or has_dt_netcdf:
                 return DTImporter
 
-            if any(f.lower().endswith((".csv", ".parquet", ".parq", ".pq")) for f in files_for_logger):
-                return CSVImporter
-
+            if manufacturer == "Manitty":
+                return ManittyImporter
             if manufacturer == "Little Leonardo":
                 return CSVImporter
             if manufacturer == "Evolocus":
                 return EvolocusImporter
-            if manufacturer == "Manitty":
-                return ManittyImporter
+
+            if any(f.lower().endswith((".csv", ".parquet", ".parq", ".pq")) for f in files_for_logger):
+                return CSVImporter
 
             # e.g. "Wildlife Computers", "Star Oddi"
             if manufacturer == "Wildlife Computers":

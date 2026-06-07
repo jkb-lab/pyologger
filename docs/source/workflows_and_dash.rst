@@ -20,47 +20,73 @@ Run the full workflow for one deployment:
 
 Use ``-n -p`` to preview and print commands.
 
-Segmentation / Clustering / Supervised Workflow
-------------------------------------------------
+Segmentation / Clustering / Supervised Workflow (Stages 09–14)
+--------------------------------------------------------------
 
-The segmentation workflow is configured by ``segmentation_runs.yaml`` and executed via:
+The segmentation workflow is a separate Snakemake DAG driven by ``segmentation_runs.yaml``.
+Marker files are written outside the repo under ``paths.local_private_meta_analysis_data/segmentation/<run_name>/``.
 
-- ``pyologger/workflows/Snakefile``
+Stage overview
+~~~~~~~~~~~~~~
 
-Each run writes markers to:
+.. list-table::
+   :header-rows: 1
+   :widths: 8 35 30 27
 
-- ``segmentation_markers/<run_name>/``
+   * - Stage
+     - Script
+     - Inputs
+     - Key Outputs
+   * - 09 QC
+     - ``09_cross_dataset_qc.py``
+     - ``data.pkl`` files in scope
+     - ``qc/qc_channels.csv``
+   * - 10 Algorithmic
+     - ``10_algorithmic_segmentation.py``
+     - ``data.pkl``, config
+     - ``segments/algorithmic_segments.parquet``
+   * - 11 Features
+     - ``11_feature_generation.py``
+     - ``data.pkl``, algorithmic segments
+     - ``features/features_raw.parquet``, ``features_filtered.parquet``, ``feature_index.parquet``, ``feature_correlation_matrix.parquet``, ``dropped_correlated_features.csv``
+   * - 12 Unsupervised
+     - ``12_unsupervised_segmentation.py``
+     - ``features_filtered.parquet``
+     - ``clustering/clustered_windows.parquet``
+   * - 13 Supervised
+     - ``13_supervised_segmentation.py``
+     - features, event labels
+     - ``supervised/supervised_predictions.parquet``, holdout diagnostics, feature importances
+   * - 14 Summary
+     - ``14_summary.py``
+     - all prior outputs
+     - ``summary/method_budget_daily.parquet``, ``method_budget_hourly.parquet``
 
-Current marker stages:
-
-- ``09_qc.done``
-- ``10_algorithmic.done``
-- ``11_features.done``
-- ``12_unsupervised.done``
-- ``13_supervised.done``
-- ``14_summary.done``
-
-Run one full segmentation pipeline:
+Running the segmentation pipeline
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   RUN_NAME=mian_mile_sleep_transfer_rf
-   snakemake -s workflows/Snakefile --configfile config.yaml --cores 4 \
-     segmentation_markers/${RUN_NAME}/14_summary.done
+   # Set convenience vars (run from pyologger/)
+   MARKERS_BASE=$(python3 -c "import yaml; c=yaml.safe_load(open('config.yaml')); \
+     print(c['paths']['local_private_meta_analysis_data'])")/segmentation
+   RUN_NAME=<run_name>
 
-Run a partial stage:
+   # Full run
+   snakemake -s Snakefile --configfile config.yaml --cores 4 \
+     ${MARKERS_BASE}/${RUN_NAME}/14_summary.done
 
-.. code-block:: bash
+   # Partial run (up to features stage)
+   snakemake -s Snakefile --configfile config.yaml --cores 4 \
+     ${MARKERS_BASE}/${RUN_NAME}/11_features.done
 
-   snakemake -s workflows/Snakefile --configfile config.yaml --cores 4 \
-     segmentation_markers/${RUN_NAME}/11_features.done
+   # Reset and rerun from a stage
+   scripts/reset_segmentation_run.sh <run_name> --scope supervised
+   snakemake -s Snakefile --configfile config.yaml --cores 4 \
+     ${MARKERS_BASE}/${RUN_NAME}/14_summary.done
 
-Output roots are resolved by the run context and typically land at:
-
-- ``00_Meta-Analysis/segmentation/<analysis_id>/`` (multi-dataset)
-- ``<dataset_id>/00_Meta-Analysis/segmentation/<analysis_id>/`` (single-dataset)
-
-Key run outputs:
+Key outputs
+~~~~~~~~~~~
 
 - ``features/features_filtered.parquet``
 - ``clustering/clustered_windows.parquet``
@@ -68,7 +94,7 @@ Key run outputs:
 - ``summary/method_budget_daily.parquet``
 - ``summary/method_budget_hourly.parquet``
 
-Cross-dataset channel/unit QC is stage ``09_qc`` and can also be run directly:
+Cross-dataset QC (stage 09) can also be run directly:
 
 .. code-block:: bash
 
@@ -77,6 +103,8 @@ Cross-dataset channel/unit QC is stage ``09_qc`` and can also be run directly:
 Review entrypoint:
 
 - ``notebooks/SEGMENTATION_REVIEW.ipynb``
+
+See :doc:`segmentation_workflow_review` for a concise stage reference.
 
 Dash App
 --------
