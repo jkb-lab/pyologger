@@ -2,7 +2,7 @@
 
 [![PyPI version](https://badge.fury.io/py/pyologger.svg)](https://pypi.org/project/pyologger/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Documentation Status](https://readthedocs.org/projects/pyologger/badge/?version=latest)](https://pyologger.readthedocs.io/en/latest/)
+[![Documentation Status](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://jmkendallbar.github.io/pyologger/)
 
 Pyologger is a Python library designed for analyzing multi-logger, multi-signal biologging data. It provides tools for data loading, processing, visualization, and feature generation, making it easier to analyze data from various signals, including accelerometers, gyroscopes, and depth signals.
 
@@ -33,126 +33,76 @@ See [Segmentation_Workflow.md](Segmentation_Workflow.md) for the current segment
 - **Data reading**: Efficiently read and organize biologging data from multiple formats- see datareader.
 - **Data processing**: Calibrate signal data, perform zero-offset corrections, and generate features.
 - **Visualization**: Interactive plotting and exploration of signal and derived data.
-- **Pipeline support**: Compatibility with a custom database, [DiveDB](https://github.com/ecophysviz-lab/DiveDB), to store and compare ecophysiological data across species.
-        - #### Signal data:
-            - **Sensor Data**: `data_pkl.signal_data[signal_name]`
-            
-                Contains a pandas dataframe that is accessed using the signal_name (e.g. 'ecg', 'accelerometer', 'pressure', etc.). Dataframes have a first column with pandas datetime values localized with a pytz timezone (e.g. "America/Los Angeles") and contain one or more columns that have standardized names for the channels associated with that signal (e.g. 'ecg' for ecg signal, 'ax', ay', 'az' for accelerometer signal, etc.). 
-            
-            - **Sensor Metadata**: `data_pkl.signal_info[signal_name]`
+- **Pipeline support**: Compatibility with [DiveDB](https://github.com/ecophysviz-lab/DiveDB) to store and compare ecophysiological data across species.
 
-                Holds JSON dictionary with metadata about the signal and each of its channels. This receives metadata from the montage mapping process on the original channel name and units for each channel. It also holds information on the min and max value of the signal, the sampling frequency, the logger ID it's associated with, the logger manufacturer, the data type, and processing metadata.
+### Data model: `data_pkl`
 
-                - Channel names and standardized units from the montage mapping process
-                - Summary statistics (min_value, max_value, mean_value, calculated signal precision)
-                - Data type and units
-                - Sampling frequencies before and after downsampling
-                - Logger ID and manufacturer
-                - Timestamps of the first and last samples
-                - A processing log in the details field
+Each loaded deployment is a `data_pkl` object with three main fields:
 
-                <details>
-                <summary>Example signal metadata</summary>
+#### Signal data
 
-                ```{json}
-                {
-                    "channels": ["gx", "gy", "gz"],
-                    "metadata": {
-                        "gx": {
-                        "original_name": "Gyroscope X [mrad/s]",
-                        "unit": "mrad/s",
-                        "parent_signal": "gyroscope"
-                        },
-                        "gy": {
-                        "original_name": "Gyroscope Y [mrad/s]",
-                        "unit": "mrad/s",
-                        "parent_signal": "gyroscope"
-                        },
-                        "gz": {
-                        "original_name": "Gyroscope Z [mrad/s]",
-                        "unit": "mrad/s",
-                        "parent_signal": "gyroscope"
-                        }
-                    },
-                    "signal_start_datetime": "2023-06-13T09:59:57-07:00",
-                    "signal_end_datetime": "2023-06-13T12:26:32.235000-07:00",
-                    "max_value": 17436.2649,
-                    "min_value": -17436.2649,
-                    "mean_value": 1.4415,
-                    "calculated_signal_precision": 0.0001,
-                    "data_type": "float64",
-                    "original_units": ["mrad/s"],
-                    "units": ["mrad/s"],
-                    "original_sampling_frequency": 100,
-                    "sampling_frequency": 50,
-                    "logger_id": "CC-96",
-                    "logger_manufacturer": "CATS",
-                    "processing_step": "Raw data uploaded",
-                    "last_updated": "2025-03-25T14:16:49.873643-07:00",
-                    "details": "Initial, raw signal-specific data and metadata loaded. Original frequency: 100 Hz; downsampled to 50 Hz."
-                }
+**`data_pkl.signal_data[signal_name]`** — pandas DataFrame with a timezone-aware datetime index and one or more signal channels (e.g. `'ecg'`, `'ax'`/`'ay'`/`'az'` for accelerometer).
 
-                ```
+**`data_pkl.signal_info[signal_name]`** — JSON metadata per signal including channel names, units, sampling frequency, logger ID, and processing log.
 
-                </details>
+<details>
+<summary>Example signal metadata</summary>
 
-            - **Derived Data**: `data_pkl.signal_data[signal_name]`
-            
-                Contains a pandas dataframe that is accessed using the derived signal_name (e.g. 'heart_rate', 'prh', 'depth', etc.). When deciding which channels to assign to separate signals, consider which you would want to appear on a single subplot. For example, x y and z values for accelerometry are often more clearly visualized when superimposed; this could also hold for EEG signals, or versions of a smoothed signal that you want to easily compare. By using the [`data_manager.py`](pyologger/utils/data_manager.py) module, you can easily remove derived signals that are no longer necessary using the `clear_intermediate_signals()` function.
-                
-                Dataframes are structured exactly like the signal dataframes with a first column of pandas datetime values localized with a pytz timezone (e.g. "America/Los Angeles") and one or more columns that have standardized names for the channels associated with that derived signal type (e.g. 'pitch', 'roll', and 'heading' for derived signal 'prh', 'ax', ay', 'az' for calibrated/corrected accelerometer data, etc.). 
-                
-            - **Derived Signal Metadata**: `data_pkl.derived_info[signal_name]`
+```json
+{
+  "channels": ["gx", "gy", "gz"],
+  "metadata": {
+    "gx": { "original_name": "Gyroscope X [mrad/s]", "unit": "mrad/s", "parent_signal": "gyroscope" },
+    "gy": { "original_name": "Gyroscope Y [mrad/s]", "unit": "mrad/s", "parent_signal": "gyroscope" },
+    "gz": { "original_name": "Gyroscope Z [mrad/s]", "unit": "mrad/s", "parent_signal": "gyroscope" }
+  },
+  "original_sampling_frequency": 100,
+  "sampling_frequency": 50,
+  "logger_id": "CC-96",
+  "logger_manufacturer": "CATS"
+}
+```
 
-                Holds JSON dictionary with metadata about the derived signal and each of its channels. Critically, this stores information about what signals informed the derived signal (e.g. 'heart_rate' would point to 'ecg' in the 'derived_from_signals' field), as well as the transformations which have occurred.
+</details>
 
-                *Note*: Should at some point clean this metadata up and add things like precision, or other useful info about the derived signal. Perhaps hard to standardize across signal types.
+**`data_pkl.signal_data[derived_signal_name]`** — Derived signals (e.g. `'heart_rate'`, `'prh'`, `'depth'`) share the same DataFrame structure. Use [`data_manager.py`](pyologger/utils/data_manager.py) `clear_intermediate_signals()` to drop signals no longer needed.
 
-        - #### Event data:`data_pkl.event_data`
+**`data_pkl.derived_info[signal_name]`** — Metadata for derived signals including `derived_from_signals` provenance and transformation log.
 
-        A pandas dataframe that stores **manually or automatically detected events** during the deployment. Events can be used to mark discrete points in time (e.g. detected heartbeats, user-added notes) or to define state intervals (e.g. sleep periods, active bouts). This table allows both fine-grained and high-level annotation across the time series and supports downstream processing and visualization.
+#### Event data
 
-        Each row in `event_data` represents a single event and includes:
+**`data_pkl.event_data`** — pandas DataFrame of manually or automatically detected events.
 
-        - **type**: Event type — either:
-            - `"point"`: An instantaneous event with no duration (e.g. `heartbeat_manual_ok`)
-            - `"state"`: A continuous event with a start and duration (e.g. `sleep_state`)
-        - **key**: A standardized string identifier for the event (e.g. `heartbeat_manual_ok`, `sleep_state_auto`)
-        - **value**: A numeric value associated with the event (optional; e.g. heart rate at time of detection)
-        - **short_description**: A brief text description of the event (e.g. `heartbeat detection`)
-        - **long_description**: A longer, optional field for detailed annotation notes
-        - **datetime**: Localized datetime (`pytz` timezone-aware) when the event occurs or begins
-        - **datetime_utc**: UTC timestamp corresponding to the same event time
-        - **time_unix_ms**: Unix timestamp in milliseconds
-        - **duration**: Duration of the event in seconds (0 for `"point"` events, nonzero for `"state"` events)
+| Column | Description |
+| --- | --- |
+| `type` | `"point"` (instantaneous) or `"state"` (with duration) |
+| `key` | Standardized event identifier, e.g. `heartbeat_manual_ok` |
+| `value` | Optional numeric value (e.g. heart rate at detection) |
+| `short_description` | Brief label |
+| `datetime` | Timezone-aware start time |
+| `duration` | Duration in seconds (0 for point events) |
 
-        This structure is designed to be **searchable, sortable, and filterable**, supporting integration with visualization tools (e.g. annotations in timeseries plots) and analysis pipelines (e.g. labeling windows for supervised learning).
+<details>
+<summary>Example event_data rows</summary>
 
-        *Tip*: Events can be appended programmatically during processing steps (e.g. automated beat detection) or manually annotated using interactive interfaces. Custom symbols and colors can be defined for visual overlays in plots using a note-style dictionary.
+```plaintext
+   datetime                          type   key                  value  short_description        duration
+0  2024-06-13 11:22:00.750000-07:00  point  heartbeat_manual_ok  65.93  heartbeat detection  0
+1  2024-06-13 11:22:02.720000-07:00  point  heartbeat_manual_ok  30.46  heartbeat detection  0
+```
 
-        <details>
-        <summary>Example `event_data` rows</summary>
+```plaintext
+# state event example:
+datetime:   2024-06-13 23:00:00-07:00
+type:       state
+key:        sleep_state_auto
+duration:   5400   # 1.5 hours
+```
 
-        ```plaintext
-            datetime                       type    key                 value   short_description         duration
-        0    2024-06-13 11:22:00.750000-07:00  point   heartbeat_manual_ok  65.93   heartbeat detection        0
-        1    2024-06-13 11:22:02.720000-07:00  point   heartbeat_manual_ok  30.46   heartbeat detection        0
-        2    2024-06-13 11:22:04.240000-07:00  point   heartbeat_manual_ok  39.47   heartbeat detection        0
-        ```
-
-        ```plaintext
-        # example of a "state" event row:
-        datetime:       2024-06-13 23:00:00.000000-07:00  
-        type:           state  
-        key:            sleep_state_auto  
-        value:          1  
-        short_description:  auto sleep scoring  
-        duration:       5400  # seconds = 1.5 hours
-        ```
-        </details>
+</details>
 
 
-2. `output.nc`: netCDF tag data format for saving raw or processed data at different steps of the pipeline. This netCDF format allows upload and intake into [DiveDB](https://github.com/ecophysviz-lab/DiveDB).
+**`output.nc`** — netCDF tag data format for saving raw or processed data at each pipeline step, suitable for upload to [DiveDB](https://github.com/ecophysviz-lab/DiveDB).
 
 
 ## Installation
