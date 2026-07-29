@@ -61,7 +61,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Performance
 
-Measured on `2021-04-17_mian-011` (12.3 GB EDF, 191 h recording, 20 retained channels):
+**Step 05 (`heartbeat_detect`)** — measured on `2019-10-25_mian-001` (79.5M ECG samples,
+334k detected beats), with byte-identical output at every stage:
+
+| | Wall time | Peak memory |
+|---|---|---|
+| Before | 39.2 min | 11.9 GB |
+| After | **4.7 min** | 14.4 GB |
+
+Two O(n²) lookup patterns dominated:
+
+- `_apply_conflict_pair_rejection` built a full-length boolean mask per beat pair
+  (334k masks, and the function runs twice). `interval_midpoints` is sorted, so window
+  bounds now come from two vectorized `searchsorted` calls; rejections are applied with a
+  single `.isin()` rather than a frame scan each.
+- The up-jump cleanup loop re-scanned the whole 334k-row `peak_df` five times per
+  iteration (~191 ms/iteration). The loop mutates `peak_df` and later iterations depend on
+  earlier rejections, so the sequential logic is unchanged — only the lookups became binary
+  searches over cached sorted arrays.
+
+The loop deliberately mixes two active-beat tests — `.isin([accepted, suggested])` and
+`.str.contains("accepted|suggested")`, the latter also matching `beat_manual_accepted`. Both
+cached arrays are kept separately to preserve that distinction.
+
+Also fixed quadratic growth of `all_smoothed`, which re-copied the whole accumulated array
+once per chunk (~80 GB of redundant copying over 116 chunks). The higher peak memory is the
+cost of deferring that concatenate to a single call.
+
+**EDF import** — measured on `2021-04-17_mian-011` (12.3 GB EDF, 191 h recording, 20 retained channels):
 
 | | Before | After |
 |---|---|---|
