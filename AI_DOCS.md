@@ -70,7 +70,13 @@ config.yaml + segmentation_runs.yaml
 | `calibrate_data/zoc.py` | Zero-offset correction | — | ~200 |
 | `plot_data/plotter.py` | Interactive Plotly signal viewer | `plot_tag_data_interactive5` | ~800 |
 | `plot_data/sleep_budget_plot.py` | Sleep/behavior budget plots | — | ~200 |
-| `io_operations/datareader.py` | Format-specific importers (base + CATS, WC, etc.) | `BaseImporter`, format subclasses | ~1200 total |
+| `io_operations/base_importer.py` | Shared importer logic: channel standardization, signal grouping, EDF read/decimation | `BaseImporter`, `group_edf_signals_by_frequency`, `_prefetch_edf_signals`, `resolve_signal_name`, `DEFAULT_EDF_TARGET_FREQUENCIES`, `RECOMPUTED_SIGNALS` | ~950 |
+| `io_operations/{evolocus,manitty}_importer.py` | EDF importers; also ingest a CSV/Parquet export from the same logger when present | `EvolocusImporter`, `ManittyImporter` | ~150 each |
+| `io_operations/csv_importer.py` | Generic CSV/Parquet importer (delegated to by the EDF importers) | `CSVImporter` | ~150 |
+| `io_operations/*_importer.py` | Other format-specific importers (CATS, WC, StarOddi, Vectronics, …) | format subclasses | ~1200 total |
+| `dash/integrated/integrated_dash.py` | Integrated Dash app: interactive plot, time selector, 3D model, synchronized video, segmentation UI | Dash `app`, Flask routes `/local-video`, `/immich-video` | ~12k |
+| `dash/integrated/segmentation_helpers.py` | Segmentation workflow helpers for the Dash app | `DEFAULT_SEGMENTATION_DATASET/DEPLOYMENT`, workflow preset fns | ~1600 |
+| `dash/integrated/model_3d.py` | 3D orientation model data for the Dash app | `build_orientation_data_json`, `fetch_3d_model_info` | ~600 |
 
 ## Module Reference
 
@@ -101,6 +107,31 @@ config.yaml + segmentation_runs.yaml
 - `__init__(deployment_folder_path)` — initialize with deployment directory
 - `check_deployment_folder(deployment_db, data_dir)` → `(deployment_folder, deployment_id)` — validate folder against metadata
 - `read_files(metadata, save_csv, save_parq, save_edf, montage_path, save_netcdf)` → `None` — reads all files, builds data.pkl, optionally exports
+
+### `io_operations/base_importer.py`
+
+**Purpose**: Shared importer logic — channel standardization, signal grouping, EDF reading
+
+**Key Methods** (EDF path):
+
+- `group_edf_signals_by_frequency(signals, startdate, starttime, time_zone, skip_full=False, channel_metadata=None)` → `dict[int, pd.DataFrame]` — groups signals by **resulting** rate (not source rate), so one source group may split into several frames. Builds each group as a preallocated `float32` matrix, reading `EdfSignal.data` exactly once per signal.
+- `_prefetch_edf_signals(signals)` — fills `_digital` for all signals in a contiguous column run with one chunked pass over edfio's data-record buffer, replacing one strided pass per signal (~1.6x faster). Silently falls back to edfio's per-signal path if the layout is unexpected.
+- `get_edf_target_frequencies()` → `dict[str, float]` — resolves decimation targets: class defaults → `config.yaml` `edf_import.target_frequencies` → `parameter_log.json` `settings.edf_target_frequencies`. `null` disables a signal type.
+- `_edf_decimation_step(label, source_hz, targets, channel_metadata)` → `int` — integer factor only; returns 1 if the target would give a non-integer rate (downstream stores `int(logger_info['fs'])`).
+- `_edf_signal_column(signal, step, n_out)` → `np.ndarray` — `scipy.signal.decimate(ftype="fir", zero_phase=True)`; plain slicing only as a logged fallback.
+- `resolve_signal_name(signal_name)` → `str` — appends `_2` for signals in `RECOMPUTED_SIGNALS` when `is_derived_logger()` (montage id contains `derived`), reserving canonical names for pyologger's own output.
+
+**Constants**:
+
+- `DEFAULT_EDF_TARGET_FREQUENCIES = {"eeg": 100, "eog": 100, "emg": 100, "ecg": 250}`
+- `RECOMPUTED_SIGNALS = {stroke_rate, heart_rate, depth, prh, velocity, position, location}`
+
+**Gotcha**: `edfio.EdfSignal.data` is a property that re-materializes a full `float64` array on
+every access and is never cached. Read it once per signal. Do **not** set `signal._digital = None`
+to free memory — edfio consumes `_lazy_loader` on first read, so this makes the signal
+permanently unreadable (`ValueError: Signal data not set`).
+
+See `docs/source/edf_import.rst` for the full design.
 
 ### `analyze_data/segmentation_pipeline.py`
 

@@ -17,10 +17,308 @@ class BaseImporter:
         self.montage_id = self.data_reader.logger_info[logger_id]['Montage ID']
         self.expected_frequencies = {}  # Stores expected signal frequencies from .txt files
         self.montage_path = self.data_reader.montage_path
+        # Optional montage-level "__files__" filter; empty means "read every file".
+        self.file_include_patterns = []
 
         # Load the custom JSON mapping for column names if available
         if self.montage_path:
             self.load_custom_mapping()
+
+    def get_file_include_patterns(self):
+        """Filename substrings this montage should ingest ([] = no filtering)."""
+        return list(getattr(self, "file_include_patterns", []) or [])
+
+    # Default import rates per signal type (Hz). Applied only when the source rate is
+    # higher; a signal type absent here keeps its native rate. Override per deployment
+    # via parameter_log.json ("edf_target_frequencies" in the "settings" section), or
+    # dataset-wide via the config.yaml `edf_import.target_frequencies` block.
+    DEFAULT_EDF_TARGET_FREQUENCIES = {
+        "eeg": 100,
+        "eog": 100,
+        "emg": 100,
+        "ecg": 250,
+    }
+
+    # Signals that pyologger recomputes from raw data later in the pipeline. When a
+    # "derived" logger (e.g. NL-D1, montage juv-nese-sleep-derived) supplies one of
+    # these, it is imported under a "<signal>_2" name so the canonical name stays free
+    # for pyologger's own, more precise version. Labels and analysis products that
+    # pyologger does not recompute (sleep_state, eeg_*_analysis, ...) keep their names.
+    DERIVED_SIGNAL_SUFFIX = "_2"
+    RECOMPUTED_SIGNALS = {
+        "stroke_rate",
+        "heart_rate",
+        "depth",
+        "prh",
+        "velocity",
+        "position",
+        "location",
+    }
+
+    def is_derived_logger(self):
+        """True if this logger carries previously-derived products, not raw sensor data."""
+        montage_id = str(getattr(self, "montage_id", "") or "").strip().lower()
+        return "derived" in montage_id
+
+    def resolve_signal_name(self, signal_name):
+        """Map a signal to its stored name, suffixing derived duplicates."""
+        if signal_name in self.RECOMPUTED_SIGNALS and self.is_derived_logger():
+            return f"{signal_name}{self.DERIVED_SIGNAL_SUFFIX}"
+        return signal_name
+
+    def get_edf_target_frequencies(self):
+        """Per-signal-type decimation targets for EDF import, as {parent_signal: target_hz}.
+
+        Resolution order (later wins): class defaults → config.yaml
+        `edf_import.target_frequencies` → parameter_log.json `settings.edf_target_frequencies`
+        (which itself merges dataset defaults under the deployment entry).
+
+        Set a value to null/None to disable decimation for that signal type.
+        """
+        resolved = dict(self.DEFAULT_EDF_TARGET_FREQUENCIES)
+
+        config = getattr(self.data_reader, "config", None) or {}
+        layers = [(config.get("edf_import") or {}).get("target_frequencies") or {}]
+
+        param_manager = getattr(self.data_reader, "param_manager", None)
+        if param_manager is not None:
+            try:
+                override = param_manager.get_from_config(
+                    ["edf_target_frequencies"], section="settings"
+                ).get("edf_target_frequencies")
+                if isinstance(override, dict):
+                    layers.append(override)
+            except Exception as exc:
+                print(f"⚠️ Could not read edf_target_frequencies from parameter log ({exc}).")
+
+        for layer in layers:
+            for signal_type, target_hz in layer.items():
+                key = str(signal_type).strip().lower()
+                if target_hz is None:
+                    resolved.pop(key, None)
+                    continue
+                try:
+                    resolved[key] = float(target_hz)
+                except (TypeError, ValueError):
+                    print(f"⚠️ Ignoring malformed edf target frequency: {signal_type!r}: {target_hz!r}")
+        return resolved
+
+    def _edf_decimation_step(self, signal_label, source_hz, targets, channel_metadata):
+        """Integer decimation factor for one signal, or 1 to keep its native rate.
+
+        Only integer factors are used: EDF sources here are integer-or-repeating rates,
+        and a non-integer factor would force a resample that downstream code (which
+        does `int(logger_info['fs'])`) cannot represent.
+        """
+        meta = (channel_metadata or {}).get(signal_label) or {}
+        parent = str(meta.get("parent_signal", "")).strip().lower()
+        target_hz = targets.get(parent)
+        if not target_hz or target_hz >= source_hz:
+            return 1
+
+        step = int(round(source_hz / target_hz))
+        if step < 2:
+            return 1
+        achieved = source_hz / step
+        if not np.isclose(achieved, round(achieved)):
+            print(
+                f"⚠️ {signal_label}: {source_hz} Hz → {target_hz} Hz would give a "
+                f"non-integer rate ({achieved:.4f} Hz); keeping native rate."
+            )
+            return 1
+        return step
+
+    def group_edf_signals_by_frequency(
+        self, signals, startdate, starttime, time_zone="UTC", skip_full=False,
+        channel_metadata=None,
+    ):
+        """Group EDF signals into one DataFrame per resulting sampling frequency.
+
+        Signals are keyed by the rate they end up at, not the rate they were recorded
+        at. Signal types with a decimation target (see `get_edf_target_frequencies`)
+        are anti-alias filtered and decimated with `scipy.signal.decimate`, so a single
+        source group can split into several output frames — e.g. a 500 Hz group holding
+        both ECG and EEG becomes a 250 Hz frame and a 100 Hz frame. Related channels
+        that share a resulting rate stay together in one matrix.
+
+        Memory-conscious: `EdfSignal.data` is a property that re-materializes a full
+        float64 array on every access, so it is read exactly once per signal and
+        accumulated into a preallocated float32 matrix. Peak usage is roughly one
+        output matrix plus one signal's float64 temporary, rather than every signal's
+        float64 array at once.
+        """
+        from math import floor
+
+        targets = self.get_edf_target_frequencies()
+
+        # Bucket by (resulting_rate, decimation_step) so channels that end up at the
+        # same rate share a matrix.
+        buckets = {}
+        for signal in signals:
+            source_hz = signal.__dict__.get("_sampling_frequency")
+            step = self._edf_decimation_step(signal.label, source_hz, targets, channel_metadata)
+            buckets.setdefault((source_hz / step, step, source_hz), []).append(signal)
+
+        # edfio reads each signal with a separate strided gather over the whole data-record
+        # buffer, which costs a full pass per signal. Signals recorded at the same rate sit
+        # in adjacent column spans, so one bulk read fills them all in a single pass.
+        self._prefetch_edf_signals(signals)
+
+        grouped_data = {}
+        for (out_freq, step, source_hz), sigs in sorted(buckets.items(), key=lambda kv: -kv[0][0]):
+            labels = [s.label for s in sigs]
+            if step > 1:
+                print(
+                    f"\n🔍 Grouping {len(sigs)} signals at {source_hz} Hz → "
+                    f"{out_freq:g} Hz (factor {step}, anti-aliased): {', '.join(labels)}"
+                )
+            else:
+                print(f"\n🔍 Grouping {len(sigs)} signals at {source_hz} Hz: {', '.join(labels)}")
+
+            if skip_full:
+                preview = {s.label: np.asarray(s.data[:10], dtype=np.float32) for s in sigs}
+                preview_df = pd.DataFrame(preview)
+                preview_df["datetime"] = self._edf_timestamps(10, out_freq, startdate, starttime, time_zone)
+                grouped_data[out_freq] = preview_df.reset_index(drop=True)
+                print(f"⚡ Skipping full data for {out_freq} Hz — using preview only")
+                continue
+
+            # len(digital) reads the int16 buffer, which is 4x smaller than float64 data.
+            n_full = len(sigs[0].digital)
+            n_out = -(-n_full // step) if step > 1 else n_full
+
+            arr = np.empty((n_out, len(sigs)), dtype=np.float32)
+            for i, signal in enumerate(sigs):
+                print(f"   [{i + 1}/{len(sigs)}] {signal.label}", flush=True)
+                column = self._edf_signal_column(signal, step, n_out)
+                # Signals in a group are nominally the same length, but guard against
+                # off-by-one differences (e.g. decimate's output length convention).
+                if column.size < n_out:
+                    arr[: column.size, i] = column
+                    arr[column.size:, i] = np.nan
+                else:
+                    arr[:, i] = column[:n_out]
+                del column
+
+            df = pd.DataFrame(arr, columns=labels, copy=False)
+            df["datetime"] = self._edf_timestamps(n_out, out_freq, startdate, starttime, time_zone)
+
+            int_out_freq = floor(out_freq)
+            if not np.isclose(out_freq, int_out_freq):
+                print(f"⏬ Resampling from {out_freq:.4f} Hz to {int_out_freq} Hz...")
+                df = self.resample_mean_dataframe(df, int_out_freq)
+            if int_out_freq in grouped_data:
+                # Two source rates landed on the same integer rate; merge on datetime
+                # rather than silently dropping one.
+                existing = grouped_data[int_out_freq]
+                df = existing.merge(df, on="datetime", how="outer")
+            grouped_data[int_out_freq] = df.reset_index(drop=True)
+
+        return grouped_data
+
+    def resample_mean_dataframe(self, df, target_freq_hz):
+        """Resample to an integer rate by averaging. Subclasses may override."""
+        df = df.set_index('datetime')
+        target_period_ms = int(round(1000 / target_freq_hz))
+        return df.resample(f"{target_period_ms}ms").mean().reset_index()
+
+    @staticmethod
+    def _prefetch_edf_signals(signals):
+        """Populate `_digital` for lazily-loaded EDF signals using bulk reads.
+
+        `edfio.LazyLoader.load()` slices one signal's columns out of the shared
+        data-record buffer, so reading N signals means N strided passes over the whole
+        file (~74 s each on a 12 GB EDF). Signals sharing a sampling rate occupy
+        adjacent column spans, so a single contiguous read covers the whole run and is
+        an order of magnitude faster.
+
+        Falls back silently to edfio's per-signal path if the layout is not as expected,
+        so behaviour is unchanged when this optimization does not apply.
+        """
+        pending = [
+            s for s in signals
+            if getattr(s, "_digital", None) is None and getattr(s, "_lazy_loader", None) is not None
+        ]
+        if len(pending) < 2:
+            return
+
+        # Group by the shared buffer; a deployment may mix loggers/files.
+        by_buffer = {}
+        for signal in pending:
+            by_buffer.setdefault(id(signal._lazy_loader.buffer), []).append(signal)
+
+        for group in by_buffer.values():
+            if len(group) < 2:
+                continue
+            group.sort(key=lambda s: s._lazy_loader.start_sample)
+            buffer = group[0]._lazy_loader.buffer
+
+            # Split into maximal contiguous column runs.
+            runs, run = [], [group[0]]
+            for signal in group[1:]:
+                if signal._lazy_loader.start_sample == run[-1]._lazy_loader.end_sample:
+                    run.append(signal)
+                else:
+                    runs.append(run)
+                    run = [signal]
+            runs.append(run)
+
+            for run in runs:
+                if len(run) < 2:
+                    continue
+                lo = run[0]._lazy_loader.start_sample
+                hi = run[-1]._lazy_loader.end_sample
+                n_records = buffer.shape[0]
+                approx_gb = n_records * (hi - lo) * buffer.dtype.itemsize / 1e9
+                print(
+                    f"⚡ Bulk-reading {len(run)} signals in one pass ({approx_gb:.2f} GB)...",
+                    flush=True,
+                )
+                try:
+                    # Copy in row chunks rather than one strided `ascontiguousarray`
+                    # over the whole buffer: same result, but far better page/cache
+                    # locality (~1.6x faster on a 12 GB EDF).
+                    block = np.empty((n_records, hi - lo), dtype=buffer.dtype)
+                    chunk = 8192
+                    for start in range(0, n_records, chunk):
+                        stop = min(start + chunk, n_records)
+                        block[start:stop] = buffer[start:stop, lo:hi]
+                except Exception as exc:  # pragma: no cover - defensive
+                    print(f"⚠️ Bulk EDF read failed ({exc}); using per-signal reads.")
+                    continue
+                for signal in run:
+                    loader = signal._lazy_loader
+                    start = loader.start_sample - lo
+                    end = loader.end_sample - lo
+                    signal._digital = block[:, start:end].flatten()
+                    signal._lazy_loader = None
+                del block
+
+    @staticmethod
+    def _edf_signal_column(signal, step, n_out):
+        """Return one signal as float32, decimated by `step` with anti-aliasing."""
+        data = signal.data
+        if step == 1:
+            return np.asarray(data, dtype=np.float32)
+
+        from scipy.signal import decimate
+
+        # decimate() applies an anti-alias filter before downsampling; plain slicing
+        # would fold content above the new Nyquist back into the retained band.
+        try:
+            reduced = decimate(data, step, ftype="fir", zero_phase=True)
+        except ValueError as exc:
+            # Very short signals can trip the filter's padding requirements.
+            print(f"⚠️ Anti-aliased decimation failed for '{signal.label}' ({exc}); falling back to slicing.")
+            reduced = data[::step]
+        return np.asarray(reduced[:n_out], dtype=np.float32)
+
+    @staticmethod
+    def _edf_timestamps(n_samples, sampling_frequency, startdate, starttime, time_zone="UTC"):
+        """Build the datetime index for an EDF frequency group."""
+        start_time = pd.to_datetime(f"{startdate} {starttime}").tz_localize(time_zone)
+        offsets = np.arange(n_samples) / sampling_frequency
+        return start_time + pd.to_timedelta(offsets, unit="s")
 
     @staticmethod
     def normalize_channel_key(value):
@@ -140,6 +438,17 @@ class BaseImporter:
 
                 # Extract only the relevant part of the mapping
                 self.montage = manufacturer_mappings[resolved_montage_id]
+                # "__files__" is montage-level configuration, not a channel. Pull it
+                # out so channel iteration/validation never sees it as a signal.
+                if isinstance(self.montage, dict) and "__files__" in self.montage:
+                    self.montage = {
+                        key: value for key, value in self.montage.items()
+                        if key != "__files__"
+                    }
+                    self.file_include_patterns = list(
+                        manufacturer_mappings[resolved_montage_id]["__files__"] or []
+                    )
+                    print(f"Montage file filter: {self.file_include_patterns}")
                 print(f"Column mapping loaded for manufacturer '{manufacturer}', montage '{resolved_montage_id}'.")
                 print(f"Mapping content {self.montage}.")
         except FileNotFoundError:
@@ -267,6 +576,78 @@ class BaseImporter:
         return new_channels, channel_metadata
 
 
+    # Standard gravity (CODATA / ISO 80000-3), used to standardize accelerometer
+    # channels recorded in g to the m/s^2 target unit.
+    STANDARD_GRAVITY_MS2 = 9.80665
+
+    # Accelerometer parent signals whose channels are stored in physical
+    # acceleration units and therefore participate in g -> m/s^2 conversion.
+    _ACCEL_PARENT_SIGNALS = ("accelerometer", "corrected_acc", "dynamic_accel", "calibrated_acc")
+
+    @staticmethod
+    def _is_g_unit(unit) -> bool:
+        """True for units meaning 'multiples of standard gravity'."""
+        text = str(unit or "").strip().lower()
+        return text in {"g", "gs", "g-force", "gforce", "gravity"}
+
+    @staticmethod
+    def _is_ms2_unit(unit) -> bool:
+        text = str(unit or "").strip().lower().replace(" ", "")
+        return text in {"m/s^2", "m/s2", "m/s²", "ms^-2", "m·s^-2"}
+
+    def convert_acceleration_to_standard_unit(self, df, channel_metadata):
+        """
+        Standardize accelerometer channels to their declared standardized_unit.
+
+        Mirrors how the pressure pipeline standardizes depth to metres: the
+        montage declares the target unit, and the value is actually converted
+        rather than merely relabelled. Without this, `standardized_unit` is just
+        a claim, and stored values can be off by ~9.81x from what it says.
+
+        The project standard is **g**, matching the convention that ODBA/VeDBA
+        are reported in g. Conversion runs in whichever direction the montage
+        requires (g -> m/s^2 or m/s^2 -> g), and is a no-op when the source
+        already matches the target, so the transform is idempotent.
+        """
+        if not channel_metadata:
+            return df
+
+        updated = df
+        converted = []
+        for column_name, metadata in channel_metadata.items():
+            if not isinstance(metadata, dict):
+                continue
+            if metadata.get("parent_signal") not in self._ACCEL_PARENT_SIGNALS:
+                continue
+            if column_name not in getattr(updated, "columns", []):
+                continue
+
+            raw_unit = metadata.get("unit")
+            target_unit = metadata.get("standardized_unit")
+
+            if self._is_g_unit(raw_unit) and self._is_ms2_unit(target_unit):
+                factor, achieved = self.STANDARD_GRAVITY_MS2, "m/s^2"
+            elif self._is_ms2_unit(raw_unit) and self._is_g_unit(target_unit):
+                factor, achieved = 1.0 / self.STANDARD_GRAVITY_MS2, "g"
+            else:
+                continue
+
+            if updated is df:
+                updated = updated.copy()
+            updated[column_name] = (
+                pd.to_numeric(updated[column_name], errors="coerce") * factor
+            )
+            # Record the achieved unit so a second pass is a no-op.
+            metadata["unit"] = achieved
+            channel_metadata[column_name] = metadata
+            converted.append((column_name, achieved))
+
+        if converted:
+            for achieved in sorted({unit for _, unit in converted}):
+                cols = [name for name, unit in converted if unit == achieved]
+                print(f"🔁 Standardized acceleration to {achieved} for column(s): {cols}")
+        return updated
+
     def group_data_by_signals(self, df, logger_id, channel_metadata):
         """Groups data columns to signals and downsamples based on expected frequencies."""
         signal_groups = {}
@@ -306,8 +687,12 @@ class BaseImporter:
             if signal_name == 'extra':
                 continue  # Skip 'extra' signal type
 
-            if signal_name in self.data_reader.signal_data:
-                print(f"Sensor '{signal_name}' has already been processed. Skipping reprocessing.")
+            # Derived loggers store recomputed signals under a "_2" name so pyologger's
+            # own version can claim the canonical one later in the pipeline.
+            stored_signal_name = self.resolve_signal_name(signal_name)
+
+            if stored_signal_name in self.data_reader.signal_data:
+                print(f"Sensor '{stored_signal_name}' has already been processed. Skipping reprocessing.")
                 continue
 
 
@@ -482,8 +867,12 @@ class BaseImporter:
                 except Exception as e:
                     print(f"⚠️ Failed to print {signal_name} debug header: {type(e).__name__}: {e}")
 
-            print
-            self.data_reader.signal_data[signal_name] = signal_df
+            if stored_signal_name != signal_name:
+                print(
+                    f"🏷️  Storing derived '{signal_name}' from {logger_id} as "
+                    f"'{stored_signal_name}' (canonical name reserved for pyologger)."
+                )
+            self.data_reader.signal_data[stored_signal_name] = signal_df
             time_zone_raw = self.data_reader.deployment_info.get('Time Zone')
             tz_name = str(time_zone_raw).strip() if time_zone_raw is not None else "UTC"
             if not tz_name:
@@ -494,7 +883,7 @@ class BaseImporter:
                 print(f"⚠️ Invalid timezone '{tz_name}'. Falling back to UTC.")
                 tz = pytz.UTC
 
-            self.data_reader.signal_info[signal_name] = {
+            self.data_reader.signal_info[stored_signal_name] = {
                 'channels': signal_cols,
                 'metadata': {col: signal_channel_metadata[col] for col in signal_cols},
                 'signal_start_datetime': start_time,

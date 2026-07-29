@@ -32,13 +32,28 @@ class DataReader:
     """Reads and processes all raw files for a deployment, 1 pass per logger."""
     _label_db_cache = None
 
-    def __init__(self, dataset_folder: str, deployment_id: str, data_subfolder: str = None, montage_path: str = None):
+    def __init__(self, dataset_folder: str, deployment_id: str, data_subfolder: str = None, montage_path: str = None, config: dict = None):
         self.deployment_id = deployment_id
-        
+
         # Look for deployment folder that starts with deployment_id (allows suffixes)
         self.deployment_folder = self._find_deployment_folder(dataset_folder, deployment_id)
         self.data_folder = os.path.join(self.deployment_folder, data_subfolder) if data_subfolder else self.deployment_folder
         self.montage_path = montage_path
+        # Pipeline config (config.yaml); importers read optional settings like
+        # edf_import.target_frequencies from here.
+        self.config = config or {}
+
+        # Parameter log for this deployment; importers read per-deployment overrides
+        # (e.g. edf_target_frequencies) from it, layered over config.yaml defaults.
+        try:
+            from pyologger.utils.param_manager import ParamManager
+
+            self.param_manager = ParamManager(
+                deployment_folder=self.deployment_folder, deployment_id=deployment_id
+            )
+        except Exception as exc:
+            print(f"⚠️ Could not initialize ParamManager for {deployment_id}: {exc}")
+            self.param_manager = None
 
         # Selected deployment metadata (lat/lon/time zone/date)
         self.deployment_info = {}
@@ -575,8 +590,9 @@ class DataReader:
 
                     for lid in lid_order:
                         lid_lower = lid.lower()
-                        prefix = f"{lid_lower}_"
-                        if entry_name_lower.startswith(prefix):
+                        # Accept either a bare logger folder (e.g. "WC-MP01") or the
+                        # "<LOGGER_ID>_<signal[-signal2]>" form.
+                        if entry_name_lower == lid_lower or entry_name_lower.startswith(f"{lid_lower}_"):
                             matches[lid].extend(self._walk_relative_files(entry.path))
                             break
         except FileNotFoundError:

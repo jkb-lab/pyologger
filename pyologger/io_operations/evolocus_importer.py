@@ -8,32 +8,64 @@ import re
 from pyologger.utils.time_manager import process_datetime
 
 class EvolocusImporter(BaseImporter):
-    """Evolocus-specific processing for EDF files with multiple frequency outputs."""
+    """Evolocus processing for EDF files, tabular exports, or both.
+
+    A single Evolocus logger may ship raw EDF and/or a CSV/Parquet export of
+    previously-derived products (sleep scoring, heart rate, depth). Both are
+    ingested when present.
+    """
+
+    TABULAR_EXTS = (".csv", ".parquet", ".parq", ".pq")
 
     def process_files(self, files, enforce_frequency=True):
-
-        print("1")
         edf_file = next((f for f in files if f.endswith('.edf')), None)
-        if not edf_file:
-            print("❌ No EDF file found for Evolocus logger.")
+        tabular_files = [f for f in files if f.lower().endswith(self.TABULAR_EXTS)]
+
+        if not edf_file and not tabular_files:
+            print("❌ No EDF or CSV/Parquet file found for Evolocus logger.")
             return {}, {}, {}, {}, {}
 
-        print("2")
+        if not edf_file:
+            print(f"ℹ️ No EDF for {self.logger_id}; importing {len(tabular_files)} tabular file(s).")
+            return self._process_tabular_files(tabular_files, enforce_frequency)
+
+        edf_result = self._process_edf_file(edf_file, enforce_frequency)
+
+        if tabular_files:
+            print(
+                f"ℹ️ {self.logger_id} also has {len(tabular_files)} tabular file(s); "
+                f"importing alongside the EDF."
+            )
+            # Signals land directly in data_reader.signal_data, so the tabular
+            # result is merged there rather than returned separately.
+            self._process_tabular_files(tabular_files, enforce_frequency)
+
+        return edf_result
+
+    def _process_tabular_files(self, tabular_files, enforce_frequency=True):
+        """Delegate CSV/Parquet handling to the generic tabular importer."""
+        from pyologger.io_operations.csv_importer import CSVImporter
+
+        importer = CSVImporter(self.data_reader, self.logger_id)
+        try:
+            return importer.process_files(tabular_files, enforce_frequency)
+        except Exception as exc:
+            print(f"⚠️ Failed to import tabular files for {self.logger_id}: {type(exc).__name__}: {exc}")
+            return {}, {}, {}, {}, {}
+
+    def _process_edf_file(self, edf_file, enforce_frequency=True):
         edf_path = os.path.join(self.data_reader.data_folder, edf_file)
         print(f"📥 Reading EDF: {edf_path}")
         edf = read_edf(edf_path)
 
-        print("3")
         # Clean + normalize label
         def clean_label(label):
             return re.sub(r'[^\w]', '', label.lower().replace(' ', ''))
 
-        print("4")
         # Filter, map and retain
         retained_signals = []
         channel_metadata_all = {}
 
-        print("5")
         for signal in edf.signals:
             cleaned = clean_label(signal.label)
             if cleaned in self.montage:
@@ -42,20 +74,19 @@ class EvolocusImporter(BaseImporter):
                 if parent_signal in ['exg', 'logger_status']:
                     continue
                 standardized_id = mapping['standardized_channel_id']
+                original_label = signal.label
                 signal.label = standardized_id
                 retained_signals.append(signal)
                 channel_metadata_all[standardized_id] = {
-                    'original_name': signal.label,
+                    'original_name': original_label,
                     'unit': mapping.get('original_unit', 'unknown'),
                     'parent_signal': parent_signal
                 }
 
-        print("6")
         if not retained_signals:
             print("❌ No valid signals retained after montage mapping.")
             return {}, {}, {}, {}, {}
 
-        print("7")
         # Reorder signals by label group
         order_prefixes = ['ecg', 'eog', 'emg', 'eeg', 'a', 'm', 'g']
         def sort_key(label):
@@ -64,65 +95,20 @@ class EvolocusImporter(BaseImporter):
                     return i
             return len(order_prefixes)
 
-        print("8")
         retained_signals = sorted(retained_signals, key=lambda s: sort_key(s.label))
 
-        print("9")
-        # === Grouping Logic (by frequency) ===
-        def construct_datetime_array(signals, sampling_frequency, startdate, starttime, time_zone='UTC'):
-            start_time = pd.to_datetime(f"{startdate} {starttime}").tz_localize(time_zone)
-            num_samples = len(next(s for s in signals if s.__dict__.get('_sampling_frequency') == sampling_frequency).data)
-            time_offsets = np.arange(num_samples) / sampling_frequency
-            return start_time + pd.to_timedelta(time_offsets, unit='s')
-
-        print("10")
-        def group_signals_by_frequency(signals, startdate, starttime, time_zone='UTC', skip_full=False):
-            freq_dict = {}
-            for s in signals:
-                freq = s.__dict__.get('_sampling_frequency')
-                freq_dict.setdefault(freq, []).append(s)
-
-            grouped_data = {}
-            for freq, sigs in freq_dict.items():
-                print(f"\n🔍 Grouping {len(sigs)} signals at {freq} Hz")
-                timestamps = construct_datetime_array(sigs, freq, startdate, starttime, time_zone)
-
-                # Always build preview
-                signal_preview = {s.label: s.data[:10] for s in sigs}
-                preview_df = pd.DataFrame(signal_preview)
-                preview_df['datetime'] = timestamps[:10]
-                preview_df = preview_df.reset_index(drop=True)
-
-                if skip_full:
-                    print(f"⚡ Skipping full data for {freq} Hz — using preview only")
-                    grouped_data[freq] = preview_df
-                    continue
-
-                # Build full data
-                int_freq = floor(freq)
-                full_df = pd.DataFrame({s.label: s.data for s in sigs})
-                full_df['datetime'] = timestamps
-
-                if not np.isclose(freq, int_freq):
-                    print(f"⏬ Resampling from {freq:.4f} Hz to {int_freq} Hz...")
-                    df = self.resample_mean_dataframe(full_df, int_freq)
-                    grouped_data[int_freq] = df
-                else:
-                    grouped_data[int_freq] = full_df.reset_index(drop=True)
-
-            return grouped_data
-
-        print("11")
         # === Build and return outputs ===
         time_zone = self.data_reader.deployment_info.get("Time Zone")
 
-        print("12")
-        grouped_dfs = group_signals_by_frequency(
+        # Grouping by frequency is shared with the other EDF importers; see
+        # BaseImporter.group_edf_signals_by_frequency for the memory-conscious build.
+        grouped_dfs = self.group_edf_signals_by_frequency(
             retained_signals,
             startdate=edf.startdate,
             starttime=edf.starttime,
             time_zone=time_zone,
-            skip_full=False
+            skip_full=False,
+            channel_metadata=channel_metadata_all
         )
 
         final_dfs = {}
@@ -131,44 +117,27 @@ class EvolocusImporter(BaseImporter):
         signal_groups = {}
         signal_info = {}
 
-        print("13")
         for freq, df in grouped_dfs.items():
             print(f"\n📦 Processing frequency group: {freq} Hz")
 
-            print("14")
             df, dt_meta = process_datetime(df, time_zone)
             final_dfs[freq] = df
             datetime_metadata[freq] = dt_meta
 
-            print("15")
             # Per-frequency metadata
             cols_in_df = set(df.columns) - {'datetime'}
             metadata_for_df = {col: channel_metadata_all[col] for col in cols_in_df if col in channel_metadata_all}
             channel_metadata[freq] = metadata_for_df
 
-            print("16")
             g, i = self.group_data_by_signals(df, self.logger_id, metadata_for_df)
 
-            print("17")
             # Only store signals not already processed
             signal_groups[freq] = {k: v for k, v in g.items() if k not in self.data_reader.signal_data}
             signal_info[freq] = {k: v for k, v in i.items() if k not in self.data_reader.signal_info}
 
-            print("18")
             self.data_reader.logger_info[self.logger_id]['datetime_created_from'] = dt_meta.get('datetime_created_from', None)
             self.data_reader.logger_info[self.logger_id]['fs'] = list(final_dfs.keys())
 
             print(f"✅ Completed processing for {freq} Hz group.")
 
-        print("End of the function <we don't expect to see this unless success>")
         return final_dfs, channel_metadata, datetime_metadata, signal_groups, signal_info
-
-    def resample_mean_dataframe(self, df, target_freq_hz):
-        df = df.copy()
-
-        df = df.set_index('datetime')
-        target_period_ms = int(round(1000 / target_freq_hz))
-
-        df_resampled = df.resample(f"{target_period_ms}ms").mean()
-
-        return df_resampled.reset_index()

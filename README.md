@@ -69,6 +69,22 @@ Each loaded deployment is a `data_pkl` object with three main fields:
 
 **`data_pkl.derived_info[signal_name]`** — Metadata for derived signals including `derived_from_signals` provenance and transformation log.
 
+**`data_pkl.signal_data[signal_name + '_2']`** — Signals imported from a logger whose montage
+carries products derived in an earlier analysis (montage id containing `derived`). Channels
+that pyologger recomputes later — `stroke_rate`, `heart_rate`, `depth`, `prh`, `velocity`,
+`position`, `location` — are stored with a `_2` suffix so the canonical name stays free for
+pyologger's own version. Sleep-scoring labels and analysis products keep their names. See
+[EDF Import and Decimation](docs/source/edf_import.rst).
+
+### EDF import
+
+EDF signals are grouped into one DataFrame per **resulting** sampling rate and stored as
+`float32` (lossless relative to the `int16` EDF source). Signal types are decimated at import
+with an anti-aliasing filter — by default `eeg`/`eog`/`emg` to 100 Hz and `ecg` to 250 Hz —
+configurable via `edf_import.target_frequencies` in `config.yaml` or
+`settings.edf_target_frequencies` in `parameter_log.json`. Motion channels keep their native
+rate. Full details in [docs/source/edf_import.rst](docs/source/edf_import.rst).
+
 #### Event data
 
 **`data_pkl.event_data`** — pandas DataFrame of manually or automatically detected events.

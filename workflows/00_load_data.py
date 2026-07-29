@@ -336,7 +336,8 @@ data_pkl = DataReader(
     dataset_folder=dataset_folder,
     deployment_id=deployment_id,
     data_subfolder="01_raw-data",
-    montage_path=montage_path
+    montage_path=montage_path,
+    config=config
 )
 
 # Use the actual deployment folder that DataReader found (may have suffix)
