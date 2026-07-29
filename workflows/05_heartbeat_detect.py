@@ -275,7 +275,7 @@ if not skip_step:
 
         all_peak_rows = []
         all_signal_subset_dfs = []
-        all_smoothed = np.array([])
+        all_smoothed_parts = []
 
         # Precompute once for chunk lookup. A monotonic datetime column lets each
         # chunk be sliced by binary search rather than a full-length boolean mask.
@@ -374,7 +374,9 @@ if not skip_step:
 
             all_peak_rows.append(results["peak_df"].copy())
             all_signal_subset_dfs.append(signal_subset_df)
-            all_smoothed = np.concatenate([all_smoothed, results.get("smoothed", np.array([]))])
+            # Accumulate and concatenate once after the loop; growing the array per
+            # chunk re-copies everything already collected (quadratic).
+            all_smoothed_parts.append(results.get("smoothed", np.array([])))
 
         # end of per-chunk loop ─────────────────────────────────────────
 
@@ -384,7 +386,9 @@ if not skip_step:
         else:
             peak_df_merged = pd.concat(all_peak_rows, ignore_index=True).sort_values("refined_index").reset_index(drop=True)
             signal_subset_df = pd.concat(all_signal_subset_dfs, ignore_index=True)
-            smoothed = all_smoothed
+            smoothed = (
+                np.concatenate(all_smoothed_parts) if all_smoothed_parts else np.array([])
+            )
             results = {"peak_df": peak_df_merged, "smoothed": smoothed}
             params = base_params  # use deployment-level params for cleanup config
 
@@ -517,13 +521,21 @@ if not skip_step:
                 return df
             interval_midpoints = (idxs[:-1].astype(float) + idxs[1:].astype(float)) / 2.0
             half_window_samples = max(1.0, (CONFLICT_ROLLING_WINDOW_SEC * fs) / 2.0)
+            # interval_midpoints is sorted (idxs is), so the rolling window for every
+            # pair can be located with two vectorized binary searches instead of
+            # building a full-length boolean mask per iteration.
+            win_lo = np.searchsorted(
+                interval_midpoints, interval_midpoints - half_window_samples, side="left"
+            )
+            win_hi = np.searchsorted(
+                interval_midpoints, interval_midpoints + half_window_samples, side="right"
+            )
+            reject_indices = []
             for i in range(len(idxs) - 1):
                 a = int(idxs[i])
                 b = int(idxs[i + 1])
                 rr = (b - a) / fs
-                pair_mid = (a + b) / 2.0
-                local_mask = np.abs(interval_midpoints - pair_mid) <= half_window_samples
-                local_rr = rr_all[local_mask]
+                local_rr = rr_all[win_lo[i]:win_hi[i]]
                 local_rr = local_rr[np.isfinite(local_rr) & (local_rr > 0)]
                 if local_rr.size == 0:
                     lo = max(0, i - CONFLICT_LOCAL_NEIGHBORS)
@@ -534,8 +546,13 @@ if not skip_step:
                     continue
                 rr_ref = float(np.median(local_rr))
                 if rr < (CONFLICT_GAP_FACTOR * rr_ref):
-                    reject_idx = a if PICK_LAST_IN_CONFLICT_PAIR else b
-                    df.loc[df["refined_index"] == reject_idx, "key"] = "beat_auto_detect_rejected_conflict"
+                    reject_indices.append(a if PICK_LAST_IN_CONFLICT_PAIR else b)
+            if reject_indices:
+                # One vectorized membership test rather than a full frame scan per reject.
+                df.loc[
+                    df["refined_index"].isin(reject_indices),
+                    "key",
+                ] = "beat_auto_detect_rejected_conflict"
             return df
 
         # First anti-double pass before up-jump cleanup.
@@ -567,17 +584,38 @@ if not skip_step:
         nan_segments = []        # explicit gaps we want to be NaN
         auto_nan_intervals = []  # gaps the rebuild later discovers
 
+        # This loop mutates peak_df as it goes (rejecting beats), and later iterations
+        # depend on earlier rejections, so it cannot be vectorized wholesale. Instead
+        # keep the lookups it needs as sorted numpy arrays and refresh them only when a
+        # rejection actually changes the active set — the original re-scanned the whole
+        # frame several times per row (~190 ms/row at 334k beats).
+        _AUTO_ACTIVE = ("beat_auto_detect_accepted", "beat_auto_detect_suggested")
+        _peak_idx_all = peak_df["refined_index"].astype(int).to_numpy()
+
+        def _active_sorted(strict):
+            """Sorted refined_index of active beats.
+
+            strict=True mirrors .isin(['..._accepted', '..._suggested']);
+            strict=False mirrors .str.contains('accepted|suggested'), which also
+            matches manually-added keys such as 'beat_manual_accepted'.
+            """
+            keys = peak_df["key"].astype(str)
+            mask = keys.isin(_AUTO_ACTIVE) if strict else keys.str.contains("accepted|suggested", regex=True)
+            vals = peak_df.loc[mask, "refined_index"].astype(int).to_numpy()
+            vals.sort()
+            return vals
+
+        _strict_active = _active_sorted(True)
+        _loose_active = _active_sorted(False)
+
         for _, row in up_jumps.iterrows():
             this_idx = int(row["idx"])
-            this_is_active = ((peak_df["refined_index"] == this_idx) &
-                              (peak_df["key"].isin(["beat_auto_detect_accepted", "beat_auto_detect_suggested"]))).any()
+            _pos = np.searchsorted(_strict_active, this_idx)
+            this_is_active = _pos < _strict_active.size and _strict_active[_pos] == this_idx
             if not this_is_active:
                 continue
-            upjump_prev_candidates = peak_df[
-                (peak_df["refined_index"] < this_idx) &
-                (peak_df["key"].isin(["beat_auto_detect_accepted", "beat_auto_detect_suggested"]))
-            ]["refined_index"]
-            prev_upjump_idx = int(upjump_prev_candidates.max()) if not upjump_prev_candidates.empty else None
+            _prev_pos = np.searchsorted(_strict_active, this_idx, side="left") - 1
+            prev_upjump_idx = int(_strict_active[_prev_pos]) if _prev_pos >= 0 else None
             # For up-jumps, enforce pair resolution first: keep later peak by default.
             if prev_upjump_idx is not None:
                 reject_idx = prev_upjump_idx if PICK_LAST_IN_CONFLICT_PAIR else this_idx
@@ -591,36 +629,34 @@ if not skip_step:
                     reject_idx = this_idx
                 else:
                     local_max_idx = lo + int(np.argmax(local_search_sig))
-                    candidates = peak_df[
-                        (peak_df["refined_index"] >= lo) &
-                        (peak_df["refined_index"] <= hi) &
-                        (peak_df["key"].isin(["beat_auto_detect_accepted", "beat_auto_detect_suggested"]))
-                    ]["refined_index"].astype(int).to_numpy()
+                    _c0 = np.searchsorted(_strict_active, lo, side="left")
+                    _c1 = np.searchsorted(_strict_active, hi, side="right")
+                    candidates = _strict_active[_c0:_c1]
                     if len(candidates) == 0:
                         reject_idx = this_idx
                     else:
                         reject_idx = int(candidates[np.argmin(np.abs(candidates - local_max_idx))])
 
             peak_df.loc[peak_df["refined_index"] == reject_idx, "key"] = "beat_auto_detect_rejected"
+            # reject_idx just left the active set; drop it from both cached views.
+            _rp = np.searchsorted(_strict_active, reject_idx)
+            if _rp < _strict_active.size and _strict_active[_rp] == reject_idx:
+                _strict_active = np.delete(_strict_active, _rp)
+            _rl = np.searchsorted(_loose_active, reject_idx)
+            if _rl < _loose_active.size and _loose_active[_rl] == reject_idx:
+                _loose_active = np.delete(_loose_active, _rl)
 
             # 2) get next accepted/suggested beat AFTER this_idx
-            later = peak_df[
-                (peak_df["refined_index"] > reject_idx) &
-                (peak_df["key"].str.contains("accepted|suggested"))
-            ].sort_values("refined_index")
-
-            if later.empty:
+            _np_pos = np.searchsorted(_loose_active, reject_idx, side="right")
+            if _np_pos >= _loose_active.size:
                 continue
 
-            next_idx = int(later.iloc[0]["refined_index"])
+            next_idx = int(_loose_active[_np_pos])
 
-            prev_candidates = peak_df[
-                (peak_df["refined_index"] < reject_idx) &
-                (peak_df["key"].str.contains("accepted|suggested"))
-            ]["refined_index"]
-            if prev_candidates.empty:
+            _pp_pos = np.searchsorted(_loose_active, reject_idx, side="left") - 1
+            if _pp_pos < 0:
                 continue
-            prev_idx = int(prev_candidates.max())
+            prev_idx = int(_loose_active[_pp_pos])
 
             # 3) check if the interval prev_idx -> next_idx is too short
             rr_fixed_sec = (next_idx - prev_idx) / fs
