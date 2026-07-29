@@ -24,6 +24,26 @@ from pyologger.utils.workflow_netcdf import (
     netcdf_has_signal,
     save_step_netcdf_if_changed,
 )
+from pyologger.analyze_data.activity_periodicity import compute_series_aggregates
+
+# Minimum samples required for the 2 s static window to be meaningful. Below
+# this the rolling mean approaches the signal itself and dynamic acceleration
+# collapses to ~0 (exactly 0 at a 1-sample window).
+MIN_STATIC_WINDOW_SAMPLES = 3
+
+# Static-window width used instead of 2 s on slow archival tags.
+LOW_RATE_STATIC_WINDOW_SEC = 3600.0  # 1 hour
+
+# Below this sampling rate, per-sample ODBA is not a usable activity metric
+# (fluke/fin beats are at or above Nyquist), so a binned activity channel is
+# derived instead. 1 Hz sits well above any archival tag and well below any
+# high-rate logger.
+LOW_RATE_ACTIVITY_THRESHOLD_HZ = 1.0
+
+# Bin width for the derived low-rate activity channel. Uses the same
+# aggregation method as the Wildlife Computers "Series" product (mean of the
+# acceleration vector magnitude per bin), at a round 5-minute interval.
+DERIVED_ACTIVITY_INTERVAL = "300s"
 
 
 def _normalize_signal_channel_names(data_pkl, signal_name):
@@ -91,7 +111,11 @@ def _compute_norm_jerk(corrected_acc_df: pd.DataFrame, sampling_rate_hz: float) 
     norm_jerk = np.linalg.norm(jerk_components, axis=1)
 
     return pd.DataFrame({
-        "datetime": corrected_acc_df["datetime"].values,
+        # Use the Series (not .values) so tz-awareness is preserved. Taking
+        # .values on a tz-aware column yields naive datetime64[ns], which later
+        # breaks comparisons against the tz-aware analysis window in step 06
+        # ("Cannot compare tz-naive and tz-aware datetime-like objects").
+        "datetime": corrected_acc_df["datetime"].reset_index(drop=True),
         "jerk": norm_jerk,
     })
 
@@ -304,16 +328,29 @@ if not skip_step:
         # ================================================================
         # Calculate Static Components (2s running average)
         # ================================================================
+        # A 2 s static window is only meaningful for high-rate loggers. On slow
+        # archival tags (e.g. Wildlife Computers MiniPAT at 1/3 Hz) it rounds to
+        # a single sample, making static == raw and dynamic identically zero.
+        # Widen the window in that case so the subtraction stays meaningful.
         static_window_sec = 2.0
-        n_samples = max(int(round(static_window_sec * acc_sampling_rate)), 1)
+        n_samples = int(round(static_window_sec * acc_sampling_rate))
+        if n_samples < MIN_STATIC_WINDOW_SAMPLES:
+            static_window_sec = LOW_RATE_STATIC_WINDOW_SEC
+            n_samples = int(round(static_window_sec * acc_sampling_rate))
+            print(
+                f"⚠️ 2s static window is only {int(round(2.0 * acc_sampling_rate))} sample(s) at "
+                f"{acc_sampling_rate:.4f} Hz (dynamic acceleration would be identically zero). "
+                f"Using a {static_window_sec:.0f}s window instead ({n_samples} samples)."
+            )
+        n_samples = max(n_samples, 1)
         min_periods = max(1, n_samples // 5)
-        
+
         corrected_acc_df = pd.DataFrame(corrected_acc, columns=['ax', 'ay', 'az'])
         static_x = corrected_acc_df['ax'].rolling(window=n_samples, center=True, min_periods=min_periods).mean()
         static_y = corrected_acc_df['ay'].rolling(window=n_samples, center=True, min_periods=min_periods).mean()
         static_z = corrected_acc_df['az'].rolling(window=n_samples, center=True, min_periods=min_periods).mean()
-        
-        print(f"✅ Calculated static components (2s window at {acc_sampling_rate} Hz)")
+
+        print(f"✅ Calculated static components ({static_window_sec:g}s window at {acc_sampling_rate} Hz)")
         
         # ================================================================
         # Calculate Dynamic Components
@@ -374,6 +411,59 @@ if not skip_step:
         }
         
         print(f"✅ Calculated ODBA at full sampling rate ({acc_sampling_rate} Hz)")
+
+        # ================================================================
+        # Low-rate fallback: binned activity channel
+        # ================================================================
+        # Per-sample ODBA is not usable on slow archival tags, so derive a
+        # binned activity metric using the same method as the Wildlife
+        # Computers "Series" export: mean of the acceleration vector magnitude
+        # over each bin, plus its peak-to-peak range. Gravity is included, so
+        # values sit near 1 g at rest -- matching the vendor product.
+        if acc_sampling_rate < LOW_RATE_ACTIVITY_THRESHOLD_HZ:
+            activity_source = pd.DataFrame({
+                'datetime': datetime_data.values,
+                'ax': corrected_acc_df['ax'].values,
+                'ay': corrected_acc_df['ay'].values,
+                'az': corrected_acc_df['az'].values,
+            })
+            activity_binned = compute_series_aggregates(
+                activity_source, interval=DERIVED_ACTIVITY_INTERVAL
+            )
+            activity_df = activity_binned[['datetime', 'activity', 'activity_range']].copy()
+
+            data_pkl.signal_data['activity'] = activity_df
+            data_pkl.signal_info['activity'] = {
+                "channels": ["activity", "activity_range"],
+                "metadata": {
+                    "activity": {
+                        "original_name": "Binned activity (mean acceleration magnitude)",
+                        "unit": "g",
+                        "standardized_unit": "g",
+                        "parent_signal": "accelerometer",
+                    },
+                    "activity_range": {
+                        "original_name": "Binned activity range (peak-to-peak magnitude)",
+                        "unit": "g",
+                        "standardized_unit": "g",
+                        "parent_signal": "accelerometer",
+                    },
+                },
+                "derived_from_signals": ["accelerometer"],
+                "transformation_log": [
+                    f"Derived because acc sampling rate {acc_sampling_rate:.4f} Hz is below "
+                    f"{LOW_RATE_ACTIVITY_THRESHOLD_HZ} Hz, where per-sample ODBA is not a usable "
+                    f"activity metric. Wildlife Computers 'Series' method: mean of "
+                    f"||(ax, ay, az)|| per {DERIVED_ACTIVITY_INTERVAL} bin (gravity included, "
+                    f"so ~1 g at rest); activity_range is the per-bin peak-to-peak of the same "
+                    f"magnitude. Bins are left-closed and labelled by start time."
+                ],
+            }
+            print(
+                f"✅ Derived binned 'activity' channel at {DERIVED_ACTIVITY_INTERVAL} "
+                f"({len(activity_df):,} bins) because {acc_sampling_rate:.4f} Hz < "
+                f"{LOW_RATE_ACTIVITY_THRESHOLD_HZ} Hz"
+            )
         
         # ================================================================
         # Calculate Pitch and Roll from Static Components

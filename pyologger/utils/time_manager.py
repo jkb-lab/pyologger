@@ -183,6 +183,9 @@ def process_datetime(df, time_zone=None,
             return "%m/%d/%y"
         fmt = str(unit).strip().upper().replace(" ", "")
         fmt = fmt.replace("YYYY", "%Y").replace("YY", "%y")
+        # Abbreviated month names (MON/MMM, e.g. "03-Aug-21") must be substituted
+        # before the numeric MM rule, which would otherwise corrupt them.
+        fmt = fmt.replace("MON", "%b").replace("MMM", "%b")
         fmt = fmt.replace("DD", "%d").replace("MM", "%m")
         return fmt if "%" in fmt else "%m/%d/%y"
 
@@ -240,6 +243,40 @@ def process_datetime(df, time_zone=None,
                 print(f"Failed time values (sample): {failed}")
         return td
 
+    def _datetime_format_from_unit(unit: str):
+        """
+        Build a strptime format for a single column holding a full timestamp.
+
+        Handles combined date+time units in either order, e.g.
+        "HH:MM:SS DD-Mon-YYYY" -> "%H:%M:%S %d-%b-%Y". Returns None when the
+        unit is absent or describes only a date or only a time, so callers can
+        fall back to their existing behaviour.
+        """
+        if not unit or str(unit).lower() in ("unknown", "nan", "none"):
+            return None
+        raw = str(unit).strip()
+        upper = raw.upper()
+        has_time = "HH" in upper
+        has_date = any(token in upper for token in ("YY", "DD", "MON", "MMM"))
+        if not (has_time and has_date):
+            return None
+
+        # Substitute token-by-token across whitespace-separated parts so the
+        # date and time halves keep their original order and separators.
+        converted = []
+        for part in raw.split():
+            token = part.upper()
+            if "HH" in token:
+                token = token.replace("HH", "%H").replace("MM", "%M").replace("SS", "%S")
+                token = token.replace(".000", ".%f").replace(".SSS", ".%f")
+            else:
+                token = token.replace("YYYY", "%Y").replace("YY", "%y")
+                token = token.replace("MON", "%b").replace("MMM", "%b")
+                token = token.replace("DD", "%d").replace("MM", "%m")
+            converted.append(token)
+        fmt = " ".join(converted)
+        return fmt if "%" in fmt else None
+
     def _precision_from_unit(unit: str):
         if not unit:
             return None
@@ -253,10 +290,29 @@ def process_datetime(df, time_zone=None,
     # Step 1: Create datetime column if needed
     if 'datetime' in df.columns:
         print("'datetime' column found.")
-        # First, try strict parsing with common format 'YYYY-MM-DD HH:MM:SS'
-        strict_parsed = pd.to_datetime(
-            df['datetime'], format='%Y-%m-%d %H:%M:%S', errors='coerce'
-        )
+        # Prefer an explicit format declared by the montage (original_unit), e.g.
+        # "HH:MM:SS DD-Mon-YYYY" for Wildlife Computers ArchivedSeries exports.
+        # Parsing a declared format avoids per-row inference on very large files.
+        declared_fmt = _datetime_format_from_unit(_get_unit('datetime'))
+        if declared_fmt:
+            strict_parsed = pd.to_datetime(
+                df['datetime'], format=declared_fmt, errors='coerce'
+            )
+            if strict_parsed.isna().mean() > 0.2:
+                print(
+                    f"⚠️ Declared datetime format {declared_fmt} failed for "
+                    f"{strict_parsed.isna().mean():.1%} of rows; falling back."
+                )
+                strict_parsed = pd.to_datetime(
+                    df['datetime'], format='%Y-%m-%d %H:%M:%S', errors='coerce'
+                )
+            else:
+                print(f"Parsed datetime using declared format {declared_fmt}.")
+        else:
+            # First, try strict parsing with common format 'YYYY-MM-DD HH:MM:SS'
+            strict_parsed = pd.to_datetime(
+                df['datetime'], format='%Y-%m-%d %H:%M:%S', errors='coerce'
+            )
         # For any rows that failed strict parsing, fall back to pandas' general parser
         if strict_parsed.isna().any():
             fallback_parsed = pd.to_datetime(df['datetime'], errors='coerce')

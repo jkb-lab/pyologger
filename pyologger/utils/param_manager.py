@@ -195,6 +195,64 @@ class ParamManager:
         self._save_config(config_log)
         print(f"Removed {key} from deployment '{deployment_id}' under '{section or 'top level'}'.")
         
+    def get_logger_attachments(self) -> list:
+        """Return logger_attachments for this deployment, falling back to selected_start/end_time.
+
+        Returns a list of {"start": <str>, "end": <str>} dicts.  Merges dataset-default
+        attachments with deployment-level overrides the same way get_from_config does.
+        Falls back to constructing a single period from selected_start_time /
+        selected_end_time when logger_attachments is absent.
+        """
+        result = self.get_from_config(
+            ["logger_attachments", "selected_start_time", "selected_end_time"],
+            section="settings",
+        )
+        attachments = result.get("logger_attachments")
+        if attachments and isinstance(attachments, list) and len(attachments) > 0:
+            return attachments
+
+        # fallback: build a single period from the old scalar fields
+        start = result.get("selected_start_time")
+        end = result.get("selected_end_time")
+        if start and end:
+            return [{"start": str(start), "end": str(end)}]
+
+        return []
+
+    def get_or_create_chunk_grid(self, chunk_size_sec: int | None = None) -> list:
+        """Return the existing chunk grid, or build and persist it if absent.
+
+        Uses logger_attachments (via get_logger_attachments) to compute the
+        grid.  The resolved chunk_size_sec is stored in settings for
+        reproducibility.
+
+        Returns the list of chunk dicts (see chunk_manager.compute_chunk_grid).
+        Returns an empty list if no attachment windows can be determined.
+        """
+        from pyologger.utils.chunk_manager import compute_chunk_grid, load_chunks
+
+        # return existing grid unchanged
+        existing = load_chunks(self)
+        if existing is not None:
+            return existing
+
+        attachments = self.get_logger_attachments()
+        if not attachments:
+            return []
+
+        chunks, resolved_size = compute_chunk_grid(attachments, chunk_size_sec)
+
+        # persist both the grid and the resolved chunk size
+        self.add_to_config(
+            entries={"hr_detection_chunk_size_sec": resolved_size},
+            section="settings",
+        )
+        self.add_to_config(
+            entries={"hr_peak_detection_chunks": chunks},
+            section=None,
+        )
+        return chunks
+
     def export_config(self):
         """Exports the config log to a CSV file."""
         json_path = self.config_log_path

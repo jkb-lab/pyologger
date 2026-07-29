@@ -12,7 +12,7 @@ Tag-processing and segmentation pipeline for multi-logger biologging data: loads
 | Snakemake processing | `workflows/00–06_*.py`, `Snakefile` | Per-deployment processing steps |
 | Snakemake segmentation | `workflows/09–14_*.py` | Cross-dataset segmentation pipeline |
 | Streamlit UI | `streamlit/`, `streamlit/pages/` | Interactive data exploration pages |
-| Dash app | `dash/` | 3D rotation + video viewer (minimal) |
+| Dash app | `dash/integrated/integrated_dash.py` | Integrated Dash app: interactive plot, time selector, 3D orientation, synchronized video (Immich/local), segmentation UI. Launch: `python dash/integrated/integrated_dash.py` (deployment optional). See `AI_DOCS.md`. |
 | Notebooks | `notebooks/` | Analysis, review, and upload workflows |
 | Config | `config.yaml` | Paths, datasets, and run_selection flags |
 | Segmentation runs | `segmentation_runs.yaml` | Named segmentation run configs |

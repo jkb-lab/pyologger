@@ -1051,17 +1051,15 @@ page_t0 = _log_timing(page_t0, "Resolved defaults/missing params")
 # Streamlit UI for sliders and checkboxes
 st.sidebar.subheader("Adjust Peak Detection Parameters")
 
-# Coerce possibly-missing config values into safe slider defaults.
+# Coerce possibly-missing config values into safe numeric defaults.
 def _safe_slider_default(raw_value, min_val, max_val, dtype):
-    if raw_value is None or pd.isna(raw_value):
+    if raw_value is None or (isinstance(raw_value, float) and pd.isna(raw_value)):
         value = min_val
     else:
         try:
             value = dtype(raw_value)
         except (TypeError, ValueError):
             value = min_val
-
-    # Clamp into slider bounds
     if value < min_val:
         value = min_val
     if value > max_val:
@@ -1069,45 +1067,68 @@ def _safe_slider_default(raw_value, min_val, max_val, dtype):
     return dtype(value)
 
 
-# Adjust sliders
+# Collect suggested ranges from all deployments' parameter logs.
+def _collect_param_suggestions(key, section="hr_peak_detection_settings"):
+    """Return (min, max) across all deployments that have this param, or None."""
+    try:
+        import glob, json, os as _os
+        values = []
+        pattern = _os.path.join(data_dir, "**", "parameter_log.json")
+        for path in glob.glob(pattern, recursive=True):
+            try:
+                with open(path) as f:
+                    log = json.load(f)
+                v = log.get(section, {}).get(key)
+                if v is not None:
+                    values.append(float(v))
+            except Exception:
+                pass
+        if len(values) >= 1:
+            return min(values), max(values)
+    except Exception:
+        pass
+    return None
+
+
+# Peak detection parameters — single number_input per param (no slider).
 for label, key, min_val, max_val, dtype, step in slider_config:
     raw_default = default_params.get(key)
     if raw_default is None and key in pipeline_defaults:
         raw_default = pipeline_defaults[key]
 
-    # MIN_PEAK_HEIGHT: use -10..100 by default, but expand bounds if current value is outside.
-    slider_min = min_val
-    slider_max = max_val
-    if key == "MIN_PEAK_HEIGHT" and raw_default is not None and not pd.isna(raw_default):
+    # Expand bounds so the current value is always reachable.
+    input_min = min_val
+    input_max = max_val
+    if raw_default is not None:
         try:
             raw_num = float(raw_default)
-            slider_min = min(slider_min, raw_num)
-            slider_max = max(slider_max, raw_num)
+            input_min = min(input_min, raw_num)
+            input_max = max(input_max, raw_num)
         except (TypeError, ValueError):
             pass
 
-    default_value = _safe_slider_default(raw_default, slider_min, slider_max, dtype)
-    slider_value = st.sidebar.slider(
-        label,
-        dtype(slider_min),
-        dtype(slider_max),
-        default_value,
-        step,
-        key=f"{widget_prefix}_slider_{key}",
-        help=PARAM_HELP.get(key),
-    )
+    default_value = _safe_slider_default(raw_default, input_min, input_max, dtype)
 
-    # Manual numeric override for precise tuning.
-    manual_value = st.sidebar.number_input(
-        f"{label} (Manual)",
-        min_value=dtype(slider_min),
-        max_value=dtype(slider_max),
-        value=dtype(slider_value),
+    # Build help string with suggested range from cross-deployment param logs.
+    base_help = PARAM_HELP.get(key) or ""
+    suggestion = _collect_param_suggestions(key)
+    if suggestion is not None:
+        sug_min, sug_max = suggestion
+        sug_str = f"{sug_min:.4g}" if sug_min == sug_max else f"{sug_min:.4g} – {sug_max:.4g}"
+        range_help = f"Suggested range across deployments: {sug_str}. Typical bounds: [{min_val}, {max_val}]."
+    else:
+        range_help = f"Typical bounds: [{min_val}, {max_val}]."
+    help_text = f"{base_help}  {range_help}".strip()
+
+    params[key] = dtype(st.sidebar.number_input(
+        label,
+        min_value=dtype(input_min),
+        max_value=dtype(input_max),
+        value=default_value,
         step=step,
-        key=f"{widget_prefix}_manual_{key}",
-        help=PARAM_HELP.get(key),
-    )
-    params[key] = dtype(manual_value)
+        key=f"{widget_prefix}_param_{key}",
+        help=help_text,
+    ))
 
 # Adjust checkboxes
 for label, key in checkbox_config:
@@ -1272,16 +1293,52 @@ if detection_mode == "heart_rate":
         parent_signal=parent_signal,
     )
     if "heart_rate_fixed_df" in results:
-        upsert_rate_signal(
-            data_pkl=data_pkl,
-            rate_df=results["heart_rate_fixed_df"],
-            rate_key="heart_rate_fixed",
-            parent_signal=parent_signal,
-            transformation_log=[
+        # Patch the newly-computed heart_rate_fixed values back into the existing
+        # multi-channel DataFrame (which also contains heart_rate_nan and
+        # manually_derived_hr) by aligning on datetime.  Never use upsert_rate_signal
+        # here — it resets signal_info to a single-channel layout.
+        new_fixed_df = results["heart_rate_fixed_df"]
+        existing_hr_df = data_pkl.signal_data.get("heart_rate_fixed")
+        if (existing_hr_df is not None
+                and isinstance(existing_hr_df, pd.DataFrame)
+                and "heart_rate_fixed" in existing_hr_df.columns
+                and "datetime" in existing_hr_df.columns
+                and "datetime" in new_fixed_df.columns):
+            existing_hr_df = existing_hr_df.copy()
+            # Align by datetime index — new_fixed_df covers only the detection window
+            new_idx = pd.to_datetime(new_fixed_df["datetime"]).values
+            exist_idx = pd.to_datetime(existing_hr_df["datetime"]).values
+            if len(new_idx) == len(exist_idx):
+                # Same length: direct assignment
+                existing_hr_df["heart_rate_fixed"] = new_fixed_df["heart_rate_fixed"].values
+            else:
+                # Different lengths (subset window): update matching rows via merge
+                new_s = pd.Series(
+                    new_fixed_df["heart_rate_fixed"].values,
+                    index=pd.to_datetime(new_fixed_df["datetime"]),
+                )
+                existing_hr_df = existing_hr_df.set_index(pd.to_datetime(existing_hr_df["datetime"]))
+                existing_hr_df.update(new_s.rename("heart_rate_fixed"))
+                existing_hr_df = existing_hr_df.reset_index(drop=True)
+            data_pkl.signal_data["heart_rate_fixed"] = existing_hr_df
+            # Preserve existing signal_info channels/metadata; just update log.
+            si = data_pkl.signal_info.get("heart_rate_fixed", {})
+            si["transformation_log"] = [
                 "recomputed HR after beat cleanup in Streamlit",
                 "NaN gaps filled using interpolation",
-            ],
-        )
+            ]
+            data_pkl.signal_info["heart_rate_fixed"] = si
+        else:
+            upsert_rate_signal(
+                data_pkl=data_pkl,
+                rate_df=new_fixed_df,
+                rate_key="heart_rate_fixed",
+                parent_signal=parent_signal,
+                transformation_log=[
+                    "recomputed HR after beat cleanup in Streamlit",
+                    "NaN gaps filled using interpolation",
+                ],
+            )
         # Make heart_rate reflect post-cleanup RR output for this Streamlit workflow.
         heart_rate_clean = results["heart_rate_fixed_df"].rename(columns={"heart_rate_fixed": "heart_rate"}).copy()
         upsert_rate_signal(
@@ -1299,18 +1356,16 @@ if detection_mode == "heart_rate":
 
 TARGET_SAMPLING_RATE = 25 if detection_mode == "heart_rate" else 10
 st.markdown("### Plot Configuration")
-base_plot_signals = [
-    sig for sig in (
-        [
-            parent_signal, "depth", "prh", "heart_rate", "hr_broad_bandpass",
-            "hr_narrow_bandpass", "hr_smoothed", "hr_normalized", "heart_rate_fixed",
-        ] if detection_mode == "heart_rate" else [
-            parent_signal, "depth", "prh", "stroke_rate", "sr_broad_bandpass",
-            "sr_narrow_bandpass", "sr_smoothed", "sr_normalized",
-        ]
-    )
-    if sig in data_pkl.signal_data
-]
+_base_plot_signals_raw = (
+    [
+        parent_signal, "ecg", "depth", "prh", "heart_rate", "hr_broad_bandpass",
+        "hr_narrow_bandpass", "hr_smoothed", "hr_normalized", "heart_rate_fixed",
+    ] if detection_mode == "heart_rate" else [
+        parent_signal, "depth", "prh", "stroke_rate", "sr_broad_bandpass",
+        "sr_narrow_bandpass", "sr_smoothed", "sr_normalized",
+    ]
+)
+base_plot_signals = list(dict.fromkeys(s for s in _base_plot_signals_raw if s in data_pkl.signal_data))
 all_plot_signals = list(data_pkl.signal_data.keys())
 saved_plot_cfg = param_manager.get_from_config(
     [f"peak_detect_default_signals_{detection_mode}", f"peak_detect_default_events_{detection_mode}"],
@@ -1394,18 +1449,22 @@ with st.expander("Channel Configuration", expanded=False):
         plot_channels[sig] = chosen_sig_channels
 
 event_style_defaults = {
-    "beat_auto_detect_accepted": {"symbol": "triangle-up", "color": "green", "signal": "hr_narrow_bandpass"},
-    "beat_auto_detect_rejected": {"symbol": "triangle-up", "color": "red", "signal": "hr_narrow_bandpass"},
-    "heartbeat_manual_ok": {"symbol": "triangle-down", "color": "blue", "signal": "hr_narrow_bandpass"},
-    "heartbeat_auto_detect_accepted": {"symbol": "triangle-up", "color": "green", "signal": "hr_narrow_bandpass"},
-    "heartbeat_auto_detect_rejected": {"symbol": "triangle-up", "color": "red", "signal": "hr_narrow_bandpass"},
-    "heartbeat_auto_detect_cleanup_rejected": {"symbol": "triangle-down", "color": "orange", "signal": "hr_narrow_bandpass"},
-    "heartbeat_auto_detect_suggested": {"symbol": "diamond", "color": "orange", "signal": "hr_narrow_bandpass"},
+    "beat_auto_detect_accepted": {"symbol": "triangle-up", "color": "green", "signal": "ecg"},
+    "beat_auto_detect_rejected": {"symbol": "triangle-up", "color": "red", "signal": "ecg"},
+    "heartbeat_manual_ok": {"symbol": "circle", "color": "blue", "signal": "ecg", "y_offset_frac": -0.05},
+    "heartbeat_auto_detect_accepted": {"symbol": "triangle-up", "color": "green", "signal": "ecg"},
+    "heartbeat_auto_detect_rejected": {"symbol": "triangle-up", "color": "red", "signal": "ecg"},
+    "heartbeat_auto_detect_rejected_conflict": {"symbol": "triangle-up", "color": "orange", "signal": "ecg"},
+    "heartbeat_auto_detect_cleanup_rejected": {"symbol": "triangle-down", "color": "orange", "signal": "ecg"},
+    "heartbeat_auto_detect_suggested": {"symbol": "diamond", "color": "orange", "signal": "ecg"},
     "heartbeat_auto_detect_gap": {"symbol": "circle", "color": "gray", "signal": "heart_rate_fixed", "state_color": "rgba(140, 140, 140, 0.25)"},
+    "QC_unusable_ecg": {"signal": "ecg", "state_color": "rgba(80, 80, 80, 0.45)"},
+    "QC_usable_ecg":   {"signal": "ecg", "state_color": "rgba(100, 220, 100, 0.15)"},
     "strokebeat_auto_detect_accepted": {"symbol": "triangle-up", "color": "green", "signal": "sr_narrow_bandpass"},
     "strokebeat_auto_detect_rejected": {"symbol": "triangle-up", "color": "red", "signal": "sr_narrow_bandpass"},
     "dive": {"symbol": "triangle-down", "color": "blue", "signal": "depth", "state_color": "rgba(150, 150, 150, 0.3)"},
-    "exhalation_breath": {"symbol": "triangle-up", "color": "orange"},
+    "exhalation_breath": {"symbol": "triangle-up", "color": "orange", "signal": "depth"},
+    "uw_exhalation": {"symbol": "triangle-down", "color": "cyan", "signal": "depth"},
 }
 
 def _infer_event_signal(event_key, chosen_signals):
@@ -1427,10 +1486,8 @@ def _infer_event_signal(event_key, chosen_signals):
 
 
 def _resolve_marker_signals(event_key, chosen_signals):
-    if chosen_signals:
-        return list(chosen_signals)
     fallback = _infer_event_signal(event_key, chosen_signals)
-    return [fallback] if fallback else []
+    return [fallback] if fallback else (list(chosen_signals) if chosen_signals else [])
 
 event_key_options = []
 event_df = None
@@ -1443,6 +1500,8 @@ base_default_events = [
     "heartbeat_auto_detect_cleanup_rejected",
     "heartbeat_auto_detect_suggested",
     "heartbeat_auto_detect_gap",
+    "QC_unusable_ecg",
+    "QC_usable_ecg",
     "strokebeat_auto_detect_accepted",
     "strokebeat_auto_detect_rejected",
     "dive",
@@ -1530,6 +1589,7 @@ if event_df is not None and selected_event_keys:
         color = style.get("color", palette[i % len(palette)])
         state_color = style.get("state_color", "rgba(150, 150, 150, 0.25)")
         symbol = style.get("symbol", "circle")
+        y_offset_frac = style.get("y_offset_frac", None)
         subset = event_df[event_df["key"] == event_key]
         type_series = subset.get("type")
         duration_series = subset.get("duration")
@@ -1557,13 +1617,23 @@ if event_df is not None and selected_event_keys:
                 if sig in selected_plot_signals and ch in plot_channels.get(sig, []):
                     target_pairs.append((sig, ch))
         if not target_pairs:
+            # Saved targets didn't match current signal/channel selection — re-infer.
             marker_targets = _resolve_marker_signals(event_key, selected_plot_signals)
             marker_targets = [s for s in marker_targets if s in selected_plot_signals]
-            if not marker_targets and target_signal is not None:
+            if not marker_targets and target_signal is not None and target_signal in selected_plot_signals:
                 marker_targets = [target_signal]
             for sig in marker_targets:
-                for ch in plot_channels.get(sig, []):
-                    target_pairs.append((sig, ch))
+                chs = plot_channels.get(sig, [])
+                if chs:
+                    target_pairs.append((sig, chs[0]))
+                    break  # one signal is enough for the fallback
+        if not target_pairs:
+            # Last resort: place on first plotted signal that has any channels.
+            for sig in selected_plot_signals:
+                chs = plot_channels.get(sig, [])
+                if chs:
+                    target_pairs.append((sig, chs[0]))
+                    break
         if not target_pairs:
             continue
 
@@ -1579,6 +1649,7 @@ if event_df is not None and selected_event_keys:
                     "symbol": symbol,
                     "color": color,
                     "showlegend": (j == 0),
+                    **({} if y_offset_frac is None else {"y_offset_frac": y_offset_frac}),
                 }
                 for j, (sig, ch) in enumerate(target_pairs)
             ]
@@ -1598,6 +1669,7 @@ if event_df is not None and selected_event_keys:
                     "symbol": symbol,
                     "color": color,
                     "showlegend": (j == 0),
+                    **({} if y_offset_frac is None else {"y_offset_frac": y_offset_frac}),
                 }
                 for j, (sig, ch) in enumerate(target_pairs)
             ]

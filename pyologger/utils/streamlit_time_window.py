@@ -67,13 +67,24 @@ def standardize_time_settings(param_manager, data_pkl, tz_name: str, minutes: in
     """
     Standard deployment window policy for Streamlit:
     - overlap = full deployment span across all signal_data datetime columns
-    - zoom = centered `minutes` window (or full span if shorter)
+    - zoom = config zoom_window_start/end_time if already set, else centered `minutes` window
     """
     start_ts, end_ts = deployment_time_span(data_pkl, tz_name)
     if start_ts is None or end_ts is None:
         raise ValueError("No valid datetime values found across signal_data.")
 
-    zoom_start, zoom_end = middle_window(start_ts, end_ts, minutes=minutes)
+    # Honour a zoom start already stored in the deployment config (e.g. set manually).
+    saved = param_manager.get_from_config(
+        ["zoom_window_start_time", "zoom_window_end_time"], section="settings"
+    )
+    saved_start = saved.get("zoom_window_start_time")
+    saved_end = saved.get("zoom_window_end_time")
+    if saved_start and saved_end:
+        zoom_start = _to_aware(saved_start, tz_name)
+        zoom_end = _to_aware(saved_end, tz_name)
+    else:
+        zoom_start, zoom_end = middle_window(start_ts, end_ts, minutes=minutes)
+
     settings = {
         "overlap_start_time": str(start_ts),
         "overlap_end_time": str(end_ts),

@@ -105,6 +105,11 @@ class VectronicsImporter(BaseImporter):
                 print(f"   🏷️ Applied standardized channel rename for {len(rename_map)} columns.")
                 acc_preview = [c for c in ["ax", "ay", "az", "ax2", "ay2", "az2"] if c in combined_df.columns]
                 print(f"   🔎 Vectronics standardized accel columns now present: {acc_preview}")
+
+            # Standardize acceleration to the montage's declared unit.
+            combined_df = csv_importer.convert_acceleration_to_standard_unit(
+                combined_df, channel_metadata
+            )
             
             # Process through the standard pipeline
             from pyologger.utils.time_manager import process_datetime

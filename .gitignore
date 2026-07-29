@@ -101,6 +101,10 @@ docs/_build/
 .pybuilder/
 target/
 
+# Generated figures (any figures/ or plots/ dir, at any depth)
+figures/
+plots/
+
 # Jupyter Notebook
 .ipynb_checkpoints
 notebooks/MA*.ipynb

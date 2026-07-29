@@ -7,7 +7,7 @@ import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from pyologger.dash.minimal_interactive.model_3d import build_orientation_data_json
+from pyologger.dash.integrated.model_3d import build_orientation_data_json
 
 
 def _read_split_json(json_text):

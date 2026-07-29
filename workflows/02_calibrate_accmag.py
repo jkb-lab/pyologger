@@ -83,15 +83,18 @@ if not skip_step:
     data_changed = True
     acc_unit = data_pkl.signal_info['accelerometer']['units']
 
-    if acc_unit == 'g':
-        # Convert accelerometer data from g to m/s^2
-        conversion_factor = 9.80665  # 1 g = 9.80665 m/s^2
+    # The project standard is g (ODBA/VeDBA are conventionally reported in g),
+    # and importers already standardize to g at read-in. Keep g here: this step
+    # previously multiplied g back up to m/s^2, which silently undid the
+    # importer's conversion and left the data inconsistent with the montage.
+    if acc_unit in ('m/s²', 'm/s^2'):
+        conversion_factor = 1.0 / 9.80665  # 1 m/s^2 = 1/9.80665 g
         data_pkl.signal_data['accelerometer'][['ax', 'ay', 'az']] *= conversion_factor
-        acc_unit = 'm/s^2'
+        acc_unit = 'g'
         data_pkl.signal_info['accelerometer']['units'] = acc_unit
-        print("Accelerometer data converted to m/s^2.")
-    elif acc_unit == 'm/s²' or acc_unit == 'm/s^2':
-        print("Accelerometer data is already in m/s^2.")
+        print("Accelerometer data converted to g.")
+    elif acc_unit == 'g':
+        print("Accelerometer data is already in g.")
 
     # Check magnetometer units: if not Gauss, convert to Gauss. This code works fine for either unit, but we prefer to work in Gauss for consistency.
     mag_unit = data_pkl.signal_info['magnetometer']['units']
@@ -222,8 +225,8 @@ if not skip_step:
     data_pkl.signal_info['calibration_acc'] = {
         "channels": ["field_intensity_acc"],
         "metadata": {
-            'field_intensity_acc': {'original_name': 'Field Intensity Acc (m/s^2)',
-                                    'unit': 'm/s^2',
+            'field_intensity_acc': {'original_name': 'Field Intensity Acc (g)',
+                                    'unit': 'g',
                                     'signal': 'accelerometer'}
         },
         "derived_from_signals": ["accelerometer"],
@@ -286,14 +289,14 @@ if not skip_step:
     data_pkl.signal_info['calibrated_acc'] = {
         "channels": ["ax", "ay", "az"],
         "metadata": {
-            'ax': {'original_name': 'Acceleration X (m/s^2)',
-                'unit': 'm/s^2',
+            'ax': {'original_name': 'Acceleration X (g)',
+                'unit': 'g',
                 'signal': 'accelerometer'},
-            'ay': {'original_name': 'Acceleration Y (m/s^2)',
-                'unit': 'm/s^2',
+            'ay': {'original_name': 'Acceleration Y (g)',
+                'unit': 'g',
                 'signal': 'accelerometer'},
-            'az': {'original_name': 'Acceleration Z (m/s^2)',
-                'unit': 'm/s^2',
+            'az': {'original_name': 'Acceleration Z (g)',
+                'unit': 'g',
                 'signal': 'accelerometer'}
         },
         "derived_from_signals": ["accelerometer"],
@@ -365,8 +368,8 @@ if not skip_step:
     # Update the signal_info to reflect the new columns for accelerometer and magnetometer
     data_pkl.signal_info['calibration_acc']["channels"].append("calibrated_field_intensity_acc")
     data_pkl.signal_info['calibration_acc']["metadata"]['calibrated_field_intensity_acc'] = {
-        'original_name': 'Calibrated Field Intensity Acc (m/s^2)',
-        'unit': 'm/s^2',
+        'original_name': 'Calibrated Field Intensity Acc (g)',
+        'unit': 'g',
         'signal': 'accelerometer'
     }
 

@@ -13,7 +13,7 @@
     "roll": "#94b6c3",
     "heading": "#6f5398",
     "heart_rate": "#d09191",
-    "stroke_rate": "#9f76ba",
+    "stroke_rate": "#65BC8F",
     "hr_broad_bandpass": "#d09191",
     "hr_narrow_bandpass": "#e64747",
     "hr_smoothed": "#9f76ba",
@@ -33,7 +33,7 @@
     "inclination_angle2": "#d6e1ff",
     "light": "#D3D622",
     "temperature": "#a39fc0",
-    "smoothed": "#ab65af",
+    "smoothed": "#65BC8F",
     "depth.depth": "#1c3d51",
     "depth:depth": "#385C73",
     "heart_rate_fixed": "#D09191",
@@ -49,13 +49,13 @@
     "simple_sleep_state": "#ded3da",
     "latitude": "#a9facc",
     "longitude": "#6490b9",
-    "normalized": "#804E7B",
+    "normalized": "#B57386",
     "dynX": "#cb91b5",
     "dynY": "#cdcadc",
     "dynZ": "#e6e891",
     "broad_bandpass": "#7795b6",
     "narrow_bandpass": "#64fbdd",
-    "heart_rate_nan": "#b0a877",
+    "heart_rate_nan": "rgba(160, 160, 160, 0.6)",
     "light_extra1": "#9fe793",
     "temp_ext": "#FC9E6D",
     "temp_ext_extra2": "#7e67ef",
@@ -70,8 +70,8 @@
     "pos_y_perdive": "#b5e2ac",
     "geopos_x_perdive": "#7cabec",
     "geopos_y_perdive": "#65bc8f",
-    "hr_normalized.normalized": "#804E7B",
-    "hr_normalized:normalized": "#804E7B",
+    "hr_normalized.normalized": "#B57386",
+    "hr_normalized:normalized": "#B57386",
     "cluster_0": "#5e4fa2",
     "cluster_1": "#388eba",
     "cluster_2": "#75c8a5",
@@ -227,18 +227,25 @@
             "shade_mode": "fill_trace_split",
             "shade_pct_min": 0.0,
             "shade_pct_max": 100.0
+        },
+        "exhalation_breath": {
+            "color": "#E64747",
+            "shade_color": "#4C78A8",
+            "symbol": "circle",
+            "shade_enabled": true,
+            "shade_opacity": 0.25,
+            "shade_mode": "fill_trace_split",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
         }
     },
     "__event_targets__": {
         "dive": [
-            "depth",
-            "pressure"
+            "depth"
         ],
         "heartbeat_auto_detect_accepted": [
-            "heart_rate",
-            "heart_rate_fixed",
             "ecg",
-            "corrected_gyr"
+            "hr_normalized"
         ],
         "heartbeat_auto_detect_gap": [
             "heart_rate",
@@ -249,21 +256,20 @@
         "heartbeat_auto_detect_suggested": [
             "heart_rate",
             "heart_rate_fixed",
-            "ecg",
-            "corrected_gyr"
+            "ecg"
         ],
         "heartbeat_manual_ok": [
-            "heart_rate",
             "heart_rate_fixed",
-            "ecg",
-            "corrected_gyr"
+            "ecg"
         ],
         "logger_status": [
             "depth"
         ],
         "strokebeat_auto_detect_accepted": [
             "sr_smoothed",
-            "corrected_acc"
+            "stroke_rate",
+            "corrected_acc",
+            "heart_rate_fixed"
         ],
         "2_dynX+dynY+odba+pitch+roll_full_30S_PCA": [
             "accelerometer"
@@ -410,15 +416,12 @@
             "accelerometer"
         ],
         "exhalation_breath": [
-            "accelerometer"
+            "depth",
+            "heart_rate_fixed"
         ],
         "heartbeat_manual_reject": [
-            "heart_rate",
             "heart_rate_fixed",
-            "ecg",
-            "corrected_gyr",
-            "gyroscope",
-            "accelerometer"
+            "ecg"
         ],
         "behavior_active_swimming_surface": [
             "depth",
@@ -478,6 +481,9 @@
         ],
         "behavior_unknown": [
             "depth"
+        ],
+        "uw_exhalation": [
+            "corrected_acc"
         ]
     },
     "corrected_depth": "#385C73",
@@ -672,5 +678,14 @@
     "swimming_uw": "#081732",
     "gliding_uw": "#173265",
     "resting_drift": "#70DBE7",
-    "resting_benthic": "#BB8DF3"
+    "resting_benthic": "#BB8DF3",
+    "sr_smoothed.smoothed": "#65BC8F",
+    "sr_smoothed:smoothed": "#65BC8F",
+    "stroke_rate.stroke_rate": "#65BC8F",
+    "stroke_rate:stroke_rate": "#65BC8F",
+    "manually_derived_hr": "#1565C0",
+    "heart_rate_fixed.manually_derived_hr": "#1565C0",
+    "heart_rate_fixed:manually_derived_hr": "#1565C0",
+    "heart_rate_fixed.heart_rate_nan": "rgba(160, 160, 160, 0.6)",
+    "heart_rate_fixed:heart_rate_nan": "rgba(160, 160, 160, 0.6)"
 }

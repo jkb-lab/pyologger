@@ -98,14 +98,20 @@ def select_and_load_deployment_streamlit(data_dir):
         st.error("❌ No valid datasets found.")
         st.stop()
 
-    # Respect dataset chosen on the home page (or prior page state).
-    preferred_dataset = st.session_state.get("preferred_dataset_selection")
-    if preferred_dataset in datasets:
-        if st.session_state.get("dataset_selection") != preferred_dataset:
-            st.session_state["dataset_selection"] = preferred_dataset
+    # Determine which dataset to show as the current selection.
+    # Priority: dataset_selection (user changed it on a subpage) >
+    #           preferred_dataset_selection (home page button) > index 0.
+    current = st.session_state.get("dataset_selection")
+    preferred = st.session_state.get("preferred_dataset_selection")
+    if current not in datasets:
+        current = preferred if preferred in datasets else datasets[0]
 
-    # Dataset selection
-    selected_dataset = st.sidebar.selectbox("Select Dataset", datasets, key="dataset_selection")
+    current_index = datasets.index(current)
+    selected_dataset = st.sidebar.selectbox(
+        "Select Dataset", datasets, index=current_index
+    )
+    # Write back so other parts of the app can read the current choice.
+    st.session_state["dataset_selection"] = selected_dataset
     st.session_state["preferred_dataset_selection"] = selected_dataset
 
     # Reset deployment choice when dataset changes to prevent stale selections.

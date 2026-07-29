@@ -6,7 +6,7 @@
 
 Pyologger is a Python library designed for analyzing multi-logger, multi-signal biologging data. It provides tools for data loading, processing, visualization, and feature generation, making it easier to analyze data from various signals, including accelerometers, gyroscopes, and depth signals.
 
-The minimal Dash app also includes an experimental water-tank viewer adapted from Evan Wallace's MIT-licensed [WebGL Water](https://github.com/evanw/webgl-water) project. Credit for the original water simulation/tank demo belongs to Evan Wallace.
+The integrated Dash app also includes an experimental water-tank viewer adapted from Evan Wallace's MIT-licensed [WebGL Water](https://github.com/evanw/webgl-water) project. Credit for the original water simulation/tank demo belongs to Evan Wallace.
 
 For segmentation reruns, use:
 

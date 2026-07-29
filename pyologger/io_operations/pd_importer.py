@@ -55,7 +55,9 @@ class PDImporter(CSVImporter):
                 f"{converted_stroke_cols}"
             )
 
-        return updated_df
+        # Chain to the base transforms so acceleration unit standardization
+        # is not skipped by this override.
+        return super().apply_post_rename_transforms(updated_df, channel_metadata)
 
     @staticmethod
     def _is_hz_rate_unit(unit: str) -> bool:

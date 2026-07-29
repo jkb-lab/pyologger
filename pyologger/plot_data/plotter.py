@@ -1,7 +1,7 @@
 import plotly.graph_objs as go
 import plotly.express as px
 from plotly.subplots import make_subplots
-from plotly_resampler import FigureWidgetResampler, FigureResampler, register_plotly_resampler
+from plotly_resampler import FigureWidgetResampler, FigureResampler, register_plotly_resampler, MinMaxLTTB
 from pyologger.process_data.sampling import *
 from datetime import timedelta, datetime
 from contextlib import contextmanager
@@ -3348,8 +3348,8 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
         for rr in range(state_row_start, state_row_start + state_channel_row_count):
             row_heights[rr - 1] = state_h
     fig = FigureResampler(
-        make_subplots(rows=total_rows, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=row_heights)
-        # Specify the subplot rows that will be used for the overview axis of each column
+        make_subplots(rows=total_rows, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=row_heights),
+        default_downsampler=MinMaxLTTB(nan_policy="keep"),
     )
     row_counter = 1
 
@@ -3410,6 +3410,14 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
                 color = _resolve_color_for_channel(color_mapping, signal, channel) or generate_random_color()
                 color_mapping[channel] = color
 
+                line_width = ch_meta.get("line_width")
+                line_kwargs = dict(color=color)
+                if line_width is not None:
+                    try:
+                        line_kwargs["width"] = float(line_width)
+                    except (TypeError, ValueError):
+                        pass
+
                 hovertemplate = _build_trace_hovertemplate(
                     signal,
                     channel,
@@ -3422,8 +3430,9 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
                     go.Scattergl(
                         name=y_label,
                         mode='lines',
-                        line=dict(color=color),
+                        line=dict(**line_kwargs),
                         hovertemplate=hovertemplate,
+                        connectgaps=False,
                     ),
                               hf_x=x_data, hf_y=y_data,
                               row=row_counter, col=1,

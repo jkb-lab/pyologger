@@ -42,6 +42,7 @@ dependencies = [
   "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB",
   "EDFlib-Python",
   "openpyxl",
+  "notebook",
   "ipykernel",
   "geoai-py",
   "leafmap",

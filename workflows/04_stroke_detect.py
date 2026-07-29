@@ -550,6 +550,37 @@ if not skip_step:
             params["HR_CONFLICT_RR_FACTOR"] = params["ANTI_DOUBLE_GAP_FACTOR"]
         print("Settings loaded from config file with runtime fallback for missing values.")
 
+    # Nyquist guard: stroke detection bandpasses the acceleration signal, so every
+    # cutoff must sit below fs/2. Slow-sampling archival tags (e.g. a Wildlife
+    # Computers MiniPAT at 1/3 Hz) cannot resolve fin/fluke beats at all -- the
+    # beat frequency is at or above Nyquist and is aliased away, so no choice of
+    # cutoffs recovers it. Skip rather than let scipy raise
+    # "Digital filter critical frequencies must be 0 < Wn < 1".
+    nyquist = 0.5 * float(sampling_rate) if sampling_rate else 0.0
+    required_cutoffs = {
+        "BROAD_LOW_CUTOFF": params["BROAD_LOW_CUTOFF"],
+        "BROAD_HIGH_CUTOFF": params["BROAD_HIGH_CUTOFF"],
+        "NARROW_LOW_CUTOFF": params["NARROW_LOW_CUTOFF"],
+        "NARROW_HIGH_CUTOFF": params["NARROW_HIGH_CUTOFF"],
+    }
+    above_nyquist = {
+        name: value
+        for name, value in required_cutoffs.items()
+        if value is not None and float(value) >= nyquist
+    }
+    if nyquist <= 0 or above_nyquist:
+        print(
+            f"Skipping Step 04 based on sampling rate: fs={sampling_rate:.4f} Hz "
+            f"(Nyquist {nyquist:.4f} Hz) is too low for the configured bandpass "
+            f"cutoffs {above_nyquist}. Fin/fluke beat frequencies are not "
+            f"resolvable at this sampling rate."
+        )
+        param_manager.add_to_config(
+            "current_processing_step",
+            "Processing Step 04 skipped: sampling rate below bandpass Nyquist.",
+        )
+        raise SystemExit(0)
+
     # Run peak detection
     results = peak_detect(
         signal=signal_subset,

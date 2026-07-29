@@ -1,2417 +1,2506 @@
 {
-    "UFI": {
-        "hr-montage_V1": {
-            "ecg": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "ecg",
-                "standardized_channel_id": "ecg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "ecg"
-            },
-            "datetime": {
-                "original_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "datetime",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            }
-        },
-        "po2-montage_V2": {
-            "temp": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "temp",
-                "standardized_channel_id": "temp_int",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_int"
-            },
-            "t": {
-                "original_unit": "V",
-                "manufacturer_signal_name": "t",
-                "standardized_channel_id": "temp_int_extra1",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_int"
-            },
-            "p": {
-                "original_unit": "V",
-                "manufacturer_signal_name": "p",
-                "standardized_channel_id": "o2_pressure_hepaticsinus2",
-                "standardized_unit": "V (hepatic sinus)",
-                "parent_signal": "o2_pressure2"
-            },
-            "datetime": {
-                "original_unit": "M/D/YYYY HH:MM:SS",
-                "manufacturer_signal_name": "datetime",
-                "standardized_channel_id": "datetime",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "date": {
-                "original_unit": "M/D/YYYY",
-                "manufacturer_signal_name": "date",
-                "standardized_channel_id": "date",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "time": {
-                "original_unit": "HH:MM:SS",
-                "manufacturer_signal_name": "time",
-                "standardized_channel_id": "time",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "po2": {
-                "original_unit": "mmHg",
-                "manufacturer_signal_name": "po2",
-                "standardized_channel_id": "o2_pressure_hepaticsinus",
-                "standardized_unit": "mmHg (hepatic sinus)",
-                "parent_signal": "o2_pressure"
-            }
-        },
-        "po2-montage_V1": {
-            "date": {
-                "original_unit": "M/D/YYYY",
-                "manufacturer_signal_name": "date",
-                "standardized_channel_id": "date",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "time": {
-                "original_unit": "HH:MM:SS",
-                "manufacturer_signal_name": "time",
-                "standardized_channel_id": "time",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "temp": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "temp",
-                "standardized_channel_id": "temp_int",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_int"
-            },
-            "datetime": {
-                "original_unit": "M/D/YYYY HH:MM:SS",
-                "manufacturer_signal_name": "datetime",
-                "standardized_channel_id": "datetime",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "t": {
-                "original_unit": "V",
-                "manufacturer_signal_name": "t",
-                "standardized_channel_id": "temp_int_extra1",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_int"
-            },
-            "po2": {
-                "original_unit": "mmHg",
-                "manufacturer_signal_name": "po2",
-                "standardized_channel_id": "o2_pressure_extradural",
-                "standardized_unit": "mmHg (extradural)",
-                "parent_signal": "o2_pressure"
-            },
-            "sat": {
-                "original_unit": "percent_Hb-sat",
-                "manufacturer_signal_name": "o2 sat (7.4)",
-                "standardized_channel_id": "o2_pressure_extradural",
-                "standardized_unit": "mmHg (extradural)",
-                "parent_signal": "o2_pressure"
-            },
-            "p": {
-                "original_unit": "V",
-                "manufacturer_signal_name": "p",
-                "standardized_channel_id": "o2_pressure_extradural2",
-                "standardized_unit": "V (extradural)",
-                "parent_signal": "o2_pressure2"
-            },
-            "logpo2": {
-                "original_unit": "NA",
-                "manufacturer_signal_name": "logpo2(7.4)",
-                "standardized_channel_id": "o2_pressure_extradural2",
-                "standardized_unit": "V (extradural)",
-                "parent_signal": "o2_pressure2"
-            }
-        },
-        "po2-montage_V3": {
-            "date": {
-                "original_unit": "M/D/YYYY",
-                "manufacturer_signal_name": "date",
-                "standardized_channel_id": "date",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "time": {
-                "original_unit": "HH:MM:SS",
-                "manufacturer_signal_name": "time",
-                "standardized_channel_id": "time",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "temp": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "temp",
-                "standardized_channel_id": "temp_int",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_int"
-            },
-            "datetime": {
-                "original_unit": "M/D/YYYY HH:MM:SS",
-                "manufacturer_signal_name": "datetime",
-                "standardized_channel_id": "datetime",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "t": {
-                "original_unit": "V",
-                "manufacturer_signal_name": "t",
-                "standardized_channel_id": "temp_int_extra1",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_int"
-            },
-            "p": {
-                "original_unit": "V",
-                "manufacturer_signal_name": "p",
-                "standardized_channel_id": "o2_pressure_arterial2",
-                "standardized_unit": "V (arterial)",
-                "parent_signal": "o2_pressure2"
-            },
-            "logpo2": {
-                "original_unit": "NA",
-                "manufacturer_signal_name": "logpo2(7.4)",
-                "standardized_channel_id": "o2_pressure_arterial2",
-                "standardized_unit": "V (arterial)",
-                "parent_signal": "o2_pressure2"
-            },
-            "po2": {
-                "original_unit": "mmHg",
-                "manufacturer_signal_name": "po2",
-                "standardized_channel_id": "o2_pressure_arterial",
-                "standardized_unit": "mmHg (arterial)",
-                "parent_signal": "o2_pressure"
-            },
-            "sat": {
-                "original_unit": "percent_Hb-sat",
-                "manufacturer_signal_name": "o2 sat (7.4)",
-                "standardized_channel_id": "o2_pressure_arterial",
-                "standardized_unit": "mmHg (arterial)",
-                "parent_signal": "o2_pressure"
-            }
-        }
+  "UFI": {
+    "hr-montage_V1": {
+      "ecg": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "ecg",
+        "standardized_channel_id": "ecg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "ecg"
+      },
+      "datetime": {
+        "original_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "datetime",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      }
     },
-    "CATS": {
-        "hms-video-montage_V1": {
-            "gps_raw_4": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "GPS (raw)",
-                "standardized_channel_id": "gps_raw_count2",
-                "standardized_unit": "count",
-                "parent_signal": "gps"
-            },
-            "gps_raw_3": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "GPS (raw)",
-                "standardized_channel_id": "gps_raw_count",
-                "standardized_unit": "count",
-                "parent_signal": "gps"
-            },
-            "gps_raw_2": {
-                "original_unit": "HH:MM:SS.000000",
-                "manufacturer_signal_name": "GPS (raw)",
-                "standardized_channel_id": "gps_time_utc",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "gps"
-            },
-            "gps_raw_1": {
-                "original_unit": "DD.MM.YYYY",
-                "manufacturer_signal_name": "GPS (raw)",
-                "standardized_channel_id": "gps_date_utc",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "gps"
-            },
-            "light_intensity_2": {
-                "original_unit": "raw",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "light_extra1",
-                "standardized_unit": "lux",
-                "parent_signal": "light"
-            },
-            "cc_vid_size": {
-                "original_unit": "kBytes",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "ccvidsize",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "cc_status": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "ccstatus",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "gps": {
-                "original_unit": "binary",
-                "manufacturer_signal_name": "GPS (raw)",
-                "standardized_channel_id": "gps",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "camera_time": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "cameratime",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "led": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "led",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "flags": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "flags",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "camera": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "camera",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "batt": {
-                "original_unit": "V",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "batt_v",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "batt_mah": {
-                "original_unit": "mAh",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "batt_mah",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "batt_ma": {
-                "original_unit": "mA",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "batt_ma",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "system_error": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "syserror",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "light_intensity_1": {
-                "original_unit": "raw",
-                "manufacturer_signal_name": "Light intensity",
-                "standardized_channel_id": "light",
-                "standardized_unit": "lux",
-                "parent_signal": "light"
-            },
-            "depth_30bar_1": {
-                "original_unit": "msw",
-                "manufacturer_signal_name": "depth (30bar)",
-                "standardized_channel_id": "pressure",
-                "standardized_unit": "msw",
-                "parent_signal": "pressure"
-            },
-            "depth_30bar_2": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "Depth (temp)",
-                "standardized_channel_id": "temp_ext_extra1",
-                "standardized_unit": "degC",
-                "parent_signal": "temperature_ext"
-            },
-            "temperature_imu": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "Temperature (imu)",
-                "standardized_channel_id": "temp_ext",
-                "standardized_unit": "degC",
-                "parent_signal": "temperature_ext"
-            },
-            "magnetometer_z": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mz",
-                "standardized_unit": "microtesla",
-                "parent_signal": "magnetometer"
-            },
-            "magnetometer_y": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "my",
-                "standardized_unit": "microtesla",
-                "parent_signal": "magnetometer"
-            },
-            "magnetometer_x": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mx",
-                "standardized_unit": "microtesla",
-                "parent_signal": "magnetometer"
-            },
-            "time_local": {
-                "original_unit": "HH:MM:SS.000000",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "time",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "date_local": {
-                "original_unit": "DD.MM.YYYY",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "date",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "time_utc": {
-                "original_unit": "HH:MM:SS.000000",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "time_utc",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "date_utc": {
-                "original_unit": "DD.MM.YYYY",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "date_utc",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "accelerometer_z": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "az",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "accelerometer_y": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ay",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "accelerometer_x": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ax",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "gyroscope_z": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gz",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "gyroscope_y": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gy",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "gyroscope_x": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gx",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            }
-        },
-        "cats-video-montage_V1": {
-            "depth_100bar_2": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "Depth (temp)",
-                "standardized_channel_id": "temp_ext_extra2",
-                "standardized_unit": "degC",
-                "parent_signal": "temperature_ext"
-            },
-            "light_intensity_2": {
-                "original_unit": "raw",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "light_extra1",
-                "standardized_unit": "lux",
-                "parent_signal": "light"
-            },
-            "cc_vid_size": {
-                "original_unit": "kBytes",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "ccvidsize",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "cc_status": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "ccstatus",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "gps": {
-                "original_unit": "binary",
-                "manufacturer_signal_name": "GPS (raw)",
-                "standardized_channel_id": "gps",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "camera_time": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "cameratime",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "led": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "led",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "flags": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "flags",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "camera": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "camera",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "batt": {
-                "original_unit": "V",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "batt_v",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "batt_mah": {
-                "original_unit": "mAh",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "batt_mah",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "batt_ma": {
-                "original_unit": "mA",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "batt_ma",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "system_error": {
-                "original_unit": "null",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "syserror",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "light_intensity_1": {
-                "original_unit": "raw",
-                "manufacturer_signal_name": "Light intensity",
-                "standardized_channel_id": "light",
-                "standardized_unit": "lux",
-                "parent_signal": "light"
-            },
-            "depth_100bar": {
-                "original_unit": "msw",
-                "manufacturer_signal_name": "depth (100bar)",
-                "standardized_channel_id": "pressure",
-                "standardized_unit": "msw",
-                "parent_signal": "pressure"
-            },
-            "depth_100bar_1": {
-                "original_unit": "msw",
-                "manufacturer_signal_name": "depth (100bar)",
-                "standardized_channel_id": "pressure",
-                "standardized_unit": "msw",
-                "parent_signal": "pressure"
-            },
-            "temp_magnet": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "Temp. (magnet.)",
-                "standardized_channel_id": "temp_ext_extra1",
-                "standardized_unit": "degC",
-                "parent_signal": "temperature_ext"
-            },
-            "temperature_depth": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "Temperature (depth)",
-                "standardized_channel_id": "temp_ext",
-                "standardized_unit": "degC",
-                "parent_signal": "temperature_ext"
-            },
-            "temperature_imu": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "Temperature (imu)",
-                "standardized_channel_id": "temp_ext",
-                "standardized_unit": "degC",
-                "parent_signal": "temperature_ext"
-            },
-            "magnetometer_z": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mz",
-                "standardized_unit": "microtesla",
-                "parent_signal": "magnetometer"
-            },
-            "magnetometer_y": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "my",
-                "standardized_unit": "microtesla",
-                "parent_signal": "magnetometer"
-            },
-            "magnetometer_x": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mx",
-                "standardized_unit": "microtesla",
-                "parent_signal": "magnetometer"
-            },
-            "time_local": {
-                "original_unit": "HH:MM:SS.000000",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "time",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "date_local": {
-                "original_unit": "DD.MM.YYYY",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "date",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "time_utc": {
-                "original_unit": "HH:MM:SS.000000",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "time_utc",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "date_utc": {
-                "original_unit": "DD.MM.YYYY",
-                "manufacturer_signal_name": "extra",
-                "standardized_channel_id": "date_utc",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "accelerometer_z": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "az",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "accelerometer_y": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ay",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "accelerometer_x": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ax",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "gyroscope_z": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gz",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "gyroscope_y": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gy",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "gyroscope_x": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gx",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            }
-        },
-        "cats-processed-mat_V1": {
-            "at_0": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ax",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "at_1": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ay",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "at_2": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "az",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "aw_0": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ax",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "corrected_acc"
-            },
-            "aw_1": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ay",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "corrected_acc"
-            },
-            "aw_2": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "az",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "corrected_acc"
-            },
-            "camon": {
-                "original_unit": "binary",
-                "manufacturer_signal_name": "camon",
-                "standardized_channel_id": "camera_on_flag",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "audon": {
-                "original_unit": "binary",
-                "manufacturer_signal_name": "audon",
-                "standardized_channel_id": "audio_on_flag",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "dn": {
-                "original_unit": "MATLAB_DN",
-                "manufacturer_signal_name": "datetime",
-                "standardized_channel_id": "datetime_juldate",
-                "standardized_unit": "MATLAB_DN",
-                "parent_signal": "clock"
-            },
-            "mt_0": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mx",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "magnetometer"
-            },
-            "geoptrack_0": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "geoptrack",
-                "standardized_channel_id": "geopos_x",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "mt_1": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "my",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "magnetometer"
-            },
-            "mt_2": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mz",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "magnetometer"
-            },
-            "mw_0": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mx",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "corrected_mag"
-            },
-            "mw_1": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "my",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "corrected_mag"
-            },
-            "mw_2": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mz",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "corrected_mag"
-            },
-            "gt_0": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gx",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "gt_1": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gy",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "gt_2": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gz",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "gw_0": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gx",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "corrected_gyr"
-            },
-            "gw_1": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gy",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "corrected_gyr"
-            },
-            "gw_2": {
-                "original_unit": "mrad/s",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gz",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "corrected_gyr"
-            },
-            "light": {
-                "original_unit": "Lux",
-                "manufacturer_signal_name": "Light intensity",
-                "standardized_channel_id": "light",
-                "standardized_unit": "lux",
-                "parent_signal": "light"
-            },
-            "geoptrack_1": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "geoptrack",
-                "standardized_channel_id": "geopos_y",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "pitch": {
-                "original_unit": "rad",
-                "manufacturer_signal_name": "pitch",
-                "standardized_channel_id": "pitch",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "roll": {
-                "original_unit": "rad",
-                "manufacturer_signal_name": "roll",
-                "standardized_channel_id": "roll",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "head": {
-                "original_unit": "rad",
-                "manufacturer_signal_name": "heading",
-                "standardized_channel_id": "heading",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "gps_0": {
-                "original_unit": "DD",
-                "manufacturer_signal_name": "GPS (raw)",
-                "standardized_channel_id": "latitude",
-                "standardized_unit": "DD",
-                "parent_signal": "location"
-            },
-            "gps_1": {
-                "original_unit": "DD",
-                "manufacturer_signal_name": "GPS (raw)",
-                "standardized_channel_id": "longitude",
-                "standardized_unit": "DD",
-                "parent_signal": "location"
-            },
-            "gpserr": {
-                "original_unit": NaN,
-                "manufacturer_signal_name": "GPS error",
-                "standardized_channel_id": "gps_error",
-                "standardized_unit": "m",
-                "parent_signal": "location"
-            },
-            "flownoise": {
-                "original_unit": NaN,
-                "manufacturer_signal_name": "flownoise",
-                "standardized_channel_id": "velocity_flownoise",
-                "standardized_unit": "m/s",
-                "parent_signal": "velocity"
-            },
-            "p": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "depth",
-                "standardized_channel_id": "depth",
-                "standardized_unit": "m",
-                "parent_signal": "depth"
-            },
-            "ptrack_0": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "ptrack",
-                "standardized_channel_id": "pos_x",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "ptrack_1": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "ptrack",
-                "standardized_channel_id": "pos_y",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "t": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "temperature",
-                "standardized_channel_id": "temp_ext",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_ext"
-            },
-            "jigrms": {
-                "original_unit": NaN,
-                "manufacturer_signal_name": "JigRMS",
-                "standardized_channel_id": "velocity_jigrms",
-                "standardized_unit": "m/s",
-                "parent_signal": "velocity"
-            },
-            "speedstats": {
-                "original_unit": NaN,
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "speedstats",
-                "standardized_unit": "m/s",
-                "parent_signal": "velocity2"
-            },
-            "viddeploy": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "viddeploy",
-                "standardized_channel_id": "number",
-                "standardized_unit": "str",
-                "parent_signal": "video_files"
-            },
-            "viddn": {
-                "original_unit": "MATLAB_DN",
-                "manufacturer_signal_name": "vidDN",
-                "standardized_channel_id": "datetime",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "viddurs": {
-                "original_unit": "sec",
-                "manufacturer_signal_name": "vidDurs",
-                "standardized_channel_id": "duration",
-                "standardized_unit": "sec",
-                "parent_signal": "video_files"
-            },
-            "vidnam": {
-                "original_unit": "filename",
-                "manufacturer_signal_name": "vidNam",
-                "standardized_channel_id": "filename",
-                "standardized_unit": "str",
-                "parent_signal": "video_files"
-            }
-        }
+    "po2-montage_V2": {
+      "temp": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "temp",
+        "standardized_channel_id": "temp_int",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_int"
+      },
+      "t": {
+        "original_unit": "V",
+        "manufacturer_signal_name": "t",
+        "standardized_channel_id": "temp_int_extra1",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_int"
+      },
+      "p": {
+        "original_unit": "V",
+        "manufacturer_signal_name": "p",
+        "standardized_channel_id": "o2_pressure_hepaticsinus2",
+        "standardized_unit": "V (hepatic sinus)",
+        "parent_signal": "o2_pressure2"
+      },
+      "datetime": {
+        "original_unit": "M/D/YYYY HH:MM:SS",
+        "manufacturer_signal_name": "datetime",
+        "standardized_channel_id": "datetime",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "date": {
+        "original_unit": "M/D/YYYY",
+        "manufacturer_signal_name": "date",
+        "standardized_channel_id": "date",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "time": {
+        "original_unit": "HH:MM:SS",
+        "manufacturer_signal_name": "time",
+        "standardized_channel_id": "time",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "po2": {
+        "original_unit": "mmHg",
+        "manufacturer_signal_name": "po2",
+        "standardized_channel_id": "o2_pressure_hepaticsinus",
+        "standardized_unit": "mmHg (hepatic sinus)",
+        "parent_signal": "o2_pressure"
+      }
     },
-    "Manitty": {
-        "hr-montage_V3": {
-            "temperature": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "temperature",
-                "standardized_channel_id": "temp_int_extra1",
-                "standardized_unit": "degC",
-                "parent_signal": "temperature_int"
-            },
-            "tint": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "Tint",
-                "standardized_channel_id": "temp_int2",
-                "standardized_unit": "degC",
-                "parent_signal": "temperature_int"
-            },
-            "pressure": {
-                "original_unit": "bar",
-                "manufacturer_signal_name": "pressure",
-                "standardized_channel_id": "pressure2",
-                "standardized_unit": "msw",
-                "parent_signal": "pressure2"
-            },
-            "gyro_z": {
-                "original_unit": "dps",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gz2",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope2"
-            },
-            "gyro_y": {
-                "original_unit": "dps",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gy2",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope2"
-            },
-            "gyro_x": {
-                "original_unit": "dps",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gx2",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope2"
-            },
-            "mag_z": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mz2",
-                "standardized_unit": "microtesla",
-                "parent_signal": "magnetometer2"
-            },
-            "mag_x": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mx2",
-                "standardized_unit": "microtesla",
-                "parent_signal": "magnetometer2"
-            },
-            "mag_y": {
-                "original_unit": "microtesla",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "my2",
-                "standardized_unit": "microtesla",
-                "parent_signal": "magnetometer2"
-            },
-            "acc_z": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "az2",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer2"
-            },
-            "acc_y": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ay2",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer2"
-            },
-            "acc_x": {
-                "original_unit": "m/s^2",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ax2",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer2"
-            },
-            "m1": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "M1",
-                "standardized_channel_id": "ecg",
-                "standardized_unit": "uV",
-                "parent_signal": "ecg"
-            }
-        }
+    "po2-montage_V1": {
+      "date": {
+        "original_unit": "M/D/YYYY",
+        "manufacturer_signal_name": "date",
+        "standardized_channel_id": "date",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "time": {
+        "original_unit": "HH:MM:SS",
+        "manufacturer_signal_name": "time",
+        "standardized_channel_id": "time",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "temp": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "temp",
+        "standardized_channel_id": "temp_int",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_int"
+      },
+      "datetime": {
+        "original_unit": "M/D/YYYY HH:MM:SS",
+        "manufacturer_signal_name": "datetime",
+        "standardized_channel_id": "datetime",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "t": {
+        "original_unit": "V",
+        "manufacturer_signal_name": "t",
+        "standardized_channel_id": "temp_int_extra1",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_int"
+      },
+      "po2": {
+        "original_unit": "mmHg",
+        "manufacturer_signal_name": "po2",
+        "standardized_channel_id": "o2_pressure_extradural",
+        "standardized_unit": "mmHg (extradural)",
+        "parent_signal": "o2_pressure"
+      },
+      "sat": {
+        "original_unit": "percent_Hb-sat",
+        "manufacturer_signal_name": "o2 sat (7.4)",
+        "standardized_channel_id": "o2_pressure_extradural",
+        "standardized_unit": "mmHg (extradural)",
+        "parent_signal": "o2_pressure"
+      },
+      "p": {
+        "original_unit": "V",
+        "manufacturer_signal_name": "p",
+        "standardized_channel_id": "o2_pressure_extradural2",
+        "standardized_unit": "V (extradural)",
+        "parent_signal": "o2_pressure2"
+      },
+      "logpo2": {
+        "original_unit": "NA",
+        "manufacturer_signal_name": "logpo2(7.4)",
+        "standardized_channel_id": "o2_pressure_extradural2",
+        "standardized_unit": "V (extradural)",
+        "parent_signal": "o2_pressure2"
+      }
     },
-    "Star Oddi": {
-        "tdr-montage_V1": {
-            "date": {
-                "original_unit": "M/D/YYYY",
-                "manufacturer_signal_name": "date",
-                "standardized_channel_id": "date",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "depth": {
-                "original_unit": "cm",
-                "manufacturer_signal_name": "depth",
-                "standardized_channel_id": "pressure",
-                "standardized_unit": "m",
-                "parent_signal": "pressure"
-            },
-            "temp": {
-                "original_unit": "degreeCx100",
-                "manufacturer_signal_name": "temp",
-                "standardized_channel_id": "temp_ext",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_ext"
-            },
-            "datetime": {
-                "original_unit": "M/D/YYYY HH:MM:SS",
-                "manufacturer_signal_name": "datetime",
-                "standardized_channel_id": "datetime",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "time": {
-                "original_unit": "HH:MM:SS",
-                "manufacturer_signal_name": "time",
-                "standardized_channel_id": "time",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "seconds": {
-                "original_unit": "sec",
-                "manufacturer_signal_name": "seconds",
-                "standardized_channel_id": "time_s",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            }
-        },
-        "tilt-montage_V1": {
-            "pitch": {
-                "original_unit": "deg",
-                "manufacturer_signal_name": "pitch",
-                "standardized_channel_id": "pitch",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "date": {
-                "original_unit": "M/D/YYYY",
-                "manufacturer_signal_name": "date",
-                "standardized_channel_id": "date",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "depth": {
-                "original_unit": "cm",
-                "manufacturer_signal_name": "depth",
-                "standardized_channel_id": "pressure",
-                "standardized_unit": "m",
-                "parent_signal": "pressure"
-            },
-            "temp": {
-                "original_unit": "degreeCx100",
-                "manufacturer_signal_name": "temp",
-                "standardized_channel_id": "temp_ext",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_ext"
-            },
-            "roll": {
-                "original_unit": "deg",
-                "manufacturer_signal_name": "roll",
-                "standardized_channel_id": "roll",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "datetime": {
-                "original_unit": "M/D/YYYY HH:MM:SS",
-                "manufacturer_signal_name": "datetime",
-                "standardized_channel_id": "datetime",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "time": {
-                "original_unit": "HH:MM:SS",
-                "manufacturer_signal_name": "time",
-                "standardized_channel_id": "time",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "seconds": {
-                "original_unit": "sec",
-                "manufacturer_signal_name": "seconds",
-                "standardized_channel_id": "time_s",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            }
-        }
-    },
-    "Wildlife Computers": {
-        "tdr-montage_V1": {
-            "date": {
-                "original_unit": "M/D/YYYY",
-                "manufacturer_signal_name": "date",
-                "standardized_channel_id": "date",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "temp": {
-                "original_unit": "degreeCx100",
-                "manufacturer_signal_name": "temp",
-                "standardized_channel_id": "temp_ext",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_ext"
-            },
-            "light": {
-                "original_unit": "Lux",
-                "manufacturer_signal_name": "light",
-                "standardized_channel_id": "light",
-                "standardized_unit": "lux",
-                "parent_signal": "light"
-            },
-            "datetime": {
-                "original_unit": "M/D/YYYY HH:MM:SS",
-                "manufacturer_signal_name": "datetime",
-                "standardized_channel_id": "datetime",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "depth": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "depth",
-                "standardized_channel_id": "pressure",
-                "standardized_unit": "m",
-                "parent_signal": "pressure"
-            },
-            "time": {
-                "original_unit": "HH:MM:SS",
-                "manufacturer_signal_name": "time",
-                "standardized_channel_id": "time",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "seconds": {
-                "original_unit": "sec",
-                "manufacturer_signal_name": "seconds",
-                "standardized_channel_id": "time_s",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            }
-        }
-    },
-    "Pisces Design": {
-        "vdr_accel_V1": {
-            "xaccel": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ax",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "yaccel": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ay",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "zaccel": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "az",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "date_gmt": {
-                "original_unit": "MM/DD/YY",
-                "manufacturer_signal_name": "date",
-                "standardized_channel_id": "date_utc",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "time_gmt": {
-                "original_unit": "HH:MM:SS",
-                "manufacturer_signal_name": "time",
-                "standardized_channel_id": "time_utc",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "time16": {
-                "original_unit": "mod_Hz",
-                "manufacturer_signal_name": "mod_Hz",
-                "standardized_channel_id": "time_hz",
-                "standardized_unit": "1/x",
-                "parent_signal": "clock"
-            }
-        },
-        "vdr_derived_V1": {
-            "date_gmt": {
-                "original_unit": "MM/DD/YY",
-                "manufacturer_signal_name": "date",
-                "standardized_channel_id": "date_utc",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "time_gmt": {
-                "original_unit": "HH:MM:SS",
-                "manufacturer_signal_name": "time",
-                "standardized_channel_id": "time_utc",
-                "standardized_unit": "HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "light": {
-                "original_unit": "Lux",
-                "manufacturer_signal_name": "light",
-                "standardized_channel_id": "light",
-                "standardized_unit": "lux",
-                "parent_signal": "light"
-            },
-            "light2": {
-                "original_unit": "Lux",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "light",
-                "standardized_unit": "lux",
-                "parent_signal": "light"
-            },
-            "pitch": {
-                "original_unit": "rad",
-                "manufacturer_signal_name": "pitch",
-                "standardized_channel_id": "pitch",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "roll": {
-                "original_unit": "rad",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "roll",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "heading_mag": {
-                "original_unit": "rad",
-                "manufacturer_signal_name": "heading_mag",
-                "standardized_channel_id": "heading",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "depth": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "depth",
-                "standardized_channel_id": "corrected_depth",
-                "standardized_unit": "m",
-                "parent_signal": "depth"
-            },
-            "strokingrate": {
-                "original_unit": "Hz",
-                "manufacturer_signal_name": "strokingrate",
-                "standardized_channel_id": "stroke_rate",
-                "standardized_unit": "spm",
-                "parent_signal": "stroke_rate"
-            },
-            "heading_geo": {
-                "original_unit": "rad",
-                "manufacturer_signal_name": "heading_geo",
-                "standardized_channel_id": "heading2",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "wet-dry": {
-                "original_unit": "conductivity",
-                "manufacturer_signal_name": "wet-dry",
-                "standardized_channel_id": "wet_dry",
-                "standardized_unit": "NA",
-                "parent_signal": "logger_status"
-            },
-            "divenumber": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "divenumber",
-                "standardized_channel_id": "dive_num",
-                "standardized_unit": "Dive_num",
-                "parent_signal": "dives"
-            },
-            "detectedfeeding": {
-                "original_unit": "binary",
-                "manufacturer_signal_name": "detectedfeeding",
-                "standardized_channel_id": "feeding",
-                "standardized_unit": "str",
-                "parent_signal": "feeding_attempts"
-            },
-            "divenumber_inc_inaccuratedepth": {
-                "original_unit": "count",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "dive_num_all-incl-inacc-depth",
-                "standardized_unit": "count",
-                "parent_signal": "dives"
-            },
-            "x": {
-                "original_unit": "m",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "pos_x_perdive",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "y": {
-                "original_unit": "m",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "pos_y_perdive",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "xcorr": {
-                "original_unit": "m",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "geopos_x_perdive",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "ycorr": {
-                "original_unit": "m",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "geopos_y_perdive",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "speed": {
-                "original_unit": "m/s",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "velocity",
-                "standardized_unit": "m/s",
-                "parent_signal": "velocity"
-            },
-            "lat1hz": {
-                "original_unit": "decimal-degrees",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "latitude",
-                "standardized_unit": "DD",
-                "parent_signal": "location"
-            },
-            "lon1hz": {
-                "original_unit": "decimal-degrees",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "longitude",
-                "standardized_unit": "DD",
-                "parent_signal": "location"
-            },
-            "pred_divetype": {
-                "original_unit": "code",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "dive_type_project",
-                "standardized_unit": "str",
-                "parent_signal": "label"
-            },
-            "divenumber_inc_inaccuratespeed": {
-                "original_unit": "count",
-                "manufacturer_signal_name": NaN,
-                "standardized_channel_id": "dive_num_all-incl-inacc_speed",
-                "standardized_unit": "count",
-                "parent_signal": "dives"
-            },
-            "datetimenumeric": {
-                "original_unit": "unix",
-                "manufacturer_signal_name": "datetimenum",
-                "standardized_channel_id": "datetimenum_utc",
-                "standardized_unit": "unix",
-                "parent_signal": "clock"
-            }
-        }
-    },
-    "Evolocus": {
-        "juv-nese-sleep-montage_V1": {
-            "gyrx": {
-                "original_unit": "RPS",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gx",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "gyry": {
-                "original_unit": "RPS",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gy",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "gyrz": {
-                "original_unit": "RPS",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gz",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "accx": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ax",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "accy": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ay",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "accz": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "az",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "magx": {
-                "original_unit": "Gauss",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mx",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "magnetometer"
-            },
-            "magy": {
-                "original_unit": "Gauss",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "my",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "magnetometer"
-            },
-            "magz": {
-                "original_unit": "Gauss",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mz",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "magnetometer"
-            },
-            "pressure": {
-                "original_unit": "bar",
-                "manufacturer_signal_name": "pressure",
-                "standardized_channel_id": "pressure",
-                "standardized_unit": "m",
-                "parent_signal": "pressure"
-            },
-            "illumination": {
-                "original_unit": "Lux",
-                "manufacturer_signal_name": "illumination",
-                "standardized_channel_id": "light",
-                "standardized_unit": "lux",
-                "parent_signal": "light"
-            },
-            "temperature": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "temperature",
-                "standardized_channel_id": "temp_int",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_int"
-            },
-            "synchronization": {
-                "original_unit": "Binary16",
-                "manufacturer_signal_name": "synchronization",
-                "standardized_channel_id": "synchronization",
-                "standardized_unit": "binary",
-                "parent_signal": "logger_status"
-            },
-            "ch1": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "ecg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "ecg"
-            },
-            "ch2": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eog_l",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eog"
-            },
-            "ch3": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eog_r",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eog"
-            },
-            "ch4": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eeg_f3",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eeg"
-            },
-            "ch5": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch9": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch10": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch11": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch13": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch14": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch15": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch6": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "emg_l",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "emg"
-            },
-            "ch7": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "emg_r",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "emg"
-            },
-            "ch16": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eeg_p4",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eeg"
-            },
-            "ch8": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eeg_f4",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eeg"
-            },
-            "ch12": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eeg_p3",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eeg"
-            }
-        },
-        "juv-nese-sleep-montage_V3": {
-            "gyrx": {
-                "original_unit": "RPS",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gx",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "gyry": {
-                "original_unit": "RPS",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gy",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "gyrz": {
-                "original_unit": "RPS",
-                "manufacturer_signal_name": "gyroscope",
-                "standardized_channel_id": "gz",
-                "standardized_unit": "mrad/s",
-                "parent_signal": "gyroscope"
-            },
-            "accx": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ax",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "accy": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ay",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "accz": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "az",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "magx": {
-                "original_unit": "Gauss",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mx",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "magnetometer"
-            },
-            "magy": {
-                "original_unit": "Gauss",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "my",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "magnetometer"
-            },
-            "magz": {
-                "original_unit": "Gauss",
-                "manufacturer_signal_name": "magnetometer",
-                "standardized_channel_id": "mz",
-                "standardized_unit": "\u00b5T",
-                "parent_signal": "magnetometer"
-            },
-            "pressure": {
-                "original_unit": "bar",
-                "manufacturer_signal_name": "pressure",
-                "standardized_channel_id": "pressure",
-                "standardized_unit": "m",
-                "parent_signal": "pressure"
-            },
-            "illumination": {
-                "original_unit": "Lux",
-                "manufacturer_signal_name": "illumination",
-                "standardized_channel_id": "light",
-                "standardized_unit": "lux",
-                "parent_signal": "light"
-            },
-            "temperature": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "temperature",
-                "standardized_channel_id": "temp_int",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_int"
-            },
-            "synchronization": {
-                "original_unit": "Binary16",
-                "manufacturer_signal_name": "synchronization",
-                "standardized_channel_id": "synchronization",
-                "standardized_unit": "binary",
-                "parent_signal": "logger_status"
-            },
-            "ch6": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "ecg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "ecg"
-            },
-            "ch3": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eog_l",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eog"
-            },
-            "ch2": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eog_r",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eog"
-            },
-            "ch7": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eeg_f3",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eeg"
-            },
-            "ch1": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch9": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch10": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch11": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch14": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch13": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch15": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "extra_exg",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "exg"
-            },
-            "ch5": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "emg_l",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "emg"
-            },
-            "ch4": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "emg_r",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "emg"
-            },
-            "ch16": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eeg_p4",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eeg"
-            },
-            "ch8": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eeg_f4",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eeg"
-            },
-            "ch12": {
-                "original_unit": "uV",
-                "manufacturer_signal_name": "electrophysiology",
-                "standardized_channel_id": "eeg_p3",
-                "standardized_unit": "\u00b5V",
-                "parent_signal": "eeg"
-            }
-        },
-        "juv-nese-sleep-derived": {
-            "sealid": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Animal_ID",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "recordingid": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Recording_ID",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "id": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Recording_context",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "sleepcode": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Sleep Code",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "simplesleepcode": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Simple Sleep Code",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "respcode": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Resp Code",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "watercode": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Water Code",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "respnum": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "Resp Num",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "waternum": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "Water Num",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "timebins": {
-                "original_unit": "timebins",
-                "manufacturer_signal_name": "timebins",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "recording_id": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Recording_ID",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "sleep_code": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Sleep Code",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "simple_sleep_code": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Simple Sleep Code",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "resp_code": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Resp Code",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "water_code": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "Water Code",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "resp_num": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "Resp Num",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "water_num": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "Water Num",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "rtime": {
-                "original_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "manufacturer_signal_name": "datetime",
-                "standardized_channel_id": "datetime",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "r_time": {
-                "original_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "manufacturer_signal_name": "datetime",
-                "standardized_channel_id": "datetime",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "heartrate": {
-                "original_unit": "bpm",
-                "manufacturer_signal_name": "Heart Rate",
-                "standardized_channel_id": "heart_rate",
-                "standardized_unit": "bpm",
-                "parent_signal": "heart_rate"
-            },
-            "heart_rate": {
-                "original_unit": "bpm",
-                "manufacturer_signal_name": "Heart Rate",
-                "standardized_channel_id": "heart_rate",
-                "standardized_unit": "bpm",
-                "parent_signal": "heart_rate"
-            },
-            "pitch": {
-                "original_unit": "rad",
-                "manufacturer_signal_name": "pitch",
-                "standardized_channel_id": "pitch",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "roll": {
-                "original_unit": "rad",
-                "manufacturer_signal_name": "roll",
-                "standardized_channel_id": "roll",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "heading": {
-                "original_unit": "rad",
-                "manufacturer_signal_name": "heading",
-                "standardized_channel_id": "heading",
-                "standardized_unit": "deg",
-                "parent_signal": "prh"
-            },
-            "depth": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "depth",
-                "standardized_channel_id": "corrected_depth",
-                "standardized_unit": "m",
-                "parent_signal": "depth"
-            },
-            "strokerate": {
-                "original_unit": "spm",
-                "manufacturer_signal_name": "Stroke Rate",
-                "standardized_channel_id": "stroke_rate",
-                "standardized_unit": "spm",
-                "parent_signal": "stroke_rate"
-            },
-            "stroke_rate": {
-                "original_unit": "spm",
-                "manufacturer_signal_name": "Stroke Rate",
-                "standardized_channel_id": "stroke_rate",
-                "standardized_unit": "spm",
-                "parent_signal": "stroke_rate"
-            },
-            "seconds": {
-                "original_unit": "sec",
-                "manufacturer_signal_name": "seconds",
-                "standardized_channel_id": "time_s",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "x": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "position",
-                "standardized_channel_id": "pos_x",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "y": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "position",
-                "standardized_channel_id": "pos_y",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "speed": {
-                "original_unit": "m/s",
-                "manufacturer_signal_name": "speed",
-                "standardized_channel_id": "velocity",
-                "standardized_unit": "m/s",
-                "parent_signal": "velocity"
-            },
-            "lat": {
-                "original_unit": "decimal-degrees",
-                "manufacturer_signal_name": "Latitude",
-                "standardized_channel_id": "latitude",
-                "standardized_unit": "DD",
-                "parent_signal": "location"
-            },
-            "long": {
-                "original_unit": "decimal-degrees",
-                "manufacturer_signal_name": "Longitude",
-                "standardized_channel_id": "longitude",
-                "standardized_unit": "DD",
-                "parent_signal": "location"
-            },
-            "geox": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "geoptrack",
-                "standardized_channel_id": "geopos_x",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "geoy": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "geoptrack",
-                "standardized_channel_id": "geopos_y",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            },
-            "dn": {
-                "original_unit": "MATLAB_DN",
-                "manufacturer_signal_name": "MATLAB_DN",
-                "standardized_channel_id": "datetime_juldate",
-                "standardized_unit": "MATLAB_DN",
-                "parent_signal": "clock"
-            },
-            "sleepnum": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "Sleep Num",
-                "standardized_channel_id": "sleep_state",
-                "standardized_unit": NaN,
-                "parent_signal": "label"
-            },
-            "sleep_num": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "Sleep Num",
-                "standardized_channel_id": "sleep_state",
-                "standardized_unit": NaN,
-                "parent_signal": "label"
-            },
-            "simplesleepnum": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "Simple Sleep Num",
-                "standardized_channel_id": "simple_sleep_state",
-                "standardized_unit": NaN,
-                "parent_signal": "label"
-            },
-            "simple_sleep_num": {
-                "original_unit": "count",
-                "manufacturer_signal_name": "Simple Sleep Num",
-                "standardized_channel_id": "simple_sleep_state",
-                "standardized_unit": NaN,
-                "parent_signal": "label"
-            },
-            "issleepspiral": {
-                "original_unit": "binary",
-                "manufacturer_signal_name": "is_sleepspiral",
-                "standardized_channel_id": "is_sleepspiral",
-                "standardized_unit": NaN,
-                "parent_signal": "label"
-            },
-            "is_sleepspiral": {
-                "original_unit": "binary",
-                "manufacturer_signal_name": "is_sleepspiral",
-                "standardized_channel_id": "is_sleepspiral",
-                "standardized_unit": NaN,
-                "parent_signal": "label"
-            },
-            "hrvlfpower": {
-                "original_unit": "V^2/Hz",
-                "manufacturer_signal_name": "Heart Rate VLF Power",
-                "standardized_channel_id": "heart_rate_vlf_power",
-                "standardized_unit": "V^2/Hz",
-                "parent_signal": "heart_rate_analysis"
-            },
-            "hr_vlf_power": {
-                "original_unit": "V^2/Hz",
-                "manufacturer_signal_name": "Heart Rate VLF Power",
-                "standardized_channel_id": "heart_rate_vlf_power",
-                "standardized_unit": "V^2/Hz",
-                "parent_signal": "heart_rate_analysis"
-            },
-            "reegdelta": {
-                "original_unit": "V^2/Hz",
-                "manufacturer_signal_name": "EEG Delta Power",
-                "standardized_channel_id": "eeg_f3_delta_power",
-                "standardized_unit": "V^2/Hz",
-                "parent_signal": "eeg_analysis"
-            },
-            "r_eeg_delta": {
-                "original_unit": "V^2/Hz",
-                "manufacturer_signal_name": "EEG Delta Power",
-                "standardized_channel_id": "eeg_f3_delta_power",
-                "standardized_unit": "V^2/Hz",
-                "parent_signal": "eeg_analysis"
-            },
-            "leegdelta": {
-                "original_unit": "V^2/Hz",
-                "manufacturer_signal_name": "EEG Delta Power F4 (L)",
-                "standardized_channel_id": "eeg_f4_delta_power",
-                "standardized_unit": "V^2/Hz",
-                "parent_signal": "eeg_analysis"
-            },
-            "l_eeg_delta": {
-                "original_unit": "V^2/Hz",
-                "manufacturer_signal_name": "EEG Delta Power F4 (L)",
-                "standardized_channel_id": "eeg_f4_delta_power",
-                "standardized_unit": "V^2/Hz",
-                "parent_signal": "eeg_analysis"
-            },
-            "z": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "position",
-                "standardized_channel_id": "pos_z",
-                "standardized_unit": "m",
-                "parent_signal": "position"
-            }
-        }
-    },
-    "Vectronics": {
-        "adult-lion-collar": {
-            "ax": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ax",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "ay": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ay",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "az": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "az",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "acc_x": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ax",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "acc_y": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "ay",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "acc_z": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "accelerometer",
-                "standardized_channel_id": "az",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "date_iso_string": {
-                "original_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "manufacturer_signal_name": "clock",
-                "standardized_channel_id": "datetime_utc",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "utc_milliseconds_since_1970": {
-                "original_unit": "unix",
-                "manufacturer_signal_name": "clock",
-                "standardized_channel_id": "datetimenum_utc",
-                "standardized_unit": "unix",
-                "parent_signal": "clock"
-            }
-        },
-        "adult-lion-collar_derived-reconverted": {
-            "x_axis_scaled": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "X.Axis.Scaled",
-                "standardized_channel_id": "ax",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "y_axis_scaled": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "Y.Axis.Scaled",
-                "standardized_channel_id": "ay",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "z_axis_scaled": {
-                "original_unit": "g",
-                "manufacturer_signal_name": "Z.Axis.Scaled",
-                "standardized_channel_id": "az",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer"
-            },
-            "date_utc": {
-                "original_unit": "YYYY-MM-DD",
-                "manufacturer_signal_name": "Date_UTC",
-                "standardized_channel_id": "date_utc",
-                "standardized_unit": "YYYY-MM-DD",
-                "parent_signal": "clock"
-            },
-            "utc_time": {
-                "original_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "manufacturer_signal_name": "UTC.Time",
-                "standardized_channel_id": "datetime_utc",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "z_axis": {
-                "original_unit": "g*16",
-                "manufacturer_signal_name": "X.Axis",
-                "standardized_channel_id": "ax2",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer2"
-            },
-            "y_axis": {
-                "original_unit": "g*16",
-                "manufacturer_signal_name": "Y.Axis",
-                "standardized_channel_id": "ay2",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer2"
-            },
-            "x_axis": {
-                "original_unit": "g*16",
-                "manufacturer_signal_name": "Z.Axis",
-                "standardized_channel_id": "az2",
-                "standardized_unit": "m/s^2",
-                "parent_signal": "accelerometer2"
-            },
-            "collar_id": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "collar_id",
-                "standardized_channel_id": "logger_id",
-                "standardized_unit": NaN,
-                "parent_signal": "id"
-            },
-            "animal_id": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "animal_id",
-                "standardized_channel_id": "animal_id",
-                "standardized_unit": NaN,
-                "parent_signal": "id"
-            },
-            "relative_time": {
-                "original_unit": "DDd HH:MM:SS.000",
-                "manufacturer_signal_name": "Relative.Time",
-                "standardized_channel_id": "time_d",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            }
-        }
-    },
-    "Little Leonardo": {
-        "nese-stroke-logger_V1": {
-            "temp": {
-                "original_unit": "degreeC",
-                "manufacturer_signal_name": "temp",
-                "standardized_channel_id": "temp_ext",
-                "standardized_unit": "deg C",
-                "parent_signal": "temperature_ext"
-            },
-            "light": {
-                "original_unit": "Lux",
-                "manufacturer_signal_name": "light",
-                "standardized_channel_id": "light",
-                "standardized_unit": "lux",
-                "parent_signal": "light"
-            },
-            "toppid": {
-                "original_unit": "id",
-                "manufacturer_signal_name": "toppid",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "toppid_tlld": {
-                "original_unit": "id",
-                "manufacturer_signal_name": "toppid_tlld",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "source_file": {
-                "original_unit": "str",
-                "manufacturer_signal_name": "source_file",
-                "standardized_channel_id": "extra",
-                "standardized_unit": "NA",
-                "parent_signal": "extra"
-            },
-            "stroke_time_utc": {
-                "original_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "manufacturer_signal_name": "stroke_time_utc",
-                "standardized_channel_id": "datetime_utc",
-                "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
-                "parent_signal": "clock"
-            },
-            "depth": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "depth (on TDR logger)",
-                "standardized_channel_id": "depth",
-                "standardized_unit": "m",
-                "parent_signal": "depth"
-            },
-            "stroke": {
-                "original_unit": "count_per_5s",
-                "manufacturer_signal_name": "Stroke count (per 5 sec)",
-                "standardized_channel_id": "stroke_rate",
-                "standardized_unit": "spm",
-                "parent_signal": "stroke_rate"
-            },
-            "lat": {
-                "original_unit": "decimal-degrees",
-                "manufacturer_signal_name": "lat",
-                "standardized_channel_id": "latitude",
-                "standardized_unit": "DD",
-                "parent_signal": "location"
-            },
-            "lon": {
-                "original_unit": "decimal-degrees",
-                "manufacturer_signal_name": "lon",
-                "standardized_channel_id": "longitude",
-                "standardized_unit": "DD",
-                "parent_signal": "location"
-            },
-            "time": {
-                "original_unit": "MATLAB_DN",
-                "manufacturer_signal_name": "time",
-                "standardized_channel_id": "datetime_juldate",
-                "standardized_unit": "MATLAB_DN",
-                "parent_signal": "clock"
-            },
-            "sway": {
-                "original_unit": "NA",
-                "manufacturer_signal_name": "Lateral sway",
-                "standardized_channel_id": "sway",
-                "standardized_unit": "NA",
-                "parent_signal": "sway"
-            },
-            "posture": {
-                "original_unit": "NA",
-                "manufacturer_signal_name": "Posture (pos is likely belly down)",
-                "standardized_channel_id": "posture",
-                "standardized_unit": "NA",
-                "parent_signal": "posture"
-            },
-            "depth_stroke": {
-                "original_unit": "m",
-                "manufacturer_signal_name": "Depth (on Stroke Logger)",
-                "standardized_channel_id": "depth2",
-                "standardized_unit": "m",
-                "parent_signal": "depth2"
-            }
-        }
+    "po2-montage_V3": {
+      "date": {
+        "original_unit": "M/D/YYYY",
+        "manufacturer_signal_name": "date",
+        "standardized_channel_id": "date",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "time": {
+        "original_unit": "HH:MM:SS",
+        "manufacturer_signal_name": "time",
+        "standardized_channel_id": "time",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "temp": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "temp",
+        "standardized_channel_id": "temp_int",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_int"
+      },
+      "datetime": {
+        "original_unit": "M/D/YYYY HH:MM:SS",
+        "manufacturer_signal_name": "datetime",
+        "standardized_channel_id": "datetime",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "t": {
+        "original_unit": "V",
+        "manufacturer_signal_name": "t",
+        "standardized_channel_id": "temp_int_extra1",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_int"
+      },
+      "p": {
+        "original_unit": "V",
+        "manufacturer_signal_name": "p",
+        "standardized_channel_id": "o2_pressure_arterial2",
+        "standardized_unit": "V (arterial)",
+        "parent_signal": "o2_pressure2"
+      },
+      "logpo2": {
+        "original_unit": "NA",
+        "manufacturer_signal_name": "logpo2(7.4)",
+        "standardized_channel_id": "o2_pressure_arterial2",
+        "standardized_unit": "V (arterial)",
+        "parent_signal": "o2_pressure2"
+      },
+      "po2": {
+        "original_unit": "mmHg",
+        "manufacturer_signal_name": "po2",
+        "standardized_channel_id": "o2_pressure_arterial",
+        "standardized_unit": "mmHg (arterial)",
+        "parent_signal": "o2_pressure"
+      },
+      "sat": {
+        "original_unit": "percent_Hb-sat",
+        "manufacturer_signal_name": "o2 sat (7.4)",
+        "standardized_channel_id": "o2_pressure_arterial",
+        "standardized_unit": "mmHg (arterial)",
+        "parent_signal": "o2_pressure"
+      }
     }
+  },
+  "CATS": {
+    "hms-video-montage_V1": {
+      "gps_raw_4": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "GPS (raw)",
+        "standardized_channel_id": "gps_raw_count2",
+        "standardized_unit": "count",
+        "parent_signal": "gps"
+      },
+      "gps_raw_3": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "GPS (raw)",
+        "standardized_channel_id": "gps_raw_count",
+        "standardized_unit": "count",
+        "parent_signal": "gps"
+      },
+      "gps_raw_2": {
+        "original_unit": "HH:MM:SS.000000",
+        "manufacturer_signal_name": "GPS (raw)",
+        "standardized_channel_id": "gps_time_utc",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "gps"
+      },
+      "gps_raw_1": {
+        "original_unit": "DD.MM.YYYY",
+        "manufacturer_signal_name": "GPS (raw)",
+        "standardized_channel_id": "gps_date_utc",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "gps"
+      },
+      "light_intensity_2": {
+        "original_unit": "raw",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "light_extra1",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "cc_vid_size": {
+        "original_unit": "kBytes",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "ccvidsize",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "cc_status": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "ccstatus",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "gps": {
+        "original_unit": "binary",
+        "manufacturer_signal_name": "GPS (raw)",
+        "standardized_channel_id": "gps",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "camera_time": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "cameratime",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "led": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "led",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "flags": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "flags",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "camera": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "camera",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "batt": {
+        "original_unit": "V",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "batt_v",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "batt_mah": {
+        "original_unit": "mAh",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "batt_mah",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "batt_ma": {
+        "original_unit": "mA",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "batt_ma",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "system_error": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "syserror",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "light_intensity_1": {
+        "original_unit": "raw",
+        "manufacturer_signal_name": "Light intensity",
+        "standardized_channel_id": "light",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "depth_30bar_1": {
+        "original_unit": "msw",
+        "manufacturer_signal_name": "depth (30bar)",
+        "standardized_channel_id": "pressure",
+        "standardized_unit": "msw",
+        "parent_signal": "pressure"
+      },
+      "depth_30bar_2": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "Depth (temp)",
+        "standardized_channel_id": "temp_ext_extra1",
+        "standardized_unit": "degC",
+        "parent_signal": "temperature_ext"
+      },
+      "temperature_imu": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "Temperature (imu)",
+        "standardized_channel_id": "temp_ext",
+        "standardized_unit": "degC",
+        "parent_signal": "temperature_ext"
+      },
+      "magnetometer_z": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mz",
+        "standardized_unit": "microtesla",
+        "parent_signal": "magnetometer"
+      },
+      "magnetometer_y": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "my",
+        "standardized_unit": "microtesla",
+        "parent_signal": "magnetometer"
+      },
+      "magnetometer_x": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mx",
+        "standardized_unit": "microtesla",
+        "parent_signal": "magnetometer"
+      },
+      "time_local": {
+        "original_unit": "HH:MM:SS.000000",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "time",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "date_local": {
+        "original_unit": "DD.MM.YYYY",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "date",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "time_utc": {
+        "original_unit": "HH:MM:SS.000000",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "time_utc",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "date_utc": {
+        "original_unit": "DD.MM.YYYY",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "date_utc",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "accelerometer_z": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "accelerometer_y": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "accelerometer_x": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "gyroscope_z": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gz",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gyroscope_y": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gy",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gyroscope_x": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gx",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      }
+    },
+    "cats-video-montage_V1": {
+      "depth_100bar_2": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "Depth (temp)",
+        "standardized_channel_id": "temp_ext_extra2",
+        "standardized_unit": "degC",
+        "parent_signal": "temperature_ext"
+      },
+      "light_intensity_2": {
+        "original_unit": "raw",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "light_extra1",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "cc_vid_size": {
+        "original_unit": "kBytes",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "ccvidsize",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "cc_status": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "ccstatus",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "gps": {
+        "original_unit": "binary",
+        "manufacturer_signal_name": "GPS (raw)",
+        "standardized_channel_id": "gps",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "camera_time": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "cameratime",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "led": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "led",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "flags": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "flags",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "camera": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "camera",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "batt": {
+        "original_unit": "V",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "batt_v",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "batt_mah": {
+        "original_unit": "mAh",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "batt_mah",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "batt_ma": {
+        "original_unit": "mA",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "batt_ma",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "system_error": {
+        "original_unit": "null",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "syserror",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "light_intensity_1": {
+        "original_unit": "raw",
+        "manufacturer_signal_name": "Light intensity",
+        "standardized_channel_id": "light",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "depth_100bar": {
+        "original_unit": "msw",
+        "manufacturer_signal_name": "depth (100bar)",
+        "standardized_channel_id": "pressure",
+        "standardized_unit": "msw",
+        "parent_signal": "pressure"
+      },
+      "depth_100bar_1": {
+        "original_unit": "msw",
+        "manufacturer_signal_name": "depth (100bar)",
+        "standardized_channel_id": "pressure",
+        "standardized_unit": "msw",
+        "parent_signal": "pressure"
+      },
+      "temp_magnet": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "Temp. (magnet.)",
+        "standardized_channel_id": "temp_ext_extra1",
+        "standardized_unit": "degC",
+        "parent_signal": "temperature_ext"
+      },
+      "temperature_depth": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "Temperature (depth)",
+        "standardized_channel_id": "temp_ext",
+        "standardized_unit": "degC",
+        "parent_signal": "temperature_ext"
+      },
+      "temperature_imu": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "Temperature (imu)",
+        "standardized_channel_id": "temp_ext",
+        "standardized_unit": "degC",
+        "parent_signal": "temperature_ext"
+      },
+      "magnetometer_z": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mz",
+        "standardized_unit": "microtesla",
+        "parent_signal": "magnetometer"
+      },
+      "magnetometer_y": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "my",
+        "standardized_unit": "microtesla",
+        "parent_signal": "magnetometer"
+      },
+      "magnetometer_x": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mx",
+        "standardized_unit": "microtesla",
+        "parent_signal": "magnetometer"
+      },
+      "time_local": {
+        "original_unit": "HH:MM:SS.000000",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "time",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "date_local": {
+        "original_unit": "DD.MM.YYYY",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "date",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "time_utc": {
+        "original_unit": "HH:MM:SS.000000",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "time_utc",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "date_utc": {
+        "original_unit": "DD.MM.YYYY",
+        "manufacturer_signal_name": "extra",
+        "standardized_channel_id": "date_utc",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "accelerometer_z": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "accelerometer_y": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "accelerometer_x": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "gyroscope_z": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gz",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gyroscope_y": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gy",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gyroscope_x": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gx",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      }
+    },
+    "cats-processed-mat_V1": {
+      "at_0": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "at_1": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "at_2": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "aw_0": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "corrected_acc"
+      },
+      "aw_1": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "corrected_acc"
+      },
+      "aw_2": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "corrected_acc"
+      },
+      "camon": {
+        "original_unit": "binary",
+        "manufacturer_signal_name": "camon",
+        "standardized_channel_id": "camera_on_flag",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "audon": {
+        "original_unit": "binary",
+        "manufacturer_signal_name": "audon",
+        "standardized_channel_id": "audio_on_flag",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "dn": {
+        "original_unit": "MATLAB_DN",
+        "manufacturer_signal_name": "datetime",
+        "standardized_channel_id": "datetime_juldate",
+        "standardized_unit": "MATLAB_DN",
+        "parent_signal": "clock"
+      },
+      "mt_0": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mx",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "geoptrack_0": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "geoptrack",
+        "standardized_channel_id": "geopos_x",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "mt_1": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "my",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "mt_2": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mz",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "mw_0": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mx",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "corrected_mag"
+      },
+      "mw_1": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "my",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "corrected_mag"
+      },
+      "mw_2": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mz",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "corrected_mag"
+      },
+      "gt_0": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gx",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gt_1": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gy",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gt_2": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gz",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gw_0": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gx",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "corrected_gyr"
+      },
+      "gw_1": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gy",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "corrected_gyr"
+      },
+      "gw_2": {
+        "original_unit": "mrad/s",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gz",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "corrected_gyr"
+      },
+      "light": {
+        "original_unit": "Lux",
+        "manufacturer_signal_name": "Light intensity",
+        "standardized_channel_id": "light",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "geoptrack_1": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "geoptrack",
+        "standardized_channel_id": "geopos_y",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "pitch": {
+        "original_unit": "rad",
+        "manufacturer_signal_name": "pitch",
+        "standardized_channel_id": "pitch",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "roll": {
+        "original_unit": "rad",
+        "manufacturer_signal_name": "roll",
+        "standardized_channel_id": "roll",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "head": {
+        "original_unit": "rad",
+        "manufacturer_signal_name": "heading",
+        "standardized_channel_id": "heading",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "gps_0": {
+        "original_unit": "DD",
+        "manufacturer_signal_name": "GPS (raw)",
+        "standardized_channel_id": "latitude",
+        "standardized_unit": "DD",
+        "parent_signal": "location"
+      },
+      "gps_1": {
+        "original_unit": "DD",
+        "manufacturer_signal_name": "GPS (raw)",
+        "standardized_channel_id": "longitude",
+        "standardized_unit": "DD",
+        "parent_signal": "location"
+      },
+      "gpserr": {
+        "original_unit": NaN,
+        "manufacturer_signal_name": "GPS error",
+        "standardized_channel_id": "gps_error",
+        "standardized_unit": "m",
+        "parent_signal": "location"
+      },
+      "flownoise": {
+        "original_unit": NaN,
+        "manufacturer_signal_name": "flownoise",
+        "standardized_channel_id": "velocity_flownoise",
+        "standardized_unit": "m/s",
+        "parent_signal": "velocity"
+      },
+      "p": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "depth",
+        "standardized_channel_id": "depth",
+        "standardized_unit": "m",
+        "parent_signal": "depth"
+      },
+      "ptrack_0": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "ptrack",
+        "standardized_channel_id": "pos_x",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "ptrack_1": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "ptrack",
+        "standardized_channel_id": "pos_y",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "t": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "temperature",
+        "standardized_channel_id": "temp_ext",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_ext"
+      },
+      "jigrms": {
+        "original_unit": NaN,
+        "manufacturer_signal_name": "JigRMS",
+        "standardized_channel_id": "velocity_jigrms",
+        "standardized_unit": "m/s",
+        "parent_signal": "velocity"
+      },
+      "speedstats": {
+        "original_unit": NaN,
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "speedstats",
+        "standardized_unit": "m/s",
+        "parent_signal": "velocity2"
+      },
+      "viddeploy": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "viddeploy",
+        "standardized_channel_id": "number",
+        "standardized_unit": "str",
+        "parent_signal": "video_files"
+      },
+      "viddn": {
+        "original_unit": "MATLAB_DN",
+        "manufacturer_signal_name": "vidDN",
+        "standardized_channel_id": "datetime",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "viddurs": {
+        "original_unit": "sec",
+        "manufacturer_signal_name": "vidDurs",
+        "standardized_channel_id": "duration",
+        "standardized_unit": "sec",
+        "parent_signal": "video_files"
+      },
+      "vidnam": {
+        "original_unit": "filename",
+        "manufacturer_signal_name": "vidNam",
+        "standardized_channel_id": "filename",
+        "standardized_unit": "str",
+        "parent_signal": "video_files"
+      }
+    }
+  },
+  "Manitty": {
+    "hr-montage_V3": {
+      "temperature": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "temperature",
+        "standardized_channel_id": "temp_int_extra1",
+        "standardized_unit": "degC",
+        "parent_signal": "temperature_int"
+      },
+      "tint": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "Tint",
+        "standardized_channel_id": "temp_int2",
+        "standardized_unit": "degC",
+        "parent_signal": "temperature_int"
+      },
+      "pressure": {
+        "original_unit": "bar",
+        "manufacturer_signal_name": "pressure",
+        "standardized_channel_id": "pressure2",
+        "standardized_unit": "msw",
+        "parent_signal": "pressure2"
+      },
+      "gyro_z": {
+        "original_unit": "dps",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gz2",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope2"
+      },
+      "gyro_y": {
+        "original_unit": "dps",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gy2",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope2"
+      },
+      "gyro_x": {
+        "original_unit": "dps",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gx2",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope2"
+      },
+      "mag_z": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mz2",
+        "standardized_unit": "microtesla",
+        "parent_signal": "magnetometer2"
+      },
+      "mag_x": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mx2",
+        "standardized_unit": "microtesla",
+        "parent_signal": "magnetometer2"
+      },
+      "mag_y": {
+        "original_unit": "microtesla",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "my2",
+        "standardized_unit": "microtesla",
+        "parent_signal": "magnetometer2"
+      },
+      "acc_z": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "az2",
+        "standardized_unit": "m/s^2",
+        "parent_signal": "accelerometer2"
+      },
+      "acc_y": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ay2",
+        "standardized_unit": "m/s^2",
+        "parent_signal": "accelerometer2"
+      },
+      "acc_x": {
+        "original_unit": "m/s^2",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ax2",
+        "standardized_unit": "m/s^2",
+        "parent_signal": "accelerometer2"
+      },
+      "m1": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "M1",
+        "standardized_channel_id": "ecg",
+        "standardized_unit": "uV",
+        "parent_signal": "ecg"
+      }
+    }
+  },
+  "Star Oddi": {
+    "tdr-montage_V1": {
+      "date": {
+        "original_unit": "M/D/YYYY",
+        "manufacturer_signal_name": "date",
+        "standardized_channel_id": "date",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "depth": {
+        "original_unit": "cm",
+        "manufacturer_signal_name": "depth",
+        "standardized_channel_id": "pressure",
+        "standardized_unit": "m",
+        "parent_signal": "pressure"
+      },
+      "temp": {
+        "original_unit": "degreeCx100",
+        "manufacturer_signal_name": "temp",
+        "standardized_channel_id": "temp_ext",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_ext"
+      },
+      "datetime": {
+        "original_unit": "M/D/YYYY HH:MM:SS",
+        "manufacturer_signal_name": "datetime",
+        "standardized_channel_id": "datetime",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "time": {
+        "original_unit": "HH:MM:SS",
+        "manufacturer_signal_name": "time",
+        "standardized_channel_id": "time",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "seconds": {
+        "original_unit": "sec",
+        "manufacturer_signal_name": "seconds",
+        "standardized_channel_id": "time_s",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      }
+    },
+    "tilt-montage_V1": {
+      "pitch": {
+        "original_unit": "deg",
+        "manufacturer_signal_name": "pitch",
+        "standardized_channel_id": "pitch",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "date": {
+        "original_unit": "M/D/YYYY",
+        "manufacturer_signal_name": "date",
+        "standardized_channel_id": "date",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "depth": {
+        "original_unit": "cm",
+        "manufacturer_signal_name": "depth",
+        "standardized_channel_id": "pressure",
+        "standardized_unit": "m",
+        "parent_signal": "pressure"
+      },
+      "temp": {
+        "original_unit": "degreeCx100",
+        "manufacturer_signal_name": "temp",
+        "standardized_channel_id": "temp_ext",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_ext"
+      },
+      "roll": {
+        "original_unit": "deg",
+        "manufacturer_signal_name": "roll",
+        "standardized_channel_id": "roll",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "datetime": {
+        "original_unit": "M/D/YYYY HH:MM:SS",
+        "manufacturer_signal_name": "datetime",
+        "standardized_channel_id": "datetime",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "time": {
+        "original_unit": "HH:MM:SS",
+        "manufacturer_signal_name": "time",
+        "standardized_channel_id": "time",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "seconds": {
+        "original_unit": "sec",
+        "manufacturer_signal_name": "seconds",
+        "standardized_channel_id": "time_s",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      }
+    }
+  },
+  "Wildlife Computers": {
+    "tdr-montage_V1": {
+      "date": {
+        "original_unit": "M/D/YYYY",
+        "manufacturer_signal_name": "date",
+        "standardized_channel_id": "date",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "temp": {
+        "original_unit": "degreeCx100",
+        "manufacturer_signal_name": "temp",
+        "standardized_channel_id": "temp_ext",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_ext"
+      },
+      "light": {
+        "original_unit": "Lux",
+        "manufacturer_signal_name": "light",
+        "standardized_channel_id": "light",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "datetime": {
+        "original_unit": "M/D/YYYY HH:MM:SS",
+        "manufacturer_signal_name": "datetime",
+        "standardized_channel_id": "datetime",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "depth": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "depth",
+        "standardized_channel_id": "pressure",
+        "standardized_unit": "m",
+        "parent_signal": "pressure"
+      },
+      "time": {
+        "original_unit": "HH:MM:SS",
+        "manufacturer_signal_name": "time",
+        "standardized_channel_id": "time",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "seconds": {
+        "original_unit": "sec",
+        "manufacturer_signal_name": "seconds",
+        "standardized_channel_id": "time_s",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      }
+    },
+    "minipat_V1": {
+      "__files__": [
+        "ArchivedSeries"
+      ],
+      "time": {
+        "original_unit": "HH:MM:SS DD-Mon-YYYY",
+        "manufacturer_signal_name": "Time",
+        "standardized_channel_id": "datetime",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "depth": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "Depth",
+        "standardized_channel_id": "corrected_depth",
+        "standardized_unit": "m",
+        "parent_signal": "depth"
+      },
+      "temperature": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "Temperature",
+        "standardized_channel_id": "temp_ext",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_ext"
+      },
+      "light_level": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "Light Level",
+        "standardized_channel_id": "light",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "ax": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "Ax",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "ay": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "Ay",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "az": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "Az",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "dry": {
+        "original_unit": "bool",
+        "manufacturer_signal_name": "Dry",
+        "standardized_channel_id": "dry",
+        "standardized_unit": "bool",
+        "parent_signal": "wet_dry"
+      },
+      "aux": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "Aux",
+        "standardized_channel_id": "aux",
+        "standardized_unit": "count",
+        "parent_signal": "extra"
+      },
+      "one_minute_light_level": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "One Minute Light Level",
+        "standardized_channel_id": "light_one_minute",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "smoothed_light_level": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "Smoothed Light Level",
+        "standardized_channel_id": "light_smoothed",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "events": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Events",
+        "standardized_channel_id": "events",
+        "standardized_unit": "str",
+        "parent_signal": "label"
+      }
+    }
+  },
+  "Pisces Design": {
+    "vdr_accel_V1": {
+      "xaccel": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "yaccel": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "zaccel": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "date_gmt": {
+        "original_unit": "MM/DD/YY",
+        "manufacturer_signal_name": "date",
+        "standardized_channel_id": "date_utc",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "time_gmt": {
+        "original_unit": "HH:MM:SS",
+        "manufacturer_signal_name": "time",
+        "standardized_channel_id": "time_utc",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "time16": {
+        "original_unit": "mod_Hz",
+        "manufacturer_signal_name": "mod_Hz",
+        "standardized_channel_id": "time_hz",
+        "standardized_unit": "1/x",
+        "parent_signal": "clock"
+      }
+    },
+    "vdr_derived_V1": {
+      "date_gmt": {
+        "original_unit": "MM/DD/YY",
+        "manufacturer_signal_name": "date",
+        "standardized_channel_id": "date_utc",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "time_gmt": {
+        "original_unit": "HH:MM:SS",
+        "manufacturer_signal_name": "time",
+        "standardized_channel_id": "time_utc",
+        "standardized_unit": "HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "light": {
+        "original_unit": "Lux",
+        "manufacturer_signal_name": "light",
+        "standardized_channel_id": "light",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "light2": {
+        "original_unit": "Lux",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "light",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "pitch": {
+        "original_unit": "rad",
+        "manufacturer_signal_name": "pitch",
+        "standardized_channel_id": "pitch",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "roll": {
+        "original_unit": "rad",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "roll",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "heading_mag": {
+        "original_unit": "rad",
+        "manufacturer_signal_name": "heading_mag",
+        "standardized_channel_id": "heading",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "depth": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "depth",
+        "standardized_channel_id": "corrected_depth",
+        "standardized_unit": "m",
+        "parent_signal": "depth"
+      },
+      "strokingrate": {
+        "original_unit": "Hz",
+        "manufacturer_signal_name": "strokingrate",
+        "standardized_channel_id": "stroke_rate",
+        "standardized_unit": "spm",
+        "parent_signal": "stroke_rate"
+      },
+      "heading_geo": {
+        "original_unit": "rad",
+        "manufacturer_signal_name": "heading_geo",
+        "standardized_channel_id": "heading2",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "wet-dry": {
+        "original_unit": "conductivity",
+        "manufacturer_signal_name": "wet-dry",
+        "standardized_channel_id": "wet_dry",
+        "standardized_unit": "NA",
+        "parent_signal": "logger_status"
+      },
+      "divenumber": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "divenumber",
+        "standardized_channel_id": "dive_num",
+        "standardized_unit": "Dive_num",
+        "parent_signal": "dives"
+      },
+      "detectedfeeding": {
+        "original_unit": "binary",
+        "manufacturer_signal_name": "detectedfeeding",
+        "standardized_channel_id": "feeding",
+        "standardized_unit": "str",
+        "parent_signal": "feeding_attempts"
+      },
+      "divenumber_inc_inaccuratedepth": {
+        "original_unit": "count",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "dive_num_all-incl-inacc-depth",
+        "standardized_unit": "count",
+        "parent_signal": "dives"
+      },
+      "x": {
+        "original_unit": "m",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "pos_x_perdive",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "y": {
+        "original_unit": "m",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "pos_y_perdive",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "xcorr": {
+        "original_unit": "m",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "geopos_x_perdive",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "ycorr": {
+        "original_unit": "m",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "geopos_y_perdive",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "speed": {
+        "original_unit": "m/s",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "velocity",
+        "standardized_unit": "m/s",
+        "parent_signal": "velocity"
+      },
+      "lat1hz": {
+        "original_unit": "decimal-degrees",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "latitude",
+        "standardized_unit": "DD",
+        "parent_signal": "location"
+      },
+      "lon1hz": {
+        "original_unit": "decimal-degrees",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "longitude",
+        "standardized_unit": "DD",
+        "parent_signal": "location"
+      },
+      "pred_divetype": {
+        "original_unit": "code",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "dive_type_project",
+        "standardized_unit": "str",
+        "parent_signal": "label"
+      },
+      "divenumber_inc_inaccuratespeed": {
+        "original_unit": "count",
+        "manufacturer_signal_name": NaN,
+        "standardized_channel_id": "dive_num_all-incl-inacc_speed",
+        "standardized_unit": "count",
+        "parent_signal": "dives"
+      },
+      "datetimenumeric": {
+        "original_unit": "unix",
+        "manufacturer_signal_name": "datetimenum",
+        "standardized_channel_id": "datetimenum_utc",
+        "standardized_unit": "unix",
+        "parent_signal": "clock"
+      }
+    }
+  },
+  "Evolocus": {
+    "juv-nese-sleep-montage_V1": {
+      "gyrx": {
+        "original_unit": "RPS",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gx",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gyry": {
+        "original_unit": "RPS",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gy",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gyrz": {
+        "original_unit": "RPS",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gz",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "accx": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "accy": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "accz": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "magx": {
+        "original_unit": "Gauss",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mx",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "magy": {
+        "original_unit": "Gauss",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "my",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "magz": {
+        "original_unit": "Gauss",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mz",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "pressure": {
+        "original_unit": "bar",
+        "manufacturer_signal_name": "pressure",
+        "standardized_channel_id": "pressure",
+        "standardized_unit": "m",
+        "parent_signal": "pressure"
+      },
+      "illumination": {
+        "original_unit": "Lux",
+        "manufacturer_signal_name": "illumination",
+        "standardized_channel_id": "light",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "temperature": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "temperature",
+        "standardized_channel_id": "temp_int",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_int"
+      },
+      "synchronization": {
+        "original_unit": "Binary16",
+        "manufacturer_signal_name": "synchronization",
+        "standardized_channel_id": "synchronization",
+        "standardized_unit": "binary",
+        "parent_signal": "logger_status"
+      },
+      "ch1": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "ecg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "ecg"
+      },
+      "ch2": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eog_l",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eog"
+      },
+      "ch3": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eog_r",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eog"
+      },
+      "ch4": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eeg_f3",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eeg"
+      },
+      "ch5": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch9": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch10": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch11": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch13": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch14": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch15": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch6": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "emg_l",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "emg"
+      },
+      "ch7": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "emg_r",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "emg"
+      },
+      "ch16": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eeg_p4",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eeg"
+      },
+      "ch8": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eeg_f4",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eeg"
+      },
+      "ch12": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eeg_p3",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eeg"
+      }
+    },
+    "juv-nese-sleep-montage_V3": {
+      "gyrx": {
+        "original_unit": "RPS",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gx",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gyry": {
+        "original_unit": "RPS",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gy",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gyrz": {
+        "original_unit": "RPS",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gz",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "accx": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "accy": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "accz": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "magx": {
+        "original_unit": "Gauss",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mx",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "magy": {
+        "original_unit": "Gauss",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "my",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "magz": {
+        "original_unit": "Gauss",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mz",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "pressure": {
+        "original_unit": "bar",
+        "manufacturer_signal_name": "pressure",
+        "standardized_channel_id": "pressure",
+        "standardized_unit": "m",
+        "parent_signal": "pressure"
+      },
+      "illumination": {
+        "original_unit": "Lux",
+        "manufacturer_signal_name": "illumination",
+        "standardized_channel_id": "light",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "temperature": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "temperature",
+        "standardized_channel_id": "temp_int",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_int"
+      },
+      "synchronization": {
+        "original_unit": "Binary16",
+        "manufacturer_signal_name": "synchronization",
+        "standardized_channel_id": "synchronization",
+        "standardized_unit": "binary",
+        "parent_signal": "logger_status"
+      },
+      "ch6": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "ecg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "ecg"
+      },
+      "ch3": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eog_l",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eog"
+      },
+      "ch2": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eog_r",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eog"
+      },
+      "ch7": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eeg_f3",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eeg"
+      },
+      "ch1": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch9": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch10": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch11": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch14": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch13": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch15": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "extra_exg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "exg"
+      },
+      "ch5": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "emg_l",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "emg"
+      },
+      "ch4": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "emg_r",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "emg"
+      },
+      "ch16": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eeg_p4",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eeg"
+      },
+      "ch8": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eeg_f4",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eeg"
+      },
+      "ch12": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "eeg_p3",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "eeg"
+      }
+    },
+    "juv-nese-sleep-derived": {
+      "sealid": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Animal_ID",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "recordingid": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Recording_ID",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "id": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Recording_context",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "sleepcode": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Sleep Code",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "simplesleepcode": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Simple Sleep Code",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "respcode": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Resp Code",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "watercode": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Water Code",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "respnum": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "Resp Num",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "waternum": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "Water Num",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "timebins": {
+        "original_unit": "timebins",
+        "manufacturer_signal_name": "timebins",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "recording_id": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Recording_ID",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "sleep_code": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Sleep Code",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "simple_sleep_code": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Simple Sleep Code",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "resp_code": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Resp Code",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "water_code": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "Water Code",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "resp_num": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "Resp Num",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "water_num": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "Water Num",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "rtime": {
+        "original_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "manufacturer_signal_name": "datetime",
+        "standardized_channel_id": "datetime",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "r_time": {
+        "original_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "manufacturer_signal_name": "datetime",
+        "standardized_channel_id": "datetime",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "heartrate": {
+        "original_unit": "bpm",
+        "manufacturer_signal_name": "Heart Rate",
+        "standardized_channel_id": "heart_rate",
+        "standardized_unit": "bpm",
+        "parent_signal": "heart_rate"
+      },
+      "heart_rate": {
+        "original_unit": "bpm",
+        "manufacturer_signal_name": "Heart Rate",
+        "standardized_channel_id": "heart_rate",
+        "standardized_unit": "bpm",
+        "parent_signal": "heart_rate"
+      },
+      "pitch": {
+        "original_unit": "rad",
+        "manufacturer_signal_name": "pitch",
+        "standardized_channel_id": "pitch",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "roll": {
+        "original_unit": "rad",
+        "manufacturer_signal_name": "roll",
+        "standardized_channel_id": "roll",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "heading": {
+        "original_unit": "rad",
+        "manufacturer_signal_name": "heading",
+        "standardized_channel_id": "heading",
+        "standardized_unit": "deg",
+        "parent_signal": "prh"
+      },
+      "depth": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "depth",
+        "standardized_channel_id": "corrected_depth",
+        "standardized_unit": "m",
+        "parent_signal": "depth"
+      },
+      "strokerate": {
+        "original_unit": "spm",
+        "manufacturer_signal_name": "Stroke Rate",
+        "standardized_channel_id": "stroke_rate",
+        "standardized_unit": "spm",
+        "parent_signal": "stroke_rate"
+      },
+      "stroke_rate": {
+        "original_unit": "spm",
+        "manufacturer_signal_name": "Stroke Rate",
+        "standardized_channel_id": "stroke_rate",
+        "standardized_unit": "spm",
+        "parent_signal": "stroke_rate"
+      },
+      "seconds": {
+        "original_unit": "sec",
+        "manufacturer_signal_name": "seconds",
+        "standardized_channel_id": "time_s",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "x": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "position",
+        "standardized_channel_id": "pos_x",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "y": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "position",
+        "standardized_channel_id": "pos_y",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "speed": {
+        "original_unit": "m/s",
+        "manufacturer_signal_name": "speed",
+        "standardized_channel_id": "velocity",
+        "standardized_unit": "m/s",
+        "parent_signal": "velocity"
+      },
+      "lat": {
+        "original_unit": "decimal-degrees",
+        "manufacturer_signal_name": "Latitude",
+        "standardized_channel_id": "latitude",
+        "standardized_unit": "DD",
+        "parent_signal": "location"
+      },
+      "long": {
+        "original_unit": "decimal-degrees",
+        "manufacturer_signal_name": "Longitude",
+        "standardized_channel_id": "longitude",
+        "standardized_unit": "DD",
+        "parent_signal": "location"
+      },
+      "geox": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "geoptrack",
+        "standardized_channel_id": "geopos_x",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "geoy": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "geoptrack",
+        "standardized_channel_id": "geopos_y",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      },
+      "dn": {
+        "original_unit": "MATLAB_DN",
+        "manufacturer_signal_name": "MATLAB_DN",
+        "standardized_channel_id": "datetime_juldate",
+        "standardized_unit": "MATLAB_DN",
+        "parent_signal": "clock"
+      },
+      "sleepnum": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "Sleep Num",
+        "standardized_channel_id": "sleep_state",
+        "standardized_unit": NaN,
+        "parent_signal": "label"
+      },
+      "sleep_num": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "Sleep Num",
+        "standardized_channel_id": "sleep_state",
+        "standardized_unit": NaN,
+        "parent_signal": "label"
+      },
+      "simplesleepnum": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "Simple Sleep Num",
+        "standardized_channel_id": "simple_sleep_state",
+        "standardized_unit": NaN,
+        "parent_signal": "label"
+      },
+      "simple_sleep_num": {
+        "original_unit": "count",
+        "manufacturer_signal_name": "Simple Sleep Num",
+        "standardized_channel_id": "simple_sleep_state",
+        "standardized_unit": NaN,
+        "parent_signal": "label"
+      },
+      "issleepspiral": {
+        "original_unit": "binary",
+        "manufacturer_signal_name": "is_sleepspiral",
+        "standardized_channel_id": "is_sleepspiral",
+        "standardized_unit": NaN,
+        "parent_signal": "label"
+      },
+      "is_sleepspiral": {
+        "original_unit": "binary",
+        "manufacturer_signal_name": "is_sleepspiral",
+        "standardized_channel_id": "is_sleepspiral",
+        "standardized_unit": NaN,
+        "parent_signal": "label"
+      },
+      "hrvlfpower": {
+        "original_unit": "V^2/Hz",
+        "manufacturer_signal_name": "Heart Rate VLF Power",
+        "standardized_channel_id": "heart_rate_vlf_power",
+        "standardized_unit": "V^2/Hz",
+        "parent_signal": "heart_rate_analysis"
+      },
+      "hr_vlf_power": {
+        "original_unit": "V^2/Hz",
+        "manufacturer_signal_name": "Heart Rate VLF Power",
+        "standardized_channel_id": "heart_rate_vlf_power",
+        "standardized_unit": "V^2/Hz",
+        "parent_signal": "heart_rate_analysis"
+      },
+      "reegdelta": {
+        "original_unit": "V^2/Hz",
+        "manufacturer_signal_name": "EEG Delta Power",
+        "standardized_channel_id": "eeg_f3_delta_power",
+        "standardized_unit": "V^2/Hz",
+        "parent_signal": "eeg_analysis"
+      },
+      "r_eeg_delta": {
+        "original_unit": "V^2/Hz",
+        "manufacturer_signal_name": "EEG Delta Power",
+        "standardized_channel_id": "eeg_f3_delta_power",
+        "standardized_unit": "V^2/Hz",
+        "parent_signal": "eeg_analysis"
+      },
+      "leegdelta": {
+        "original_unit": "V^2/Hz",
+        "manufacturer_signal_name": "EEG Delta Power F4 (L)",
+        "standardized_channel_id": "eeg_f4_delta_power",
+        "standardized_unit": "V^2/Hz",
+        "parent_signal": "eeg_analysis"
+      },
+      "l_eeg_delta": {
+        "original_unit": "V^2/Hz",
+        "manufacturer_signal_name": "EEG Delta Power F4 (L)",
+        "standardized_channel_id": "eeg_f4_delta_power",
+        "standardized_unit": "V^2/Hz",
+        "parent_signal": "eeg_analysis"
+      },
+      "z": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "position",
+        "standardized_channel_id": "pos_z",
+        "standardized_unit": "m",
+        "parent_signal": "position"
+      }
+    }
+  },
+  "Vectronics": {
+    "adult-lion-collar": {
+      "ax": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "ay": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "az": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "acc_x": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "acc_y": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "acc_z": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "date_iso_string": {
+        "original_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "manufacturer_signal_name": "clock",
+        "standardized_channel_id": "datetime_utc",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "utc_milliseconds_since_1970": {
+        "original_unit": "unix",
+        "manufacturer_signal_name": "clock",
+        "standardized_channel_id": "datetimenum_utc",
+        "standardized_unit": "unix",
+        "parent_signal": "clock"
+      }
+    },
+    "adult-lion-collar_derived-reconverted": {
+      "x_axis_scaled": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "X.Axis.Scaled",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "y_axis_scaled": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "Y.Axis.Scaled",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "z_axis_scaled": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "Z.Axis.Scaled",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "date_utc": {
+        "original_unit": "YYYY-MM-DD",
+        "manufacturer_signal_name": "Date_UTC",
+        "standardized_channel_id": "date_utc",
+        "standardized_unit": "YYYY-MM-DD",
+        "parent_signal": "clock"
+      },
+      "utc_time": {
+        "original_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "manufacturer_signal_name": "UTC.Time",
+        "standardized_channel_id": "datetime_utc",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "z_axis": {
+        "original_unit": "g*16",
+        "manufacturer_signal_name": "X.Axis",
+        "standardized_channel_id": "ax2",
+        "standardized_unit": "m/s^2",
+        "parent_signal": "accelerometer2"
+      },
+      "y_axis": {
+        "original_unit": "g*16",
+        "manufacturer_signal_name": "Y.Axis",
+        "standardized_channel_id": "ay2",
+        "standardized_unit": "m/s^2",
+        "parent_signal": "accelerometer2"
+      },
+      "x_axis": {
+        "original_unit": "g*16",
+        "manufacturer_signal_name": "Z.Axis",
+        "standardized_channel_id": "az2",
+        "standardized_unit": "m/s^2",
+        "parent_signal": "accelerometer2"
+      },
+      "collar_id": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "collar_id",
+        "standardized_channel_id": "logger_id",
+        "standardized_unit": NaN,
+        "parent_signal": "id"
+      },
+      "animal_id": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "animal_id",
+        "standardized_channel_id": "animal_id",
+        "standardized_unit": NaN,
+        "parent_signal": "id"
+      },
+      "relative_time": {
+        "original_unit": "DDd HH:MM:SS.000",
+        "manufacturer_signal_name": "Relative.Time",
+        "standardized_channel_id": "time_d",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      }
+    }
+  },
+  "Little Leonardo": {
+    "nese-stroke-logger_V1": {
+      "temp": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "temp",
+        "standardized_channel_id": "temp_ext",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_ext"
+      },
+      "light": {
+        "original_unit": "Lux",
+        "manufacturer_signal_name": "light",
+        "standardized_channel_id": "light",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "toppid": {
+        "original_unit": "id",
+        "manufacturer_signal_name": "toppid",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "toppid_tlld": {
+        "original_unit": "id",
+        "manufacturer_signal_name": "toppid_tlld",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "source_file": {
+        "original_unit": "str",
+        "manufacturer_signal_name": "source_file",
+        "standardized_channel_id": "extra",
+        "standardized_unit": "NA",
+        "parent_signal": "extra"
+      },
+      "stroke_time_utc": {
+        "original_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "manufacturer_signal_name": "stroke_time_utc",
+        "standardized_channel_id": "datetime_utc",
+        "standardized_unit": "YYYY-MM-DD HH:MM:SS.000",
+        "parent_signal": "clock"
+      },
+      "depth": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "depth (on TDR logger)",
+        "standardized_channel_id": "depth",
+        "standardized_unit": "m",
+        "parent_signal": "depth"
+      },
+      "stroke": {
+        "original_unit": "count_per_5s",
+        "manufacturer_signal_name": "Stroke count (per 5 sec)",
+        "standardized_channel_id": "stroke_rate",
+        "standardized_unit": "spm",
+        "parent_signal": "stroke_rate"
+      },
+      "lat": {
+        "original_unit": "decimal-degrees",
+        "manufacturer_signal_name": "lat",
+        "standardized_channel_id": "latitude",
+        "standardized_unit": "DD",
+        "parent_signal": "location"
+      },
+      "lon": {
+        "original_unit": "decimal-degrees",
+        "manufacturer_signal_name": "lon",
+        "standardized_channel_id": "longitude",
+        "standardized_unit": "DD",
+        "parent_signal": "location"
+      },
+      "time": {
+        "original_unit": "MATLAB_DN",
+        "manufacturer_signal_name": "time",
+        "standardized_channel_id": "datetime_juldate",
+        "standardized_unit": "MATLAB_DN",
+        "parent_signal": "clock"
+      },
+      "sway": {
+        "original_unit": "NA",
+        "manufacturer_signal_name": "Lateral sway",
+        "standardized_channel_id": "sway",
+        "standardized_unit": "NA",
+        "parent_signal": "sway"
+      },
+      "posture": {
+        "original_unit": "NA",
+        "manufacturer_signal_name": "Posture (pos is likely belly down)",
+        "standardized_channel_id": "posture",
+        "standardized_unit": "NA",
+        "parent_signal": "posture"
+      },
+      "depth_stroke": {
+        "original_unit": "m",
+        "manufacturer_signal_name": "Depth (on Stroke Logger)",
+        "standardized_channel_id": "depth2",
+        "standardized_unit": "m",
+        "parent_signal": "depth2"
+      }
+    }
+  }
 }

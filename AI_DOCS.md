@@ -180,6 +180,63 @@ See `docs/source/edf_import.rst` for the full design.
 - `detect_heartbeats(data_pkl, ...)` → `pd.DataFrame` — ECG peak detection via wfdb
 - `_should_convert_stroke_to_stride_rate(data_pkl, mode)` → `bool` — checks species code against `QUADRUPED_SPECIES_CODES`
 
+### `dash/integrated/integrated_dash.py`
+
+**Purpose**: The Integrated Dash app — interactive multi-signal plot, time selector,
+3D orientation model, synchronized video, and the segmentation UI (`/segmentation`).
+Formerly `dash/minimal_interactive/app.py` (renamed 2026-07).
+
+**Launch** (from `pyologger/`):
+
+```bash
+# open the configured default deployment (no args required)
+python dash/integrated/integrated_dash.py
+
+# or target a specific deployment / port
+python dash/integrated/integrated_dash.py --dataset <id> --deployment <id> --port 8061
+```
+
+- `--dataset` / `--deployment` are **optional**. `_resolve_launch_target()` picks:
+  explicit args → `DEFAULT_SEGMENTATION_DATASET`/`DEFAULT_SEGMENTATION_DEPLOYMENT`
+  (from `segmentation_helpers.py`) → first dataset on disk with a deployment that
+  has `outputs/data.pkl`. Prints `[launch] Opening dataset=… deployment=…`.
+- Routes: `/` (main viewer), `/segmentation`, `/water` (experimental WebGL tank).
+
+**Synchronized video** (matches a playhead time to a video clip and plays it):
+
+- **Source precedence** — `_build_clip_index()`: Immich album `DepID_<deployment_id>`
+  (via `DiveDB.services.immich_service.ImmichService`) → local files under
+  `VIDEO_DIR` (override with `PYOLOGGER_VIDEO_DIR`). Prints `[video] Using N … clip(s)`.
+- **Clip index** — each clip: `{name, start_epoch, end_epoch, source, url}`. Immich
+  clips use the raw `find_media` `fileCreatedAt` (true UTC) — NOT
+  `prepare_video_options_for_react` (which mislabels local time as UTC). Local clips
+  parse `…_HH-MM-SS_HH-MM-SS.mp4` filenames in the deployment timezone.
+- **Serving** — Flask routes stream with HTTP Range support (seeking):
+  - `/immich-video/<asset_id>` proxies Immich `/assets/{id}/video/playback` with the
+    `x-api-key` header server-side (key never reaches the browser); forwards `Range`.
+  - `/local-video/<name>` serves local files; lazily runs `qt-faststart`/`ffmpeg
+    -movflags +faststart` into a `.faststart/` cache (fixes black frames from a
+    trailing `moov` atom).
+- **Immich creds** — `IMMICH_API_KEY` / `IMMICH_BASE_URL`; `_ensure_immich_env()`
+  loads them from `PYOLOGGER_IMMICH_ENV` or `../EcoPhysVideoViz/.env` if unset.
+
+**Playback clock** (single play button drives plot playhead + video):
+
+- `assets/playback-manager.js` (`window.IntegratedPlayback`) is a rAF clock used only
+  when the playhead is in a gap (no video). When a clip is loaded the `<video>` is the
+  **master clock** — a `timeupdate` listener drives `playhead-time` via
+  `dash_clientside.set_props`, and the sync callback never seeks the element while it
+  plays (seeking mid-play was the cause of blank-frame-with-audio).
+- Stores/ids: `playhead-time`, `is-playing`, `playback-rate`, `play-pause-btn`,
+  `playback-interval`, `sync-video`, `sync-video-current-clip`. Spacebar toggles play.
+- The main-plot yellow playhead line moves clientside (`Plotly.relayout`) during
+  playback; the server redraw is skipped while `is-playing`.
+
+**Coverage strips** (EcoPhysVideoViz-style CSS bars): `_video_coverage_bars()` builds
+one `.coverage-bar` per clip positioned by `--seg-start/--seg-end` against the strip's
+`--view-min/--view-max`. Full-range strip under the window slider; window-aligned strip
+under the main plot (padded to Plotly's `_fullLayout._size` margins).
+
 ## Segmentation Pipeline
 
 ### Stage Table

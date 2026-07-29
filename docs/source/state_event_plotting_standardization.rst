@@ -124,7 +124,7 @@ Phase 3: Cross-repo API standardization
    - notebook manual overlay flow
    - ``DiveDB/dash/graph_utils.py``
    - ``pyologger/dash/graph_utils.py`` (if still active)
-   - ``pyologger/dash/minimal_interactive/app.py`` integrations
+   - ``pyologger/dash/integrated/integrated_dash.py`` integrations
 3. Align names/defaults for modes and percentages across callers.
 
 Phase 4: Interaction + reliability hardening

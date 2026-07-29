@@ -19,6 +19,8 @@ from pyologger.io_operations.base_exporter import *
 parser = argparse.ArgumentParser(description="Zero Offset Correction - Calibrate Pressure Sensor")
 parser.add_argument("--dataset", type=str, help="Dataset folder name")
 parser.add_argument("--deployment", type=str, help="Deployment ID")
+parser.add_argument("--export-csvs", action="store_true", help="Export signal and event data CSVs")
+parser.add_argument("--csvs-only", action="store_true", help="Export CSVs only, skip NetCDF export and pkl save")
 args = parser.parse_args()
 
 # Load environment variables
@@ -59,9 +61,9 @@ OVERLAP_END_TIME = settings.get("overlap_end_time")
 ANALYSIS_START_TIME = settings.get("analysis_start_time")
 ANALYSIS_END_TIME = settings.get("analysis_end_time")
 
-summarize = False
+pkl_size_gb = os.path.getsize(pkl_path) / 1e9 if os.path.exists(pkl_path) else 0
 
-if summarize:
+if args.export_csvs or args.csvs_only:
     # Example usage
     signal_data_keys = ['depth','corrected_depth','o2_pressure', 'temperature_ext', 'temperature_int']
     # signal_data_keys = ['pressure','prh', 'odba', 'heart_rate', 'stroke_rate']
@@ -72,20 +74,39 @@ if summarize:
     # heart_rate_fs = calculate_sampling_frequency(data_pkl.signal_data['heart_rate']['datetime'])
     # stroke_rate_fs = calculate_sampling_frequency(data_pkl.signal_data['stroke_rate']['datetime'])
 
-    # Run the function
-    collated_df = collate_data(data_pkl, signal_data_keys, output_frequency)
+    if pkl_size_gb >= 1.0:
+        print(f"Skipping signal data CSV export: data.pkl is {pkl_size_gb:.2f} GB (>= 1 GB limit).")
+    else:
+        # Run the function
+        collated_df = collate_data(data_pkl, signal_data_keys, output_frequency)
 
-    # Add another 'datetime' column without the timezone information
-    collated_df['datetime'] = collated_df['datetime'].dt.tz_localize(None)
-    start_time = pd.Timestamp(OVERLAP_START_TIME).tz_localize(None)
-    end_time = pd.Timestamp(OVERLAP_END_TIME).tz_localize(None)
-    cropped_collated_df = collated_df[(collated_df['datetime'] >= start_time) & (collated_df['datetime'] <= end_time)]
+        # Add another 'datetime' column without the timezone information
+        collated_df['datetime'] = collated_df['datetime'].dt.tz_localize(None)
+        if OVERLAP_START_TIME and OVERLAP_END_TIME:
+            start_time = pd.Timestamp(OVERLAP_START_TIME).tz_localize(None)
+            end_time = pd.Timestamp(OVERLAP_END_TIME).tz_localize(None)
+            collated_df = collated_df[(collated_df['datetime'] >= start_time) & (collated_df['datetime'] <= end_time)]
+            print(f"Cropping signal CSV to overlap window: {start_time} to {end_time}")
+        else:
+            print("No overlap window defined; exporting full signal data.")
 
-    cropped_collated_df
-    # Save the filtered event data to a CSV file in the deployment folder
-    csv_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_signal_data.csv')
-    cropped_collated_df.to_csv(csv_file_path, index=False)
-    print(f"Filtered event data saved to {csv_file_path}")
+        csv_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_signal_data.csv')
+        collated_df.to_csv(csv_file_path, index=False)
+        print(f"Signal data saved to {csv_file_path}")
+
+    # Export ECG at native resolution (not resampled — too high frequency for collate_data)
+    if 'ecg' in data_pkl.signal_data:
+        ecg_df = data_pkl.signal_data['ecg'].copy()
+        ecg_df['datetime'] = ecg_df['datetime'].dt.tz_localize(None)
+        if OVERLAP_START_TIME and OVERLAP_END_TIME:
+            start_time = pd.Timestamp(OVERLAP_START_TIME).tz_localize(None)
+            end_time = pd.Timestamp(OVERLAP_END_TIME).tz_localize(None)
+            ecg_df = ecg_df[(ecg_df['datetime'] >= start_time) & (ecg_df['datetime'] <= end_time)]
+        ecg_csv_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_ecg_data.csv')
+        ecg_df.to_csv(ecg_csv_path, index=False)
+        print(f"ECG data saved to {ecg_csv_path}")
+    else:
+        print("No ECG signal found in data; skipping ECG CSV export.")
 
     # Filter the event data
     filtered_event_data = data_pkl.event_data[
@@ -93,16 +114,21 @@ if summarize:
     ]
 
     # Keep only the 'datetime' and 'key' columns
-    filtered_event_data = filtered_event_data[['datetime', 'key']]
-
-    # Add another 'datetime' column without the timezone information
+    filtered_event_data = filtered_event_data[['datetime', 'key']].copy()
     filtered_event_data['datetime'] = filtered_event_data['datetime'].dt.tz_localize(None)
-    filtered_event_data = filtered_event_data[(filtered_event_data['datetime'] >= start_time) & (filtered_event_data['datetime'] <= end_time)]
-    filtered_event_data
-    # Save the filtered event data to a CSV file in the deployment folder
+    if OVERLAP_START_TIME and OVERLAP_END_TIME:
+        filtered_event_data = filtered_event_data[(filtered_event_data['datetime'] >= start_time) & (filtered_event_data['datetime'] <= end_time)]
+        print(f"Cropping event CSV to overlap window: {start_time} to {end_time}")
+    else:
+        print("No overlap window defined; exporting full event data.")
+
     csv_file_path = os.path.join(deployment_folder, 'outputs', f'{deployment_id}_event_data.csv')
     filtered_event_data.to_csv(csv_file_path, index=False)
-    print(f"Filtered event data saved to {csv_file_path}")
+    print(f"Event data saved to {csv_file_path}")
+
+if args.csvs_only:
+    print("--csvs-only: skipping NetCDF export and pkl save.")
+    exit(0)
 
 # Crop all derived dataframes to analysis time window if defined
 if ANALYSIS_START_TIME and ANALYSIS_END_TIME:
@@ -110,10 +136,18 @@ if ANALYSIS_START_TIME and ANALYSIS_END_TIME:
     analysis_end = pd.Timestamp(ANALYSIS_END_TIME)
     for key, df in data_pkl.signal_data.items():
         if 'datetime' in df.columns:
-            data_pkl.signal_data[key] = df[
-                (df['datetime'] >= analysis_start) &
-                (df['datetime'] <= analysis_end)
-            ]
+            # Align timezone awareness before comparing: a single naive signal
+            # would otherwise raise "Cannot compare tz-naive and tz-aware
+            # datetime-like objects" and abort the whole export.
+            dt = pd.to_datetime(df['datetime'])
+            start, end = analysis_start, analysis_end
+            if dt.dt.tz is None and start.tz is not None:
+                print(f"⚠️ Signal '{key}' has naive datetimes; assuming {start.tz} for cropping.")
+                dt = dt.dt.tz_localize(start.tz)
+            elif dt.dt.tz is not None and start.tz is None:
+                start = start.tz_localize(dt.dt.tz)
+                end = end.tz_localize(dt.dt.tz)
+            data_pkl.signal_data[key] = df[(dt >= start) & (dt <= end)]
     print(f"Cropped signal_data to analysis window: {analysis_start} to {analysis_end}")
 else:
     print("No analysis window defined; skipping cropping of signal_data.")

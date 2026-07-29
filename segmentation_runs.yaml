@@ -1,7 +1,156 @@
 
 
 segmentation_runs:
-  
+
+  # ---------------------------------------------------------------------------
+  # finescale_hr — comparative finescale heart-rate analysis (orca vs NES)
+  #
+  # Purpose: cluster fixed 10 s windows of HR + stroke_rate (+ depth) for one
+  # killer whale and one northern elephant seal, to test whether HR profile is
+  # driven more by activity (stroke rate) or by breath/dive cycling.
+  # Mirrors the "CLUSTERING – 10s fixed duration chunks" analysis strategy.
+  #
+  # NOTE on HR sampling: the orca pickle stores `heart_rate_fixed` at 100 Hz
+  # (a step function between beats). The features stage tolerates this via
+  # sampling_compatibility_tolerance + min_samples_per_chunk; the companion
+  # notebook (MA_finescale-hr.ipynb) downsamples HR to ~1 Hz for the finescale
+  # timeseries and breath/dive analyses.
+  #
+  # Run (from pyologger/, with MARKERS_BASE set per Segmentation_Workflow_Guide.md):
+  #   RUN_NAME=finescale_hr
+  #   snakemake -s Snakefile --configfile config.yaml --cores 4 \
+  #     ${MARKERS_BASE}/${RUN_NAME}/12_unsupervised.done
+  # Clustering only needs through stage 12 (unsupervised); supervised is off.
+  # ---------------------------------------------------------------------------
+  finescale_hr:
+    scope:
+      analysis_id: finescale_hr
+      dataset_ids:
+      - oror-adult-orca_hr-sr-vid_sw_JKB-PP
+      - mian-juv-nese_sleep_lml-ano_JKB
+      # All uncommented orca + NES deployments that carry HR.
+      # NOTE: 2023-10-26_oror-001 is intentionally omitted — it has no HR channel
+      # (heart_rate / heart_rate_fixed absent), and HR is a required feature here.
+      deployment_ids:
+      - 2023-06-13_oror-002
+      - 2023-06-23_oror-002
+      - 2023-09-29_oror-002
+      - 2023-10-18_oror-001
+      - 2023-10-18_oror-002
+      - 2023-12-12_oror-001
+      - 2024-01-16_oror-002
+      - 2024-01-24_oror-001
+      - 2024-06-06_oror-002
+      - 2024-12-19_oror-001
+      - 2025-01-30_oror-001
+      - 2021-04-04_mian-009
+      - 2021-04-17_mian-011
+      - 2022-04-01_mian-013
+      expected_signals:
+      - depth
+      - heart_rate
+      - stroke_rate
+      groups:
+        KW:
+        - 2023-06-13_oror-002
+        - 2023-06-23_oror-002
+        - 2023-09-29_oror-002
+        - 2023-10-18_oror-001
+        - 2023-10-18_oror-002
+        - 2023-12-12_oror-001
+        - 2024-01-16_oror-002
+        - 2024-01-24_oror-001
+        - 2024-06-06_oror-002
+        - 2024-12-19_oror-001
+        - 2025-01-30_oror-001
+        NES:
+        - 2021-04-04_mian-009
+        - 2021-04-17_mian-011
+        - 2022-04-01_mian-013
+    features:
+      normalization_level: deployment
+      cluster_length_mode: fixed
+      duration_s: 10
+      min_samples_per_chunk: 5
+      max_chunks_per_deployment: 40000
+      max_chunks_total: 1000000
+      test_run: false
+      test_max_chunks_per_deployment: 1000
+      umap_sample_frac: 0.2
+      random_state: 42
+      strict_qc: false
+      # Set null to skip the sampling-rate compatibility check — HR (100 Hz),
+      # stroke_rate (400 Hz), and depth (1 Hz) have incompatible native rates
+      # but the features stage computes per-window stats independently per
+      # channel so mixed rates are fine in practice.
+      sampling_compatibility_tolerance: null
+      channel_feature_spec:
+        heart_rate.heart_rate:
+          transforms:
+          - raw
+          feature_set: full
+        stroke_rate.stroke_rate:
+          transforms:
+          - raw
+          feature_set: full
+        depth.depth:
+          transforms:
+          - raw
+          feature_set: medium
+          required: false
+    unsupervised:
+      cluster_passes:
+      - name: k3
+        n_clusters: 3
+        channel_feature_spec:
+          heart_rate.heart_rate:
+            transforms:
+            - raw
+            feature_set: full
+          stroke_rate.stroke_rate:
+            transforms:
+            - raw
+            feature_set: full
+      - name: k5
+        n_clusters: 5
+        channel_feature_spec:
+          heart_rate.heart_rate:
+            transforms:
+            - raw
+            feature_set: full
+          stroke_rate.stroke_rate:
+            transforms:
+            - raw
+            feature_set: full
+          depth.depth:
+            transforms:
+            - raw
+            feature_set: medium
+            required: false
+      primary_input_channel_for_ranking: heart_rate.heart_rate
+      corr_threshold: 0.8
+      n_clusters: auto
+      max_k: 8
+      run_pca: true
+      run_tsne: false
+      run_umap: true
+    supervised:
+      enabled: false
+      config:
+        test_size: 0.4
+        rf_n_estimators: 500
+        rf_min_samples_leaf: 2
+        rf_class_weight: balanced_subsample
+        confidence_threshold: 0.4
+    summary:
+      config:
+        primary_method_kind: clustering
+        primary_method_id: clustered_windows
+        budget_label_mode: canonical
+        actograms:
+          daily: false
+          continuous: false
+
   lions_cluster_test:
     scope:
       analysis_id: lions_cluster_test

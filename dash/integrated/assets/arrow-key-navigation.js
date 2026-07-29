@@ -6,9 +6,9 @@
   "use strict";
 
   function init() {
-    if (window._minimalArrowNavSetup) return;
+    if (window._integratedArrowNavSetup) return;
     document.addEventListener("keydown", handleArrowKey, true);
-    window._minimalArrowNavSetup = true;
+    window._integratedArrowNavSetup = true;
   }
 
   function handleArrowKey(e) {

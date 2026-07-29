@@ -62,4 +62,7 @@ class StarOddiImporter(CSVImporter):
         return df
 
     def apply_post_rename_transforms(self, df: pd.DataFrame, channel_metadata: dict) -> pd.DataFrame:
-        return self._maybe_calibrate_pitch_roll(df)
+        updated = self._maybe_calibrate_pitch_roll(df)
+        # Chain to the base transforms so acceleration unit standardization
+        # is not skipped by this override.
+        return super().apply_post_rename_transforms(updated, channel_metadata)

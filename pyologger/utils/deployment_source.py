@@ -27,15 +27,16 @@ EVENT_COLUMNS = [
 DEFAULT_PLOT_SIGNAL_PRIORITY = [
     "depth",
     "corrected_depth",
-    "pressure",
+    "ecg",
+    "heart_rate",
     "prh",
+    "stroke_rate",
+    "pressure",
     "accelerometer",
     "magnetometer",
     "gyroscope",
     "light",
     "temperature",
-    "heart_rate",
-    "stroke_rate",
     "odba",
     "speed",
     "velocity",
@@ -48,6 +49,16 @@ NON_PLOT_DEFAULT_SIGNALS = {
     "logger_status",
     "dives",
     "location",
+    # derived/intermediate signals — shown only when explicitly added
+    "calibrated_acc",
+    "calibrated_mag",
+    "corrected_acc",
+    "corrected_gyr",
+    "corrected_mag",
+    "heart_rate_fixed",
+    "heart_rate_nan",
+    "hr_normalized",
+    "sr_smoothed",
 }
 
 NETCDF_IO_LOCK = threading.RLock()

@@ -111,13 +111,19 @@ Dash App
 
 Current interactive app entrypoint:
 
-- ``pyologger/dash/minimal_interactive/app.py``
+- ``pyologger/dash/integrated/integrated_dash.py``
 
-Run from repository root:
+Run from repository root. ``--dataset``/``--deployment`` are optional; when
+omitted the app opens the configured default deployment (falling back to the
+first deployment on disk that has ``outputs/data.pkl``):
 
 .. code-block:: bash
 
-   python pyologger/dash/minimal_interactive/app.py --dataset <dataset_id> --deployment <deployment_id> --port 8061
+   # open the default deployment
+   python pyologger/dash/integrated/integrated_dash.py
+
+   # or target a specific deployment
+   python pyologger/dash/integrated/integrated_dash.py --dataset <dataset_id> --deployment <deployment_id> --port 8061
 
 Open:
 

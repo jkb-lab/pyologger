@@ -12,11 +12,17 @@ def _target_to_marker(target):
     return mapping.get(target, f"{target}.done")
 configfile: "config.yaml"
 import os
+import sys
 import shutil
 import pathlib
 
 import yaml
 from pyologger.utils.segmentation_run_config import normalize_segmentation_run_cfg
+
+# Use the project venv python so ete3/biopython are available regardless of the
+# shell's active environment. Falls back to sys.executable if the venv isn't present.
+_venv_python = pathlib.Path(workflow.basedir).parent / "venv" / "bin" / "python3"
+PYTHON = str(_venv_python) if _venv_python.exists() else sys.executable
 
 ACTIVE_SEGMENTATION_CONFIG = getattr(workflow, "overwrite_configfiles", None) or getattr(workflow, "configfiles", None) or ["config.yaml"]
 ACTIVE_SEGMENTATION_CONFIG = ACTIVE_SEGMENTATION_CONFIG[0]
@@ -96,6 +102,7 @@ run_selection_cfg = config.get("run_selection") or {}
 enable_processing_runs = _as_bool(run_selection_cfg.get("processing", True))
 enable_segmentation_runs = _as_bool(run_selection_cfg.get("segmentation", False))
 enable_make_map_runs = _as_bool(run_selection_cfg.get("make_map", False))
+enable_make_phylogeny_runs = _as_bool(run_selection_cfg.get("make_phylogeny", False))
 
 
 def _segmentation_runs():
@@ -113,6 +120,10 @@ def _segmentation_run_cfg(run_name):
 
 def _make_map_runs():
     return list((config.get("make_map_runs") or {}).keys())
+
+
+def _make_phylogeny_runs():
+    return list((config.get("make_phylogeny_runs") or {}).keys())
 
 
 def _segmentation_base(run_name):
@@ -167,6 +178,8 @@ segmentation_run_names = _segmentation_runs()
 segmentation_plot_markers = [f"{meta_analysis_data_root}/segmentation/{r}/14_summary.done" for r in segmentation_run_names]
 make_map_run_names = _make_map_runs()
 make_map_markers = [f".snakemake_maps/{r}/02_render.done" for r in make_map_run_names]
+make_phylogeny_run_names = _make_phylogeny_runs()
+make_phylogeny_markers = [f".snakemake_phylogenies/{r}/02_render.done" for r in make_phylogeny_run_names]
 processing_output_targets = [
     f"{private_data_root}/{dataset}/{deployment}/outputs/{deployment}_output.nc"
     for dataset, deployment in dataset_deployment_pairs
@@ -178,6 +191,8 @@ if enable_segmentation_runs:
     default_run_targets.extend(segmentation_plot_markers)
 if enable_make_map_runs:
     default_run_targets.extend(make_map_markers)
+if enable_make_phylogeny_runs:
+    default_run_targets.extend(make_phylogeny_markers)
 
 
 def _invalidate_stale_segmentation_markers():
@@ -340,6 +355,30 @@ rule export_data:
     shell:
         "python3 workflows/06_export_data.py --dataset {wildcards.dataset} --deployment {wildcards.deployment} && touch {output}"
 
+# Step 06b: Export signal and event data CSVs (optional, runs independently of the main pipeline)
+rule export_csvs:
+    input:
+        _step_marker(5)
+    output:
+        f"{private_data_root}/{{dataset}}/{{deployment}}/outputs/{{deployment}}_signal_data.csv",
+        f"{private_data_root}/{{dataset}}/{{deployment}}/outputs/{{deployment}}_event_data.csv"
+    shell:
+        "python3 workflows/06_export_data.py --dataset {wildcards.dataset} --deployment {wildcards.deployment} --export-csvs"
+
+
+rule export_csvs_all:
+    input:
+        expand(
+            [
+                f"{private_data_root}/{{dataset}}/{{deployment}}/outputs/{{deployment}}_signal_data.csv",
+                f"{private_data_root}/{{dataset}}/{{deployment}}/outputs/{{deployment}}_event_data.csv",
+            ],
+            zip,
+            dataset=[d for d, _ in dataset_deployment_pairs],
+            deployment=[dep for _, dep in dataset_deployment_pairs],
+        )
+
+
 # Launch only the minimal interactive Dash app (no workflow processing).
 rule dash_app:
     params:
@@ -347,7 +386,7 @@ rule dash_app:
         deployment="2015-11-05_mile-011",
         port=dash_port
     shell:
-        "python dash/minimal_interactive/app.py --dataset {params.dataset} --deployment {params.deployment} --port {params.port}"
+        "python dash/integrated/integrated_dash.py --dataset {params.dataset} --deployment {params.deployment} --port {params.port}"
 
 
 rule segmentation_qc:
@@ -429,3 +468,29 @@ rule make_map_render:
         summary_output=lambda wildcards: f"/tmp/{wildcards.run_name}_make_map_render_summary.json"
     shell:
         "python3 workflows/20_make_map.py --config {ACTIVE_SEGMENTATION_CONFIG} --run-name {wildcards.run_name} render --output {params.summary_output} && mkdir -p $(dirname {output}) && touch {output}"
+
+
+rule make_phylogeny_all:
+    input:
+        make_phylogeny_markers
+
+
+rule make_phylogeny_resolve:
+    output:
+        ".snakemake_phylogenies/{run_name}/01_resolve.done"
+    params:
+        python=PYTHON
+    shell:
+        "{params.python} workflows/21_make_phylogeny.py --config {ACTIVE_SEGMENTATION_CONFIG} --run-name {wildcards.run_name} resolve --output /tmp/{wildcards.run_name}_phylo_manifest.json && mkdir -p $(dirname {output}) && touch {output}"
+
+
+rule make_phylogeny_render:
+    input:
+        ".snakemake_phylogenies/{run_name}/01_resolve.done"
+    output:
+        ".snakemake_phylogenies/{run_name}/02_render.done"
+    params:
+        python=PYTHON,
+        summary_output=lambda wildcards: f"/tmp/{wildcards.run_name}_phylo_render_summary.json"
+    shell:
+        "{params.python} workflows/21_make_phylogeny.py --config {ACTIVE_SEGMENTATION_CONFIG} --run-name {wildcards.run_name} render --output {params.summary_output} && mkdir -p $(dirname {output}) && touch {output}"

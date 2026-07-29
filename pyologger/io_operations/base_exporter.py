@@ -203,19 +203,29 @@ class BaseExporter:
         ds = xr.Dataset()
 
         # Flatten the signal_data dictionaries into xarray DataArrays
+        skipped_signals = []
         for signal_name, df in self.datareader.signal_data.items():
             signal_data = df.copy()
             if signal_data.empty:
+                skipped_signals.append((signal_name, "signal DataFrame is empty"))
                 continue
 
-            # Saving datetime as timezone-aware
+            # NetCDF/CF has no timezone-aware datetime type: xarray raises
+            # "Cannot interpret 'datetime64[ns, UTC]' as a data type" when a
+            # tz-aware coordinate reaches to_netcdf(). Datetimes are already
+            # normalised to UTC upstream, so drop the tzinfo and store naive
+            # UTC -- matching the coordinate dtype of existing exports.
             datetime_coord = pd.to_datetime(signal_data['datetime'])
+            if isinstance(datetime_coord.dtype, pd.DatetimeTZDtype):
+                datetime_coord = datetime_coord.dt.tz_convert('UTC').dt.tz_localize(None)
             signal_data = signal_data.drop(columns=['datetime'])
             variables = [col for col in signal_data.columns]
 
             data_array = convert_to_compatible_array(signal_data)
             if data_array.size == 0:
-                # Nothing to write for this signal
+                skipped_signals.append(
+                    (signal_name, f"no writable columns among {variables}")
+                )
                 continue
 
             var_name = f'signal_data_{signal_name}'
@@ -306,6 +316,22 @@ class BaseExporter:
             recursive_flatten_dict(f'signal_info_{signal_name}', signal_info)
             if 'metadata' in signal_info:
                 recursive_flatten_dict(f'signal_info_{signal_name}_metadata', signal_info['metadata'])
+
+        if skipped_signals:
+            for signal_name, reason in skipped_signals:
+                print(f"⚠️ Signal '{signal_name}' not written to NetCDF: {reason}.")
+
+        # Refuse to write a signal-free NetCDF when the DataReader actually held
+        # signals. Silently emitting a metadata-only file makes a failed export
+        # look successful, and downstream steps that gate on NetCDF contents
+        # then skip themselves with a misleading "no usable signal" message.
+        written_signals = [v for v in ds.variables if str(v).startswith('signal_data_')]
+        if self.datareader.signal_data and not written_signals:
+            raise ValueError(
+                f"NetCDF export for {filepath} produced no signal variables even though "
+                f"signal_data contains {list(self.datareader.signal_data)}. "
+                f"Skipped: {skipped_signals or 'none'}."
+            )
 
         # Store the Dataset as a NetCDF file
         ds.to_netcdf(filepath)

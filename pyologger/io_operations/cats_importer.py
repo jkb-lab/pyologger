@@ -54,6 +54,9 @@ class CATSImporter(BaseImporter):
         final_df.rename(columns=new_channel_names, inplace=True)
         print(f"✅ Renamed columns: {new_channel_names}")
 
+        # CATS records native m/s^2; convert to the montage's declared unit.
+        final_df = self.convert_acceleration_to_standard_unit(final_df, channel_metadata)
+
         # Step 5: Process datetime and return metadata
         final_df, datetime_metadata = process_datetime(final_df, time_zone=self.data_reader.deployment_info['Time Zone'])
         self.data_reader.logger_info[self.logger_id]['datetime_created_from'] = datetime_metadata.get('datetime_created_from', None)
@@ -174,6 +177,9 @@ class CATSImporter(BaseImporter):
         new_channel_names, channel_metadata = self.rename_channels(original_channel_names)
         final_df.rename(columns=new_channel_names, inplace=True)
         print(f"✅ Renamed columns: {new_channel_names}")
+
+        # CATS records native m/s^2; convert to the montage's declared unit.
+        final_df = self.convert_acceleration_to_standard_unit(final_df, channel_metadata)
 
         # Keep datetime columns as authoritative (already timezone-correct).
         final_df, datetime_metadata = process_datetime(

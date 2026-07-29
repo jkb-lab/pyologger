@@ -7,7 +7,7 @@ import pandas as pd
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = REPO_ROOT / "dash" / "minimal_interactive" / "segmentation_review_helpers.py"
+MODULE_PATH = REPO_ROOT / "dash" / "integrated" / "segmentation_review_helpers.py"
 spec = importlib.util.spec_from_file_location("segmentation_review_helpers_test", MODULE_PATH)
 helpers = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = helpers

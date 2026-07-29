@@ -67,6 +67,9 @@ class DTImporter(BaseImporter):
             final_df.rename(columns=new_cols, inplace=True)
             print(f"✅ Renamed DT columns for {self.logger_id}: {new_cols}")
 
+        # Standardize acceleration to the montage's declared unit.
+        final_df = self.convert_acceleration_to_standard_unit(final_df, channel_metadata)
+
         final_df, datetime_metadata = process_datetime(
             final_df,
             time_zone=self.data_reader.deployment_info.get("Time Zone"),

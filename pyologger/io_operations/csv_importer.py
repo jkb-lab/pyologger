@@ -22,6 +22,30 @@ class CSVImporter(BaseImporter):
             f for f in files
             if f.lower().endswith(self.CSV_EXTS + self.PARQUET_EXTS)
         ]
+
+        # Optional montage-driven filename filter. Loggers whose exports split
+        # incompatible layouts across sibling files (e.g. Wildlife Computers
+        # ArchivedSeries vs Series vs GPE3) must ingest only the files matching
+        # the active montage, since all selected files are concatenated below.
+        include_patterns = self.get_file_include_patterns()
+        if include_patterns:
+            kept = [
+                f for f in selected_files
+                if any(p.lower() in os.path.basename(f).lower() for p in include_patterns)
+            ]
+            skipped = [f for f in selected_files if f not in kept]
+            if skipped:
+                print(
+                    f"ℹ️ Montage file filter {include_patterns} for {logger_id}: "
+                    f"keeping {[os.path.basename(f) for f in kept]}, "
+                    f"skipping {[os.path.basename(f) for f in skipped]}."
+                )
+            # Geolocation products are excluded from the sensor montage (their
+            # layout is incompatible), but still carry the deployment's track.
+            # Ingest them separately into signal_data['location'].
+            self._import_geolocation_files(skipped)
+            selected_files = kept
+
         selected_files.sort()  # reproducible concatenation order
 
         n_csv = sum(f.lower().endswith(self.CSV_EXTS) for f in selected_files)
@@ -84,7 +108,79 @@ class CSVImporter(BaseImporter):
 
     def apply_post_rename_transforms(self, df: pd.DataFrame, channel_metadata: dict) -> pd.DataFrame:
         """Hook for manufacturer-specific transforms after channel renaming."""
-        return df
+        return self.convert_acceleration_to_standard_unit(df, channel_metadata)
+
+    def _import_geolocation_files(self, candidate_files) -> None:
+        """
+        Ingest light/SST geolocation products (Wildlife Computers GPE3) into
+        ``signal_data['location']``.
+
+        These files are excluded from the sensor montage because their layout is
+        incompatible with the per-sample sensor exports, but they carry the
+        deployment's position track. The track is smoothed before storage:
+        light-based geolocation error is one to two orders of magnitude larger
+        than Argos/GPS, so the raw fixes are noisy enough that path length is
+        substantially inflated (see utils.geolocation_smoother).
+        """
+        from pyologger.io_operations.gpe3_reader import find_gpe3_files, read_gpe3
+        from pyologger.io_operations.kml_importer import KMLImporter
+        from pyologger.utils.geolocation_smoother import smooth_geolocation_track
+
+        data_folder = self.data_reader.data_folder
+        gpe3_files = [
+            os.path.join(data_folder, f)
+            for f in (candidate_files or [])
+            if "gpe3" in os.path.basename(f).lower() and f.lower().endswith(".csv")
+        ]
+        if not gpe3_files:
+            # Fall back to scanning, in case no montage filter was applied.
+            gpe3_files = find_gpe3_files(data_folder)
+        if not gpe3_files:
+            return
+
+        frames = []
+        for path in sorted(set(gpe3_files)):
+            try:
+                frames.append(read_gpe3(path))
+            except Exception as error:
+                print(f"⚠️ Could not read GPE3 file {os.path.basename(path)}: {error}")
+        frames = [f for f in frames if f is not None and not f.empty]
+        if not frames:
+            return
+
+        raw = pd.concat(frames, ignore_index=True).sort_values("datetime")
+        try:
+            smoothed = smooth_geolocation_track(raw)
+        except Exception as error:
+            print(f"⚠️ Geolocation smoothing failed ({error}); storing raw GPE3 positions.")
+            smoothed = raw.assign(
+                latitude_smoothed=raw["latitude"], longitude_smoothed=raw["longitude"]
+            )
+
+        location_df = pd.DataFrame({
+            "datetime": smoothed["datetime"],
+            # Prefer the smoothed track, falling back to the raw fix where a
+            # position was flagged as an outlier and therefore not smoothed.
+            "latitude": smoothed["latitude_smoothed"].fillna(smoothed["latitude"]),
+            "longitude": smoothed["longitude_smoothed"].fillna(smoothed["longitude"]),
+        }).dropna(subset=["datetime", "latitude", "longitude"])
+
+        tz = (
+            self.data_reader.deployment_info.get("Time Zone")
+            or self.data_reader.deployment_info.get("TimeZone")
+            or "UTC"
+        )
+        location_df["datetime"] = pd.to_datetime(location_df["datetime"])
+        if location_df["datetime"].dt.tz is None:
+            location_df["datetime"] = location_df["datetime"].dt.tz_localize(tz)
+
+        n_outliers = int(smoothed["outlier"].sum()) if "outlier" in smoothed else 0
+        print(
+            f"🌍 GPE3 geolocation: {len(location_df):,} positions from "
+            f"{[os.path.basename(p) for p in gpe3_files]} "
+            f"({n_outliers} speed outlier(s) excluded from smoothing)."
+        )
+        KMLImporter(self.data_reader, self.logger_id)._store_location_data(location_df)
 
     def _get_signal_columns(self, channel_metadata: dict, parent_signal: str, available_columns) -> list[str]:
         return [

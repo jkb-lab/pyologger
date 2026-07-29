@@ -24,6 +24,7 @@ from pyologger.utils.workflow_netcdf import (
     netcdf_has_signal,
     save_step_netcdf_if_changed,
 )
+from pyologger.utils.chunk_manager import attachment_time_mask
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Zero Offset Correction - Calibrate Pressure Sensor")
@@ -131,36 +132,10 @@ if not skip_step:
         datetime_signal = data_pkl.signal_data[parent_signal]['datetime']
         sampling_rate = calculate_sampling_frequency(datetime_signal.head())
 
-        # Define the default time range based on the signal's datetime column
-        signal_start = datetime_signal.min()
-        signal_end = datetime_signal.max()
-
-        # Determine time range based on user input if overwrite is True
-        if overwrite:
-            print(f"Signal time range: {signal_start} to {signal_end}")
-            start_time_input = input(f"Enter start time (default: {signal_start}): ").strip()
-            end_time_input = input(f"Enter end time (default: {signal_end}): ").strip()
-            start_datetime = pd.Timestamp(start_time_input) if start_time_input else signal_start
-            end_datetime = pd.Timestamp(end_time_input) if end_time_input else signal_end
-        else:
-            start_datetime = signal_start
-            end_datetime = signal_end
-
-        # Filter signal based on the selected time range
-        time_mask = (datetime_signal >= start_datetime) & (datetime_signal <= end_datetime)
-        signal_subset = signal[time_mask]
-        datetime_subset = datetime_signal[time_mask]
-        signal_subset_df = signal_df[
-            (signal_df['datetime'] >= start_datetime) & 
-            (signal_df['datetime'] <= end_datetime)
-        ]
-
-        # Output the results
-        print(f"Time range selected: {start_datetime} to {end_datetime}")
-        print(f"Signal subset size: {len(signal_subset)}")
-
-        # Retrieve parameters for peak detection
-        params = param_manager.get_from_config(
+        # ── Resolve deployment-level params and alt-detector config ──────
+        # These are loaded once; per-chunk overrides are applied as sparse
+        # patches inside the loop below.
+        base_params = param_manager.get_from_config(
             variable_names=[
                 "BROAD_LOW_CUTOFF", "BROAD_HIGH_CUTOFF", "NARROW_LOW_CUTOFF", "NARROW_HIGH_CUTOFF",
                 "FILTER_ORDER", "SPIKE_THRESHOLD", "SMOOTH_SEC_MULTIPLIER", "WINDOW_SIZE_MULTIPLIER",
@@ -176,18 +151,11 @@ if not skip_step:
 
         alt_settings = param_manager.get_from_config(
             variable_names=[
-                "method",
-                "sampling_rate_hz",
-                "xqrs_hr_init",
-                "xqrs_hr_max",
-                "xqrs_hr_min",
-                "xqrs_qrs_width",
-                "xqrs_qrs_thr_init",
-                "xqrs_qrs_thr_min",
-                "xqrs_ref_period",
-                "xqrs_t_inspect_period",
-                "xqrs_learn",
-                "xqrs_verbose",
+                "method", "sampling_rate_hz",
+                "xqrs_hr_init", "xqrs_hr_max", "xqrs_hr_min",
+                "xqrs_qrs_width", "xqrs_qrs_thr_init", "xqrs_qrs_thr_min",
+                "xqrs_ref_period", "xqrs_t_inspect_period",
+                "xqrs_learn", "xqrs_verbose",
             ],
             section="alt_peak_detect_settings",
         )
@@ -197,73 +165,69 @@ if not skip_step:
         )
         use_alt_peak_detect = _as_bool(alt_switch.get("use_alt_peak_detect_settings"), default=False)
 
-        overwrite=False # If needed, change to true and rewrite settings here
+        overwrite = False  # If needed, change to true and rewrite settings here
 
         default_params = {
-            "BROAD_LOW_CUTOFF": 1.0,  # Hz, lower cutoff for the broad bandpass filter
-            "BROAD_HIGH_CUTOFF": 35.0,  # Hz, upper cutoff for the broad bandpass filter. Per the Nyquist theorem, this should be less than half the sampling rate.
-            "NARROW_LOW_CUTOFF": 5.0,  # Hz, lower cutoff for the narrow bandpass filter
-            "NARROW_HIGH_CUTOFF": 20.0,  # Hz, upper cutoff for the narrow bandpass filter
-            "FILTER_ORDER": 2,  # Order of the bandpass filter, affects sharpness
-            "SPIKE_THRESHOLD": 400,  # Threshold for removing large spikes (e.g., noise or artifacts)
-            "SMOOTH_SEC_MULTIPLIER": 0.36,  # Multiplier for calculating the smoothing window size
-            "WINDOW_SIZE_MULTIPLIER": 6.35,  # Multiplier for calculating sliding window size
-            "NORMALIZATION_NOISE": 1e-10,  # Small constant to avoid division by zero in normalization
-            "PEAK_HEIGHT": -0.4,  # Minimum amplitude (height) for peak detection
-            "PEAK_DISTANCE_SEC": 0.16,  # Minimum time between detected peaks (in seconds)
-            "SEARCH_RADIUS_SEC": 0.2,  # Time range for refining the peak location (in seconds)
-            "MIN_PEAK_HEIGHT": 70,  # Minimum acceptable amplitude for detected peaks
-            "MAX_PEAK_HEIGHT": 12000,  # Maximum acceptable amplitude for detected peaks
-            "enable_bandpass": True,  # Enable/disable bandpass filtering
-            "enable_spike_removal": True,  # Enable/disable spike removal
-            "enable_absolute": True,  # Enable/disable abs() transformation of signal (only use if HR, not for stroke rate)
-            "enable_smoothing": True,  # Enable/disable smoothing
-            "enable_normalization": True,  # Enable/disable sliding window normalization
-            "enable_refinement": True,  # Enable/disable peak refinement
-            "DETECTION_DERIVATIVE_CHANNELS": ["normalized"],  # candidate detection sources
-            "HR_JUMP_FRAC": 0.8,  # >80% change is suspicious
-            "MIN_RR_SEC": 0.25,  # discard RR < 0.25 s (i.e. > 240 bpm)
-            "MAX_HR_BPM": 240,  # 60 for turtles
+            "BROAD_LOW_CUTOFF": 1.0,
+            "BROAD_HIGH_CUTOFF": 35.0,
+            "NARROW_LOW_CUTOFF": 5.0,
+            "NARROW_HIGH_CUTOFF": 20.0,
+            "FILTER_ORDER": 2,
+            "SPIKE_THRESHOLD": 400,
+            "SMOOTH_SEC_MULTIPLIER": 0.36,
+            "WINDOW_SIZE_MULTIPLIER": 6.35,
+            "NORMALIZATION_NOISE": 1e-10,
+            "PEAK_HEIGHT": -0.4,
+            "PEAK_DISTANCE_SEC": 0.16,
+            "SEARCH_RADIUS_SEC": 0.2,
+            "MIN_PEAK_HEIGHT": 70,
+            "MAX_PEAK_HEIGHT": 12000,
+            "enable_bandpass": True,
+            "enable_spike_removal": True,
+            "enable_absolute": True,
+            "enable_smoothing": True,
+            "enable_normalization": True,
+            "enable_refinement": True,
+            "DETECTION_DERIVATIVE_CHANNELS": ["normalized"],
+            "HR_JUMP_FRAC": 0.8,
+            "MIN_RR_SEC": 0.25,
+            "MAX_HR_BPM": 240,
             "MIN_HR_BPM": 0.1,
-            "ANTI_DOUBLE_GAP_FACTOR": 0.75,  # Generalized anti-double detection factor (relative spacing rule)
-            "HR_CONFLICT_RR_FACTOR": 0.75,  # Legacy alias for backward compatibility
-            "PICK_LAST_IN_CONFLICT_PAIR": True,  # keep later peak in a close conflict pair by default
-            "ANTI_DOUBLE_ROLLING_WINDOW_SEC": 10.0,  # local RR window for anti-double baseline
+            "ANTI_DOUBLE_GAP_FACTOR": 0.75,
+            "HR_CONFLICT_RR_FACTOR": 0.75,
+            "PICK_LAST_IN_CONFLICT_PAIR": True,
+            "ANTI_DOUBLE_ROLLING_WINDOW_SEC": 10.0,
         }
 
         if overwrite:
-            params = default_params.copy()
-            # Explicit overwrite writes deployment-specific values by intent.
-            param_manager.add_to_config(entries=params, section="hr_peak_detection_settings")
+            base_params = default_params.copy()
+            param_manager.add_to_config(entries=base_params, section="hr_peak_detection_settings")
         else:
-            params_raw = params.copy()
-            # Fill only missing keys at runtime, preserving dataset-default -> deployment override precedence.
-            params = {
-                key: params.get(key) if params.get(key) is not None else value
+            base_params_raw = base_params.copy()
+            base_params = {
+                key: base_params.get(key) if base_params.get(key) is not None else value
                 for key, value in default_params.items()
             }
             if detection_mode == "heart_rate":
-                # Keep anti-double factor aliases synchronized.
-                if params.get("ANTI_DOUBLE_GAP_FACTOR") is None and params.get("HR_CONFLICT_RR_FACTOR") is not None:
-                    params["ANTI_DOUBLE_GAP_FACTOR"] = params["HR_CONFLICT_RR_FACTOR"]
-                if params.get("HR_CONFLICT_RR_FACTOR") is None and params.get("ANTI_DOUBLE_GAP_FACTOR") is not None:
-                    params["HR_CONFLICT_RR_FACTOR"] = params["ANTI_DOUBLE_GAP_FACTOR"]
-                # Persist missing HR cleanup keys so they exist in parameter_log.json.
+                if base_params.get("ANTI_DOUBLE_GAP_FACTOR") is None and base_params.get("HR_CONFLICT_RR_FACTOR") is not None:
+                    base_params["ANTI_DOUBLE_GAP_FACTOR"] = base_params["HR_CONFLICT_RR_FACTOR"]
+                if base_params.get("HR_CONFLICT_RR_FACTOR") is None and base_params.get("ANTI_DOUBLE_GAP_FACTOR") is not None:
+                    base_params["HR_CONFLICT_RR_FACTOR"] = base_params["ANTI_DOUBLE_GAP_FACTOR"]
                 hr_cleanup_keys = [
                     "HR_JUMP_FRAC", "MIN_RR_SEC", "MAX_HR_BPM", "MIN_HR_BPM",
                     "ANTI_DOUBLE_GAP_FACTOR", "HR_CONFLICT_RR_FACTOR", "PICK_LAST_IN_CONFLICT_PAIR",
                     "ANTI_DOUBLE_ROLLING_WINDOW_SEC",
                 ]
                 missing_cleanup_entries = {
-                    key: params[key]
+                    key: base_params[key]
                     for key in hr_cleanup_keys
-                    if params_raw.get(key) is None
+                    if base_params_raw.get(key) is None
                 }
                 if missing_cleanup_entries:
                     param_manager.add_to_config(entries=missing_cleanup_entries, section="hr_peak_detection_settings")
             print("Settings loaded from config file with runtime fallback for missing values.")
 
-        # Use the updated parameters in peak detection
+        # ── Build alt-detector config once (shared across chunks) ────────
         detector_method = "legacy"
         xqrs_conf = None
         xqrs_learn = True
@@ -288,61 +252,154 @@ if not skip_step:
             else:
                 print("use_alt_peak_detect_settings=True, but alt method is not wfdb_xqrs. Falling back to legacy detector.")
 
-        results = peak_detect(
-            signal=signal_subset,
-            sampling_rate=sampling_rate,
-            datetime_series=datetime_subset,
-            broad_lowcut=params["BROAD_LOW_CUTOFF"],
-            broad_highcut=params["BROAD_HIGH_CUTOFF"],
-            narrow_lowcut=params["NARROW_LOW_CUTOFF"],
-            narrow_highcut=params["NARROW_HIGH_CUTOFF"],
-            filter_order=params["FILTER_ORDER"],
-            spike_threshold=params["SPIKE_THRESHOLD"],
-            smooth_sec_multiplier=params["SMOOTH_SEC_MULTIPLIER"],
-            window_size_multiplier=params["WINDOW_SIZE_MULTIPLIER"],
-            normalization_noise=params["NORMALIZATION_NOISE"],
-            peak_height=params["PEAK_HEIGHT"],
-            peak_distance_sec=params["PEAK_DISTANCE_SEC"],
-            search_radius_sec=params["SEARCH_RADIUS_SEC"],
-            min_peak_height=params["MIN_PEAK_HEIGHT"],
-            max_peak_height=params["MAX_PEAK_HEIGHT"],
-            enable_bandpass=params["enable_bandpass"],
-            enable_spike_removal=params["enable_spike_removal"],
-            enable_absolute=params["enable_absolute"],
-            enable_smoothing=params["enable_smoothing"],
-            enable_normalization=params["enable_normalization"],
-            enable_refinement=params["enable_refinement"],
-            detection_sources=params.get("DETECTION_DERIVATIVE_CHANNELS"),
-            detector_method=detector_method,
-            xqrs_conf=xqrs_conf,
-            xqrs_learn=xqrs_learn,
-            xqrs_verbose=xqrs_verbose,
-        )
+        # ── Chunk-aware time window resolution ──────────────────────────
+        chunk_grid = param_manager.get_or_create_chunk_grid()
+        if chunk_grid:
+            run_chunks = [
+                (i, c) for i, c in enumerate(chunk_grid)
+                if c.get("status") not in ("gap",)
+            ]
+            print(f"Chunk mode: {len(run_chunks)} processable chunks out of {len(chunk_grid)} total.")
+        else:
+            signal_start = datetime_signal.min()
+            signal_end = datetime_signal.max()
+            if overwrite:
+                print(f"Signal time range: {signal_start} to {signal_end}")
+                start_time_input = input(f"Enter start time (default: {signal_start}): ").strip()
+                end_time_input = input(f"Enter end time (default: {signal_end}): ").strip()
+                signal_start = pd.Timestamp(start_time_input) if start_time_input else signal_start
+                signal_end = pd.Timestamp(end_time_input) if end_time_input else signal_end
+            run_chunks = [(None, {"start": str(signal_start), "end": str(signal_end),
+                                  "status": "pending", "params_override": None})]
+            print("No chunk grid — running single-pass over full signal.")
 
-        process_rate(data_pkl, results, signal_subset_df, parent_signal,
-                    params, sampling_rate, detection_mode)
-    
+        all_peak_rows = []
+        all_signal_subset_dfs = []
+        all_smoothed = np.array([])
+
+        # Precompute once for chunk lookup. A monotonic datetime column lets each
+        # chunk be sliced by binary search rather than a full-length boolean mask.
+        _datetime_is_sorted = bool(datetime_signal.is_monotonic_increasing)
+        if _datetime_is_sorted:
+            _dt_utc = datetime_signal
+            if datetime_signal.dt.tz is not None:
+                _dt_utc = datetime_signal.dt.tz_convert("UTC").dt.tz_localize(None)
+            _datetime_values = _dt_utc.to_numpy(dtype="datetime64[ns]")
+        else:
+            _datetime_values = None
+            print("⚠️ datetime column is not monotonic; using boolean masks per chunk.")
+
+        # ── Per-chunk detection loop ─────────────────────────────────────
+        for _chunk_idx, _chunk in run_chunks:
+            _chunk_start = pd.Timestamp(_chunk["start"])
+            _chunk_end = pd.Timestamp(_chunk["end"])
+
+            if datetime_signal.dt.tz is not None:
+                if _chunk_start.tzinfo is None:
+                    _chunk_start = _chunk_start.tz_localize(str(datetime_signal.dt.tz))
+                else:
+                    _chunk_start = _chunk_start.tz_convert(str(datetime_signal.dt.tz))
+                if _chunk_end.tzinfo is None:
+                    _chunk_end = _chunk_end.tz_localize(str(datetime_signal.dt.tz))
+                else:
+                    _chunk_end = _chunk_end.tz_convert(str(datetime_signal.dt.tz))
+
+            # The datetime column is monotonic, so locate the chunk by binary search
+            # instead of building a full-length boolean mask per chunk (which is O(n)
+            # over the whole ECG series for each of ~100+ chunks).
+            if _datetime_is_sorted:
+                _lo_key = _chunk_start
+                _hi_key = _chunk_end
+                if _lo_key.tzinfo is not None:
+                    _lo_key = _lo_key.tz_convert("UTC").tz_localize(None)
+                    _hi_key = _hi_key.tz_convert("UTC").tz_localize(None)
+                # side='left'/'right' makes the span inclusive on both ends, matching
+                # the original (datetime >= start) & (datetime <= end) mask.
+                _i0 = np.searchsorted(_datetime_values, np.datetime64(_lo_key), side="left")
+                _i1 = np.searchsorted(_datetime_values, np.datetime64(_hi_key), side="right")
+                signal_subset = signal.iloc[_i0:_i1]
+                datetime_subset = datetime_signal.iloc[_i0:_i1]
+                signal_subset_df = signal_df.iloc[_i0:_i1]
+            else:
+                time_mask = (datetime_signal >= _chunk_start) & (datetime_signal <= _chunk_end)
+                signal_subset = signal[time_mask]
+                datetime_subset = datetime_signal[time_mask]
+                signal_subset_df = signal_df[time_mask]
+
+            if signal_subset.empty:
+                print(f"  Chunk {_chunk_idx}: no signal samples in [{_chunk_start}, {_chunk_end}] — skipping.")
+                continue
+
+            print(f"  Chunk {_chunk_idx}: [{_chunk_start}] → [{_chunk_end}] | {len(signal_subset)} samples")
+
+            # Apply sparse per-chunk param overrides on top of deployment defaults.
+            params = dict(base_params)
+            _chunk_overrides = _chunk.get("params_override") or {}
+            if _chunk_overrides:
+                params.update({k: v for k, v in _chunk_overrides.items() if v is not None})
+
+            results = peak_detect(
+                signal=signal_subset,
+                sampling_rate=sampling_rate,
+                datetime_series=datetime_subset,
+                broad_lowcut=params["BROAD_LOW_CUTOFF"],
+                broad_highcut=params["BROAD_HIGH_CUTOFF"],
+                narrow_lowcut=params["NARROW_LOW_CUTOFF"],
+                narrow_highcut=params["NARROW_HIGH_CUTOFF"],
+                filter_order=params["FILTER_ORDER"],
+                spike_threshold=params["SPIKE_THRESHOLD"],
+                smooth_sec_multiplier=params["SMOOTH_SEC_MULTIPLIER"],
+                window_size_multiplier=params["WINDOW_SIZE_MULTIPLIER"],
+                normalization_noise=params["NORMALIZATION_NOISE"],
+                peak_height=params["PEAK_HEIGHT"],
+                peak_distance_sec=params["PEAK_DISTANCE_SEC"],
+                search_radius_sec=params["SEARCH_RADIUS_SEC"],
+                min_peak_height=params["MIN_PEAK_HEIGHT"],
+                max_peak_height=params["MAX_PEAK_HEIGHT"],
+                enable_bandpass=params["enable_bandpass"],
+                enable_spike_removal=params["enable_spike_removal"],
+                enable_absolute=params["enable_absolute"],
+                enable_smoothing=params["enable_smoothing"],
+                enable_normalization=params["enable_normalization"],
+                enable_refinement=params["enable_refinement"],
+                detection_sources=params.get("DETECTION_DERIVATIVE_CHANNELS"),
+                detector_method=detector_method,
+                xqrs_conf=xqrs_conf,
+                xqrs_learn=xqrs_learn,
+                xqrs_verbose=xqrs_verbose,
+            )
+
+            process_rate(data_pkl, results, signal_subset_df, parent_signal,
+                         params, sampling_rate, detection_mode)
+
+            all_peak_rows.append(results["peak_df"].copy())
+            all_signal_subset_dfs.append(signal_subset_df)
+            all_smoothed = np.concatenate([all_smoothed, results.get("smoothed", np.array([]))])
+
+        # end of per-chunk loop ─────────────────────────────────────────
+
+        if not all_peak_rows:
+            print("⚠️ No chunks produced any peaks. Skipping HR cleanup.")
+            skip_step = True
+        else:
+            peak_df_merged = pd.concat(all_peak_rows, ignore_index=True).sort_values("refined_index").reset_index(drop=True)
+            signal_subset_df = pd.concat(all_signal_subset_dfs, ignore_index=True)
+            smoothed = all_smoothed
+            results = {"peak_df": peak_df_merged, "smoothed": smoothed}
+            params = base_params  # use deployment-level params for cleanup config
+
+    if not skip_step:
         # ============================================================
         # HEARTBEAT CLEANUP + EVENT SYNC (all together)
-        # ============================================================
-        # Assumptions:
-        # - you already ran peak detection and rate processing, so you have:
-        #     results["peak_df"]
-        #     results["smoothed"]
-        #     signal_subset_df  (with a 'datetime' column, same len as signal)
-        #     data_pkl          (with .event_data and .event_info or we create them)
-        #     fs                (sampling rate, e.g. 100 or 400)
-        #     parent_signal     (e.g. "ecg")
-        # - this goes AFTER you’ve run your original detect code
         # ============================================================
 
         # ------------------------------------------------------------
         # 0. CONFIG
         # ------------------------------------------------------------
-        HR_JUMP_FRAC = params["HR_JUMP_FRAC"]  # >80% change is suspicious
-        MIN_SUGGESTED_PEAK_HEIGHT = params["MIN_PEAK_HEIGHT"]  # change to your MIN_PEAK_HEIGHT
-        MIN_RR_SEC = params["MIN_RR_SEC"]  # discard RR < 0.25 s (i.e. > 240 bpm)
-        MAX_HR_BPM = params["MAX_HR_BPM"]  # 60 for turtles
+        HR_JUMP_FRAC = params["HR_JUMP_FRAC"]
+        MIN_SUGGESTED_PEAK_HEIGHT = params["MIN_PEAK_HEIGHT"]
+        MIN_RR_SEC = params["MIN_RR_SEC"]
+        MAX_HR_BPM = params["MAX_HR_BPM"]
         MIN_HR_BPM = params["MIN_HR_BPM"]
         fs = sampling_rate  # e.g. 100 or 400
         UP_JUMP_SEARCH_RADIUS_SEC = params.get("SEARCH_RADIUS_SEC", 0.2)
@@ -478,7 +535,7 @@ if not skip_step:
                 rr_ref = float(np.median(local_rr))
                 if rr < (CONFLICT_GAP_FACTOR * rr_ref):
                     reject_idx = a if PICK_LAST_IN_CONFLICT_PAIR else b
-                    df.loc[df["refined_index"] == reject_idx, "key"] = "beat_auto_detect_rejected"
+                    df.loc[df["refined_index"] == reject_idx, "key"] = "beat_auto_detect_rejected_conflict"
             return df
 
         # First anti-double pass before up-jump cleanup.
@@ -579,6 +636,70 @@ if not skip_step:
         # stash the updated peak_df
         results["peak_df"] = peak_df
 
+        # ============================================================
+        # 3b. CONSECUTIVE-REJECT GAPS → QC state events
+        # When 2+ rejected beats appear in a row with no accepted/suggested
+        # beat between them, the detector was uncertain — mark that span as
+        # QC_unusable_ecg and NaN out HR.  Everything outside those spans
+        # is emitted as QC_usable_ecg.
+        # ============================================================
+        MIN_CONSECUTIVE_REJECTS_FOR_GAP = 2
+
+        # Any rejection reason → gap threshold of 1.
+        # Conflict-pair rejections (double-beat artefact) → threshold of 2
+        # because one conflict rejection between two valid beats is expected.
+        REJECT_KEYS         = {"beat_auto_detect_rejected", "beat_auto_detect_rejected_conflict"}
+        CONFLICT_REJECT_KEY = "beat_auto_detect_rejected_conflict"
+
+        all_beats = peak_df[peak_df["key"].isin(
+            {"beat_auto_detect_accepted", "beat_auto_detect_suggested"} | REJECT_KEYS
+        )].sort_values("refined_index").reset_index(drop=True)
+
+        consecutive_reject_count    = 0
+        consecutive_conflict_count  = 0
+        reject_run_start_idx        = None
+        unusable_sample_spans       = []
+
+        def _close_reject_run(n_reject, n_conflict, run_start_idx, gap_end_sample):
+            # Threshold: 1 for any plain rejection, 2 if the run is ALL conflict-pair rejections
+            all_conflict = (n_reject == n_conflict)
+            threshold = MIN_CONSECUTIVE_REJECTS_FOR_GAP if all_conflict else 1
+            if n_reject >= threshold:
+                prev_good = peak_df[
+                    (peak_df["key"].isin(["beat_auto_detect_accepted", "beat_auto_detect_suggested"])) &
+                    (peak_df["refined_index"] < run_start_idx)
+                ]["refined_index"]
+                gap_start = int(prev_good.max()) if not prev_good.empty else run_start_idx
+                if gap_end_sample > gap_start:
+                    nan_segments.append((gap_start, gap_end_sample))
+                    unusable_sample_spans.append((gap_start, gap_end_sample))
+                    print(f"  Reject gap: samples {gap_start}–{gap_end_sample} "
+                          f"({n_reject} rejected, {n_conflict} conflict)")
+
+        for _, beat_row in all_beats.iterrows():
+            if beat_row["key"] in REJECT_KEYS:
+                if consecutive_reject_count == 0:
+                    reject_run_start_idx = int(beat_row["refined_index"])
+                consecutive_reject_count += 1
+                if beat_row["key"] == CONFLICT_REJECT_KEY:
+                    consecutive_conflict_count += 1
+            else:
+                if consecutive_reject_count > 0:
+                    _close_reject_run(
+                        consecutive_reject_count, consecutive_conflict_count,
+                        reject_run_start_idx, int(beat_row["refined_index"])
+                    )
+                    consecutive_reject_count   = 0
+                    consecutive_conflict_count = 0
+                    reject_run_start_idx       = None
+
+        # handle a reject run that reaches the end of the signal
+        if consecutive_reject_count > 0:
+            _close_reject_run(
+                consecutive_reject_count, consecutive_conflict_count,
+                reject_run_start_idx, len(signal_subset) - 1
+            )
+
 
         # ============================================================
         # 4. REBUILD HR (strict) -> hr_series with NaNs
@@ -638,31 +759,68 @@ if not skip_step:
         # clamp again after fill
         heart_rate_fixed_vals = np.clip(heart_rate_fixed_vals, MIN_HR_BPM, MAX_HR_BPM)
 
+        # NaN out QC_unusable spans so heart_rate_fixed respects ECG quality flags
+        for s, e in unusable_sample_spans:
+            heart_rate_fixed_vals[s:e] = np.nan
+
+        # --- manually_derived_hr: HR from manual-OK beats only (if present) ---
+        manually_derived_hr_vals = np.full(n, np.nan, dtype=float)
+        _event_data = getattr(data_pkl, "event_data", None)
+        if _event_data is not None and not _event_data.empty:
+            _manual_ok = _event_data[_event_data["key"] == "heartbeat_manual_ok"].copy()
+            _manual_ok = _manual_ok.dropna(subset=["datetime"]).sort_values("datetime").reset_index(drop=True)
+            if len(_manual_ok) > 1:
+                _sig_dts = signal_subset_df["datetime"].reset_index(drop=True)
+                _sig_ns  = _sig_dts.values.astype("int64")
+                _man_ns  = pd.to_datetime(_manual_ok["datetime"])
+                if _sig_dts.dt.tz is not None:
+                    tz = str(_sig_dts.dt.tz)
+                    _man_ns = _man_ns.dt.tz_convert(tz) if _man_ns.dt.tz is not None else _man_ns.dt.tz_localize(tz)
+                _man_ns = _man_ns.values.astype("int64")
+                _snapped_idxs = []
+                for ts_ns in _man_ns:
+                    diff = np.abs(_sig_ns - ts_ns)
+                    nearest = int(np.argmin(diff))
+                    if diff[nearest] / 1e6 <= 500:  # within 500 ms
+                        _snapped_idxs.append(nearest)
+                _snapped_idxs = sorted(set(_snapped_idxs))
+                for _i in range(len(_snapped_idxs) - 1):
+                    s = _snapped_idxs[_i]
+                    e = _snapped_idxs[_i + 1]
+                    if e > s:
+                        rr_sec = (e - s) / fs
+                        if MIN_RR_SEC <= rr_sec <= (60.0 / MIN_HR_BPM + 1.0):
+                            hr_val = np.clip(60.0 / rr_sec, MIN_HR_BPM, MAX_HR_BPM)
+                            manually_derived_hr_vals[s:e] = hr_val
+                print(f"  manually_derived_hr: {np.sum(~np.isnan(manually_derived_hr_vals))} samples from "
+                      f"{len(_snapped_idxs)} snapped manual beats")
+
+        # heart_rate_nan (NaN-broken) lives as a channel inside heart_rate_fixed,
+        # not as a separate signal, so all HR channels share one subplot.
         heart_rate_fixed = pd.DataFrame({
-            "datetime": signal_subset_df["datetime"],
-            "heart_rate_fixed": heart_rate_fixed_vals
+            "datetime":            signal_subset_df["datetime"],
+            "heart_rate_nan":      hr_series,                # NaN-gapped (top channel)
+            "heart_rate_fixed":    heart_rate_fixed_vals,    # interpolated (middle)
+            "manually_derived_hr": manually_derived_hr_vals, # manual beats (bottom, thick)
         })
 
-        # save into data_pkl signal_data / signal_info
-        data_pkl.signal_data["heart_rate_nan"] = heart_rate_nan
-        data_pkl.signal_info["heart_rate_nan"] = {
-            "channels": ["heart_rate_nan"],
-            "metadata": {"heart_rate_nan": {"unit": "bpm", "signal": parent_signal}},
-            "derived_from_signals": [parent_signal],
-            "transformation_log": [
-                "recomputed HR after beat cleanup",
-                "inserted NaN for suspect intervals (>50% jump or too-short RR)"
-            ],
-        }
+        # Remove heart_rate_nan as a standalone signal if it exists from a prior run.
+        data_pkl.signal_data.pop("heart_rate_nan", None)
+        data_pkl.signal_info.pop("heart_rate_nan", None)
 
         data_pkl.signal_data["heart_rate_fixed"] = heart_rate_fixed
         data_pkl.signal_info["heart_rate_fixed"] = {
-            "channels": ["heart_rate_fixed"],
-            "metadata": {"heart_rate_fixed": {"unit": "bpm", "signal": parent_signal}},
+            "channels": ["heart_rate_nan", "heart_rate_fixed", "manually_derived_hr"],
+            "metadata": {
+                "heart_rate_nan":      {"unit": "bpm", "signal": parent_signal},
+                "heart_rate_fixed":    {"unit": "bpm", "signal": parent_signal},
+                "manually_derived_hr": {"unit": "bpm", "signal": parent_signal, "line_width": 3},
+            },
             "derived_from_signals": [parent_signal],
             "transformation_log": [
                 "recomputed HR after beat cleanup",
-                f"NaN gaps filled using {FILL_METHOD}"
+                f"NaN gaps filled using {FILL_METHOD}",
+                "manually_derived_hr added from heartbeat_manual_ok events"
             ],
         }
 
@@ -681,9 +839,10 @@ if not skip_step:
         point_events = []
 
         KEY_MAP = {
-            "beat_auto_detect_accepted":  ("heartbeat_auto_detect_accepted",  "auto-detected heartbeat (accepted)"),
-            "beat_auto_detect_rejected":  ("heartbeat_auto_detect_rejected",  "auto-detected heartbeat (rejected as spurious / atrial)"),
-            "beat_auto_detect_suggested": ("heartbeat_auto_detect_suggested", "auto-detected heartbeat (suggested, missed-beat fix)"),
+            "beat_auto_detect_accepted":          ("heartbeat_auto_detect_accepted",          "auto-detected heartbeat (accepted)"),
+            "beat_auto_detect_rejected":          ("heartbeat_auto_detect_rejected",          "auto-detected heartbeat (rejected as spurious / atrial)"),
+            "beat_auto_detect_rejected_conflict": ("heartbeat_auto_detect_rejected_conflict", "auto-detected heartbeat (rejected: conflict pair / double-beat)"),
+            "beat_auto_detect_suggested":         ("heartbeat_auto_detect_suggested",         "auto-detected heartbeat (suggested, missed-beat fix)"),
         }
 
         for _, row in results["peak_df"].iterrows():
@@ -703,44 +862,83 @@ if not skip_step:
         point_df = pd.DataFrame(point_events)
 
 
-        # --- 6c. gaps (interval events with duration) ---
-        gap_key = "heartbeat_auto_detect_gap"
-        gap_desc = "interval where HR was invalid (>50% jump / too-short RR)"
-        gap_events = []
+        # --- 6c. QC state events: unusable spans + usable spans between them ---
+        # All NaN sources (RR too short, up-jump, consecutive-reject runs) contribute
+        # to unusable spans.  Usable spans fill the gaps between them.
+        def _sample_to_dt(idx):
+            idx = max(0, min(idx, len(signal_subset_df) - 1))
+            return signal_subset_df["datetime"].iloc[idx]
 
-        def _add_gap_event(s, e, reason=None):
-            dt_start = signal_subset_df["datetime"].iloc[s]
-            dt_end   = signal_subset_df["datetime"].iloc[min(e - 1, len(signal_subset_df) - 1)]
-            duration_sec = (dt_end - dt_start).total_seconds()
-            desc = f"{gap_desc} ({reason})" if reason else gap_desc
-            gap_events.append({
-                "datetime": dt_start,
-                "key": gap_key,
-                "short_description": desc,
-                "type": "interval_start",
-                "duration": duration_sec,
-            })
-            gap_events.append({
-                "datetime": dt_end,
-                "key": gap_key,
-                "short_description": f"{desc}: end",
-                "type": "interval_end",
-                "duration": duration_sec,
-            })
-
-        # from explicit and auto-detected gaps
+        # Collect all unusable sample spans: explicit nan_segments + auto_nan_intervals
+        all_unusable_spans = list(unusable_sample_spans)
         for (s, e) in nan_segments:
-            _add_gap_event(s, e, reason="nan_segment")
-        for (s, e, reason) in auto_nan_intervals:
-            _add_gap_event(s, e, reason=reason)
+            if (s, e) not in all_unusable_spans:
+                all_unusable_spans.append((s, e))
+        for (s, e, _reason) in auto_nan_intervals:
+            all_unusable_spans.append((s, e))
 
-        gap_df = pd.DataFrame(gap_events)
+        # Merge overlapping unusable spans
+        all_unusable_spans.sort(key=lambda x: x[0])
+        merged_unusable = []
+        for s, e in all_unusable_spans:
+            if merged_unusable and s <= merged_unusable[-1][1]:
+                merged_unusable[-1] = (merged_unusable[-1][0], max(merged_unusable[-1][1], e))
+            else:
+                merged_unusable.append((s, e))
 
-        # --- 6d. merge and deduplicate using EventManager-style call ---
-        # Combine point and gap events first
-        combined_events = pd.concat([point_df, gap_df], ignore_index=True) if not gap_df.empty else point_df
+        # Build QC_unusable_ecg state rows
+        unusable_rows = []
+        for s, e in merged_unusable:
+            dt_start = _sample_to_dt(s)
+            dt_end   = _sample_to_dt(e)
+            duration_sec = (dt_end - dt_start).total_seconds()
+            if duration_sec > 0:
+                unusable_rows.append({
+                    "datetime":          dt_start,
+                    "key":               "QC_unusable_ecg",
+                    "short_description": "ECG quality unusable: consecutive rejected beats or invalid RR interval",
+                    "type":              "state",
+                    "duration":          duration_sec,
+                })
 
-        # Use create_state_event to safely append into existing event_data
+        # Build QC_usable_ecg state rows (spans between unusable regions)
+        sig_start = _sample_to_dt(0)
+        sig_end   = _sample_to_dt(len(signal_subset_df) - 1)
+        usable_rows = []
+        cursor = sig_start
+        for s, e in merged_unusable:
+            gap_start_dt = _sample_to_dt(s)
+            gap_end_dt   = _sample_to_dt(e)
+            if gap_start_dt > cursor:
+                duration_sec = (gap_start_dt - cursor).total_seconds()
+                if duration_sec > 0:
+                    usable_rows.append({
+                        "datetime":          cursor,
+                        "key":               "QC_usable_ecg",
+                        "short_description": "ECG quality usable",
+                        "type":              "state",
+                        "duration":          duration_sec,
+                    })
+            cursor = gap_end_dt
+        if cursor < sig_end:
+            duration_sec = (sig_end - cursor).total_seconds()
+            if duration_sec > 0:
+                usable_rows.append({
+                    "datetime":          cursor,
+                    "key":               "QC_usable_ecg",
+                    "short_description": "ECG quality usable",
+                    "type":              "state",
+                    "duration":          duration_sec,
+                })
+
+        qc_df = pd.DataFrame(unusable_rows + usable_rows)
+
+        # --- 6d. merge all events and write into event_data ---
+        combined_events = pd.concat(
+            [df for df in [point_df, qc_df] if not df.empty],
+            ignore_index=True,
+        )
+
         if not combined_events.empty:
             for k in combined_events["key"].unique():
                 subset = combined_events[combined_events["key"] == k]
@@ -750,31 +948,35 @@ if not skip_step:
                     start_time_column="start_time",
                     duration_column="duration",
                     description=subset["short_description"].iloc[0],
-                    existing_events=data_pkl.event_data
+                    existing_events=data_pkl.event_data,
                 )
 
         # --- 6e. register keys via EventManager ---
         if not hasattr(data_pkl, "event_manager"):
             data_pkl.event_manager = {}
 
-        # ensure a sub-dict for HR
         data_pkl.event_manager["heart_rate"] = {
             "keys": [
                 "heartbeat_auto_detect_accepted",
                 "heartbeat_auto_detect_rejected",
+                "heartbeat_auto_detect_rejected_conflict",
                 "heartbeat_auto_detect_suggested",
-                "heartbeat_auto_detect_gap",
+                "QC_unusable_ecg",
+                "QC_usable_ecg",
             ],
-            "description": "Events related to heartbeat detection and HR gap handling",
+            "description": "Events related to heartbeat detection and ECG quality control",
             "color_map": {
-                "heartbeat_auto_detect_accepted": "#4caf50",
-                "heartbeat_auto_detect_rejected": "#f44336",
-                "heartbeat_auto_detect_suggested": "#ffeb3b",
-                "heartbeat_auto_detect_gap": "#9e9e9e",
+                "heartbeat_auto_detect_accepted":          "#4caf50",
+                "heartbeat_auto_detect_rejected":          "#f44336",
+                "heartbeat_auto_detect_rejected_conflict": "#ff9800",
+                "heartbeat_auto_detect_suggested":         "#ffeb3b",
+                "QC_unusable_ecg":                         "rgba(80, 80, 80, 0.5)",
+                "QC_usable_ecg":                           "rgba(100, 220, 100, 0.20)",
             },
         }
 
-        print("✅ Heartbeat events synced via EventManager.")
+        print(f"✅ Heartbeat events synced. "
+              f"{len(unusable_rows)} unusable spans, {len(usable_rows)} usable spans.")
 
 
 
@@ -790,7 +992,7 @@ if not skip_step:
         TARGET_SAMPLING_RATE = 25
 
         notes_to_plot = {
-            'heartbeat_manual_ok': {'signal': 'ecg', 'symbol': 'triangle-down', 'color': 'blue'},
+            'heartbeat_manual_ok': {'signal': 'ecg', 'symbol': 'circle', 'color': 'blue', 'y_offset_frac': -1.5},
             'heartbeat_auto_detect_accepted': {'signal': 'ecg', 'symbol': 'triangle-up', 'color': 'green'},
             'heartbeat_auto_detect_rejected': {'signal': 'ecg', 'symbol': 'triangle-up', 'color': 'red'},
             'strokebeat_auto_detect_accepted': {'signal': 'sr_smoothed', 'symbol': 'triangle-up', 'color': 'green'},
@@ -826,8 +1028,6 @@ if not skip_step:
         # Print the number of removed events
         removed_event_count = initial_event_count - final_event_count
         print(f"Removed {removed_event_count} events with keys ending in '_rejected'.")
-else:
-    print(f"Skipping step due to missing critical signal: {critical_signal}.")
 
 current_processing_step = "Processing Step 05. Heart rate calculation complete."
 print(current_processing_step)

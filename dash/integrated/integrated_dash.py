@@ -10,6 +10,9 @@ import json
 import pickle
 import os
 import re
+import shutil
+import subprocess
+import time
 import html as std_html
 import tempfile
 from datetime import timedelta
@@ -64,7 +67,7 @@ from pyologger.utils.deployment_source import (
     resolve_plot_signal_allowlist,
 )
 try:
-    from pyologger.dash.minimal_interactive.model_3d import (
+    from pyologger.dash.integrated.model_3d import (
         EMPTY_ORIENTATION_JSON,
         build_orientation_data_json,
         fetch_3d_model_info,
@@ -72,7 +75,7 @@ try:
     )
 except ModuleNotFoundError:
     # Support direct script execution from pyologger repo root where
-    # dash/minimal_interactive is not a package under pyologger/.
+    # dash/integrated is not a package under pyologger/.
     from model_3d import (
         EMPTY_ORIENTATION_JSON,
         build_orientation_data_json,
@@ -82,7 +85,7 @@ except ModuleNotFoundError:
 from pyologger.utils.folder_manager import load_configuration, resolve_deployment_context, select_and_load_deployment
 from pyologger.utils.streamlit_time_window import standardize_time_settings
 try:
-    from pyologger.dash.minimal_interactive.segmentation_helpers import (
+    from pyologger.dash.integrated.segmentation_helpers import (
         DEFAULT_SEGMENTATION_DATASET,
         DEFAULT_SEGMENTATION_DEPLOYMENT,
         DEFAULT_SEGMENTATION_WINDOW_HOURS,
@@ -878,11 +881,35 @@ def _build_orientation_runtime_payload():
     )
 
 
+# Cache Notion model lookups per animal. The S3 model/texture URLs are presigned
+# with a 1h expiry, so we cap the TTL below that and refetch after it lapses.
+_MODEL_INFO_CACHE = {}
+_MODEL_INFO_TTL_S = 45 * 60
+
+
+def _cached_fetch_3d_model_info(animal_id):
+    now = time.monotonic()
+    hit = _MODEL_INFO_CACHE.get(animal_id)
+    if hit and (now - hit[0]) < _MODEL_INFO_TTL_S:
+        return hit[1]
+    info = fetch_3d_model_info(animal_id)
+    # Only cache successful lookups (avoid pinning transient Notion failures).
+    if isinstance(info, dict) and info.get("ok"):
+        _MODEL_INFO_CACHE[animal_id] = (now, info)
+    return info
+
+
 def _start_model_info_fetch(animal_id):
     if not animal_id:
         return None
+    # Serve from cache synchronously when warm (no thread/Notion round-trip).
+    hit = _MODEL_INFO_CACHE.get(animal_id)
+    if hit and (time.monotonic() - hit[0]) < _MODEL_INFO_TTL_S:
+        fut = concurrent.futures.Future()
+        fut.set_result(hit[1])
+        return fut
     try:
-        return _MODEL_FETCH_EXECUTOR.submit(fetch_3d_model_info, animal_id)
+        return _MODEL_FETCH_EXECUTOR.submit(_cached_fetch_3d_model_info, animal_id)
     except Exception:
         return None
 
@@ -891,11 +918,14 @@ def _resolve_model_info_from_future(model_future, animal_id):
     if not animal_id:
         return {"ok": False, "message": "No animal ID available for this deployment."}
     if model_future is None:
-        return fetch_3d_model_info(animal_id)
+        return _cached_fetch_3d_model_info(animal_id)
     try:
-        return model_future.result(timeout=20)
+        # A cold Notion lookup can take ~20-25s; allow headroom so the first load
+        # doesn't time out and refetch. It runs behind the 3D spinner and blocks
+        # nothing else (video/data render meanwhile), so a longer wait is fine.
+        return model_future.result(timeout=45)
     except Exception:
-        return fetch_3d_model_info(animal_id)
+        return _cached_fetch_3d_model_info(animal_id)
 
 
 def _normalize_channel_order(selected, current_order):
@@ -4141,7 +4171,7 @@ def _build_segmentation_page_layout(dataset_options, default_dataset, default_de
             dcc.Store(id="seg-workflow-draft", data=default_workflow),
             dcc.Store(id="seg-workflow-live-elements", data=[]),
         ],
-        className="minimal-app",
+        className="integrated-app",
     )
 
 
@@ -4161,13 +4191,52 @@ def _playhead_shape_dict(playhead_ts):
     }
 
 
-parser = argparse.ArgumentParser(description="Minimal Dash interactive plot with signal/channel ordering.")
-parser.add_argument("--dataset", type=str, required=True, help="Dataset folder name")
-parser.add_argument("--deployment", type=str, required=True, help="Deployment ID")
+parser = argparse.ArgumentParser(description="Integrated Dash interactive plot with signal/channel ordering.")
+parser.add_argument("--dataset", type=str, default=None, help="Dataset folder name (defaults to the configured default deployment)")
+parser.add_argument("--deployment", type=str, default=None, help="Deployment ID (defaults to the configured default deployment)")
 parser.add_argument("--port", type=int, default=8061, help="Dash server port")
 args = parser.parse_args()
 
 config, data_dir, color_mapping_path, _ = load_configuration()
+
+
+def _resolve_launch_target(data_dir_path, dataset_arg, deployment_arg):
+    """Pick the dataset/deployment to open at launch so no args are required.
+
+    Precedence: explicit CLI args -> configured DEFAULT_SEGMENTATION_* -> the
+    first dataset on disk with a deployment that has outputs/data.pkl. Enables
+    ``python integrated_dash.py`` with no flags.
+    """
+    ds = dataset_arg
+    dep = deployment_arg
+    # Configured default dataset, if present on disk.
+    if ds is None and DEFAULT_SEGMENTATION_DATASET in _list_datasets(data_dir_path):
+        ds = DEFAULT_SEGMENTATION_DATASET
+    # Configured default deployment within the chosen dataset, if present.
+    if ds is not None and dep is None:
+        deps = _list_deployments(data_dir_path, ds)
+        if DEFAULT_SEGMENTATION_DEPLOYMENT in deps:
+            dep = DEFAULT_SEGMENTATION_DEPLOYMENT
+        elif deps:
+            dep = deps[0]
+    # Last resort: first dataset anywhere that has a usable deployment.
+    if ds is None or dep is None:
+        for candidate_ds in _list_datasets(data_dir_path):
+            deps = _list_deployments(data_dir_path, candidate_ds)
+            if deps:
+                ds, dep = candidate_ds, deps[0]
+                break
+    if ds is None or dep is None:
+        raise SystemExit(
+            "No dataset/deployment specified and no default could be resolved. "
+            "Pass --dataset and --deployment, or ensure a deployment with "
+            "outputs/data.pkl exists under the configured data directory."
+        )
+    return ds, dep
+
+
+args.dataset, args.deployment = _resolve_launch_target(data_dir, args.dataset, args.deployment)
+print(f"[launch] Opening dataset={args.dataset} deployment={args.deployment}")
 _private_root = (config.get("paths", {}) or {}).get("local_private_data") or data_dir
 _PEAK_REF_VALUES = _collect_peak_reference_values(config, _private_root)
 _seg_config_path = str(pathlib.Path(_LOCAL_PYOLOGGER_ROOT) / "config.yaml")
@@ -4219,7 +4288,518 @@ _segmentation_algo_defaults = default_algorithmic_cfg_from_config(_seg_config_pa
 _segmentation_workflow_defaults = load_segmentation_workflow_presets(_seg_config_path)
 
 app = Dash(__name__)
-app.title = "Minimal Interactive Plot"
+app.title = "Integrated Dash"
+
+
+# ---------------------------------------------------------------------------
+# Local synchronized-video support
+# ---------------------------------------------------------------------------
+# Directory of local processed video clips for the ACTIVE deployment. Filenames
+# encode a local-time range, e.g. "..._2023-06-23_11-44-33_11-49-30.mp4".
+# Derived from the deployment's media folder:
+#   <local_private_media>/<dataset>/<deployment>_media/02_processed-video
+# (override with PYOLOGGER_VIDEO_DIR). Must be deployment-specific — a fixed path
+# would load another deployment's clips and land them years off the playhead.
+def _default_video_dir(dataset, deployment):
+    override = os.environ.get("PYOLOGGER_VIDEO_DIR")
+    if override:
+        return pathlib.Path(override).resolve()
+    media_root = (config.get("paths", {}) or {}).get("local_private_media")
+    if media_root and dataset and deployment:
+        return (pathlib.Path(media_root) / dataset / f"{deployment}_media" / "02_processed-video").resolve()
+    return None
+
+
+VIDEO_DIR = _default_video_dir(dataset_id, deployment_id)
+
+_VIDEO_FILENAME_RE = re.compile(
+    r"(?P<date>\d{4}-\d{2}-\d{2})_(?P<start>\d{2}-\d{2}-\d{2})_(?P<end>\d{2}-\d{2}-\d{2})\.mp4$",
+    re.IGNORECASE,
+)
+
+
+def _build_video_clip_index(video_dir, clip_tz_name):
+    """Scan video_dir and return clips sorted by start, each with epoch bounds.
+
+    Each entry: {"name", "start_epoch", "end_epoch"}. Times in the filename are
+    interpreted in the deployment-local timezone. Clips that cross midnight
+    (end < start) roll the end date forward one day.
+    """
+    clips = []
+    if not video_dir:
+        return clips
+    try:
+        entries = sorted(pathlib.Path(video_dir).glob("*.mp4"))
+    except Exception:
+        entries = []
+    for p in entries:
+        m = _VIDEO_FILENAME_RE.search(p.name)
+        if not m:
+            continue
+        try:
+            date = m.group("date")
+            start_ts = pd.Timestamp(f"{date} {m.group('start').replace('-', ':')}").tz_localize(clip_tz_name)
+            end_ts = pd.Timestamp(f"{date} {m.group('end').replace('-', ':')}").tz_localize(clip_tz_name)
+            if end_ts <= start_ts:
+                end_ts = end_ts + pd.Timedelta(days=1)
+        except Exception:
+            continue
+        clips.append(
+            {
+                "name": p.name,
+                "start_epoch": float(start_ts.timestamp()),
+                "end_epoch": float(end_ts.timestamp()),
+                "source": "local",
+                "url": f"/local-video/{p.name}",
+            }
+        )
+    clips.sort(key=lambda c: c["start_epoch"])
+    return clips
+
+
+# ---------------------------------------------------------------------------
+# Immich synchronized-video support (preferred source)
+# ---------------------------------------------------------------------------
+# Videos live in an Immich album named "DepID_<deployment_id>". Immich transcodes
+# and serves web-optimized, seekable streams, which avoids local-file container/
+# encoding issues. Credentials come from IMMICH_API_KEY / IMMICH_BASE_URL (set in
+# the environment, e.g. via EcoPhysVideoViz/.env). The browser never sees the API
+# key: it hits our /immich-video/<asset_id> proxy, which streams from Immich with
+# the key header and forwards Range requests.
+_immich_service = None
+
+
+def _ensure_immich_env():
+    """Populate IMMICH_* from a .env file if not already in the environment.
+
+    Checks PYOLOGGER_IMMICH_ENV, then EcoPhysVideoViz/.env at the repo root. Only
+    fills missing keys; existing environment values win.
+    """
+    if os.getenv("IMMICH_API_KEY") and os.getenv("IMMICH_BASE_URL"):
+        return
+    candidates = []
+    explicit = os.getenv("PYOLOGGER_IMMICH_ENV")
+    if explicit:
+        candidates.append(pathlib.Path(explicit))
+    candidates.append(pathlib.Path(_LOCAL_PYOLOGGER_ROOT).resolve().parent / "EcoPhysVideoViz" / ".env")
+    for env_path in candidates:
+        try:
+            if not env_path.is_file():
+                continue
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k, v = k.strip(), v.strip().strip('"').strip("'")
+                if k in ("IMMICH_API_KEY", "IMMICH_BASE_URL") and not os.getenv(k):
+                    os.environ[k] = v
+        except Exception:
+            continue
+
+
+def _get_immich_service():
+    global _immich_service
+    if _immich_service is not None:
+        return _immich_service
+    try:
+        _ensure_immich_env()
+        from DiveDB.services.immich_service import ImmichService
+
+        _immich_service = ImmichService()
+    except Exception as exc:
+        print(f"[video] Immich unavailable ({exc}); will use local files if present.")
+        _immich_service = False
+    return _immich_service
+
+
+def _parse_immich_duration(duration_str):
+    """'HH:MM:SS.mmm' -> seconds (float). 0.0 on failure."""
+    try:
+        parts = str(duration_str).split(":")
+        if len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+    except Exception:
+        pass
+    return 0.0
+
+
+def _build_immich_clip_index(deployment_ident):
+    """Build the clip index from the Immich album DepID_<deployment_ident>.
+
+    Uses the RAW find_media 'fileCreatedAt' (correct UTC, offset-aware) rather than
+    prepare_video_options_for_react (which relabels local time as UTC). Each clip:
+    {name, asset_id, start_epoch, end_epoch, source='immich', url='/immich-video/<id>'}.
+    Returns [] if Immich is unavailable or the album has no videos.
+    """
+    svc = _get_immich_service()
+    if not svc:
+        return []
+    album = f"DepID_{deployment_ident}"
+    try:
+        res = svc.find_media_by_deployment_id(album, media_type="VIDEO", shared=True)
+    except Exception as exc:
+        print(f"[video] Immich find_media failed for {album}: {exc}")
+        return []
+    if not (res and res.get("success")):
+        return []
+    clips = []
+    for a in (res.get("data") or []):
+        try:
+            aid = a.get("id")
+            created = a.get("fileCreatedAt")
+            if not aid or not created:
+                continue
+            start_ts = pd.Timestamp(created)  # ISO w/ offset -> tz-aware
+            if start_ts.tzinfo is None:
+                start_ts = start_ts.tz_localize("UTC")
+            dur = _parse_immich_duration(a.get("duration"))
+            start_epoch = float(start_ts.timestamp())
+            clips.append(
+                {
+                    "name": a.get("originalFileName") or aid,
+                    "asset_id": aid,
+                    "start_epoch": start_epoch,
+                    "end_epoch": start_epoch + dur,
+                    "source": "immich",
+                    "url": f"/immich-video/{aid}",
+                }
+            )
+        except Exception:
+            continue
+    clips.sort(key=lambda c: c["start_epoch"])
+    return clips
+
+
+def _build_clip_index(deployment_ident, video_dir, clip_tz_name):
+    """Prefer Immich; fall back to local files when Immich has nothing."""
+    immich = _build_immich_clip_index(deployment_ident)
+    if immich:
+        print(f"[video] Using {len(immich)} Immich clip(s) for {deployment_ident}.")
+        return immich
+    local = _build_video_clip_index(video_dir, clip_tz_name)
+    if local:
+        print(f"[video] Using {len(local)} local clip(s) from {video_dir}.")
+    else:
+        print("[video] No Immich or local clips found.")
+    return local
+
+
+_video_clip_index = _build_clip_index(deployment_id, VIDEO_DIR, tz_name)
+
+
+# ---------------------------------------------------------------------------
+# Deployment/dataset availability annotations for the selection dropdowns
+# ---------------------------------------------------------------------------
+# Each dropdown option is labeled with: # Immich videos, # local videos, and the
+# date the deployment's output.nc was last generated. Network + disk lookups are
+# cached because dropdowns rebuild often.
+_LOCAL_MEDIA_ROOT = (config.get("paths", {}) or {}).get("local_private_media")
+_local_count_cache = {}
+_nc_date_cache = {}
+_immich_album_counts = None  # dict: deployment -> assetCount, built once
+
+
+def _immich_album_count_map():
+    """One call to /albums?shared=true -> {deployment: assetCount} for DepID_ albums.
+
+    assetCount is per-album (video-only albums here); used as the Immich availability
+    hint so the dropdowns don't fire one request per deployment.
+    """
+    global _immich_album_counts
+    if _immich_album_counts is not None:
+        return _immich_album_counts
+    counts = {}
+    svc = _get_immich_service()
+    if svc:
+        try:
+            r = svc.session.get(f"{svc.base_url}/albums", params={"shared": "true"}, timeout=20)
+            if r.status_code == 200:
+                for a in r.json():
+                    name = a.get("albumName") or ""
+                    if name.startswith("DepID_"):
+                        counts[name[len("DepID_"):]] = a.get("assetCount")
+        except Exception:
+            counts = {}
+    _immich_album_counts = counts
+    return counts
+
+
+def _local_video_dir_for(dataset, deployment):
+    """<media_root>/<dataset>/<deployment>_media/02_processed-video, if configured."""
+    if not _LOCAL_MEDIA_ROOT or not dataset or not deployment:
+        return None
+    return pathlib.Path(_LOCAL_MEDIA_ROOT) / dataset / f"{deployment}_media" / "02_processed-video"
+
+
+def _local_video_count(dataset, deployment):
+    key = (dataset, deployment)
+    if key in _local_count_cache:
+        return _local_count_cache[key]
+    n = 0
+    d = _local_video_dir_for(dataset, deployment)
+    try:
+        if d and d.is_dir():
+            n = sum(1 for p in d.glob("*.mp4") if p.is_file())
+    except Exception:
+        n = 0
+    _local_count_cache[key] = n
+    return n
+
+
+def _immich_video_count(deployment):
+    """Immich asset count for album DepID_<deployment>; None if Immich unavailable,
+    0 if reachable but no such album."""
+    counts = _immich_album_count_map()
+    if not counts and _get_immich_service() is False:
+        return None
+    return counts.get(deployment, 0)
+
+
+def _output_nc_date(dataset, deployment):
+    """Date (YYYY-MM-DD) the deployment's *_output.nc was last modified, or None."""
+    key = (dataset, deployment)
+    if key in _nc_date_cache:
+        return _nc_date_cache[key]
+    date = None
+    try:
+        outputs = pathlib.Path(data_dir) / dataset / deployment / "outputs"
+        candidates = sorted(outputs.glob(f"{deployment}_output.nc"))
+        if not candidates:
+            # Fall back to any *_output.nc (excluding *_copy.nc).
+            candidates = [p for p in outputs.glob("*_output.nc") if "_copy" not in p.name]
+        if candidates:
+            mtime = max(p.stat().st_mtime for p in candidates)
+            date = pd.Timestamp(mtime, unit="s").strftime("%Y-%m-%d")
+    except Exception:
+        date = None
+    _nc_date_cache[key] = date
+    return date
+
+
+def _deployment_option_label(dataset, deployment):
+    """'2021-04-17_mian-011 · immich 2 · local 5 · nc 2026-03-30'."""
+    imm = _immich_video_count(deployment)
+    loc = _local_video_count(dataset, deployment)
+    nc = _output_nc_date(dataset, deployment)
+    imm_txt = f"immich {imm}" if imm is not None else "immich ?"
+    parts = [deployment, f"🎬 {imm_txt} · local {loc}", f"nc {nc}" if nc else "nc —"]
+    return "  ·  ".join(parts)
+
+
+def _deployment_options_with_meta(dataset):
+    return [
+        {"label": _deployment_option_label(dataset, dep), "value": dep}
+        for dep in _list_deployments(data_dir, dataset)
+    ]
+
+
+def _dataset_option_label(dataset):
+    """Aggregate across the dataset's deployments: total videos + newest nc date."""
+    deps = _list_deployments(data_dir, dataset)
+    if not deps:
+        return dataset
+    loc_total = sum(_local_video_count(dataset, d) for d in deps)
+    imm_counts = [_immich_video_count(d) for d in deps]
+    imm_known = [c for c in imm_counts if c is not None]
+    imm_total = sum(imm_known) if imm_known else None
+    nc_dates = [x for x in (_output_nc_date(dataset, d) for d in deps) if x]
+    newest = max(nc_dates) if nc_dates else None
+    imm_txt = f"immich {imm_total}" if imm_total is not None else "immich ?"
+    parts = [f"{dataset} ({len(deps)})", f"🎬 {imm_txt} · local {loc_total}", f"nc {newest}" if newest else "nc —"]
+    return "  ·  ".join(parts)
+
+
+def _dataset_options_with_meta():
+    return [{"label": _dataset_option_label(d), "value": d} for d in _list_datasets(data_dir)]
+
+
+def _video_coverage_bars(track_class="coverage-bar"):
+    """Build one CSS-positioned bar per clip (EcoPhysVideoViz style).
+
+    Each bar carries its absolute epoch bounds as CSS variables; the containing
+    strip carries --view-min/--view-max, and CSS computes left/width as a percent
+    of the current view. Updating the strip's view vars re-positions every bar,
+    which keeps the strip aligned to whatever x-range it represents.
+    """
+    bars = []
+    for clip in _video_clip_index:
+        bars.append(
+            html.Div(
+                className=track_class,
+                title=clip["name"],
+                style={
+                    "--seg-start": clip["start_epoch"],
+                    "--seg-end": clip["end_epoch"],
+                },
+            )
+        )
+    return bars
+
+
+def _format_gap(seconds):
+    """Human-readable gap: '12s', '3m 05s', '2h 14m', '10d 4h'."""
+    s = int(round(abs(seconds)))
+    if s < 60:
+        return f"{s}s"
+    if s < 3600:
+        return f"{s // 60}m {s % 60:02d}s"
+    if s < 86400:
+        return f"{s // 3600}h {(s % 3600) // 60:02d}m"
+    return f"{s // 86400}d {(s % 86400) // 3600}h"
+
+
+def _find_video_clip_for_epoch(epoch):
+    """Return (clip, offset_seconds) for the clip containing epoch, else (None, None)."""
+    if epoch is None:
+        return None, None
+    try:
+        epoch = float(epoch)
+    except Exception:
+        return None, None
+    for clip in _video_clip_index:
+        if clip["start_epoch"] <= epoch <= clip["end_epoch"]:
+            return clip, max(0.0, epoch - clip["start_epoch"])
+    return None, None
+
+
+# Faststart cache: these mp4s have their 'moov' atom at the END of the file, so
+# the browser can't build a seek index until it downloads the tail. Range-seeks
+# then render black until enough re-buffers. We remux (container copy, no
+# re-encode) with 'moov' moved to the front into this cache dir and serve that.
+_FASTSTART_DIR = (VIDEO_DIR / ".faststart") if VIDEO_DIR else None
+_FASTSTART_TOOL = shutil.which("qt-faststart") or shutil.which("ffmpeg")
+
+
+def _needs_faststart(path):
+    """True if the mp4's moov atom sits after mdat (not web-optimized)."""
+    try:
+        import struct
+
+        order = []
+        with open(path, "rb") as f:
+            pos = 0
+            while len(order) < 8:
+                f.seek(pos)
+                hdr = f.read(8)
+                if len(hdr) < 8:
+                    break
+                size = struct.unpack(">I", hdr[:4])[0]
+                typ = hdr[4:8].decode("latin1", "replace")
+                order.append(typ)
+                if size == 1:
+                    size = struct.unpack(">Q", f.read(8))[0]
+                if size == 0:
+                    break
+                pos += size
+        if "moov" in order and "mdat" in order:
+            return order.index("moov") > order.index("mdat")
+    except Exception:
+        pass
+    return False
+
+
+def _faststart_path(src):
+    """Return a web-optimized copy of src, creating it once in the cache dir.
+
+    Falls back to the original path if remuxing is unavailable or fails.
+    """
+    src = pathlib.Path(src)
+    try:
+        if not _needs_faststart(src):
+            return src
+        if _FASTSTART_TOOL is None:
+            return src
+        _FASTSTART_DIR.mkdir(parents=True, exist_ok=True)
+        out = _FASTSTART_DIR / src.name
+        if out.is_file() and out.stat().st_size > 0:
+            return out
+        tmp = out.with_suffix(".tmp.mp4")
+        tool = os.path.basename(_FASTSTART_TOOL)
+        if tool == "qt-faststart":
+            cmd = [_FASTSTART_TOOL, str(src), str(tmp)]
+        else:  # ffmpeg
+            cmd = [_FASTSTART_TOOL, "-y", "-i", str(src), "-c", "copy",
+                   "-movflags", "+faststart", str(tmp)]
+        res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
+        if res.returncode == 0 and tmp.is_file() and tmp.stat().st_size > 0:
+            tmp.replace(out)
+            return out
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+    except Exception:
+        pass
+    return src
+
+
+@app.server.route("/local-video/<path:filename>")
+def _serve_local_video(filename):
+    """Stream a video from VIDEO_DIR with HTTP range support (needed for seeking)."""
+    from flask import abort, send_file
+
+    # Guard against path traversal: only serve plain basenames from VIDEO_DIR.
+    if not VIDEO_DIR:
+        abort(404)
+    safe_name = os.path.basename(filename)
+    if safe_name != filename or not safe_name.lower().endswith(".mp4"):
+        abort(404)
+    target = (VIDEO_DIR / safe_name)
+    if not target.is_file():
+        abort(404)
+    served = _faststart_path(target)
+    # send_file honors Range requests via conditional=True.
+    return send_file(str(served), conditional=True, mimetype="video/mp4")
+
+
+_IMMICH_ASSET_ID_RE = re.compile(r"^[0-9a-fA-F-]{16,64}$")
+
+
+@app.server.route("/immich-video/<asset_id>")
+def _serve_immich_video(asset_id):
+    """Proxy an Immich video/playback stream, keeping the API key server-side.
+
+    Forwards the browser's Range header to Immich and relays status + range
+    headers back, so the <video> element can seek. The x-api-key never reaches
+    the browser.
+    """
+    from flask import Response, abort, request, stream_with_context
+
+    if not _IMMICH_ASSET_ID_RE.match(asset_id or ""):
+        abort(404)
+    svc = _get_immich_service()
+    if not svc:
+        abort(503)
+    upstream = f"{svc.base_url}/assets/{asset_id}/video/playback"
+    fwd_headers = {"x-api-key": svc.api_key}
+    rng = request.headers.get("Range")
+    if rng:
+        fwd_headers["Range"] = rng
+    try:
+        up = svc.session.get(upstream, headers=fwd_headers, stream=True, timeout=60)
+    except Exception:
+        abort(502)
+    if up.status_code not in (200, 206):
+        up.close()
+        abort(up.status_code if up.status_code >= 400 else 502)
+
+    passthrough = {}
+    for h in ("Content-Type", "Content-Length", "Content-Range", "Accept-Ranges"):
+        if h in up.headers:
+            passthrough[h] = up.headers[h]
+    passthrough.setdefault("Content-Type", "video/mp4")
+    passthrough.setdefault("Accept-Ranges", "bytes")
+
+    def _generate():
+        try:
+            for chunk in up.iter_content(chunk_size=262144):
+                if chunk:
+                    yield chunk
+        finally:
+            up.close()
+
+    return Response(stream_with_context(_generate()), status=up.status_code, headers=passthrough)
+
+
 _current_fig = None
 _depth_ctx_x, _depth_ctx_y, _depth_ctx_label, _depth_ctx_unit, _depth_ctx_source_signal = _extract_depth_context_series(data_pkl, tz_name)
 _signal_colors = _load_color_mapping(color_mapping_path)
@@ -4471,14 +5051,14 @@ main_page_layout = html.Div(
                                                 html.Label("Dataset"),
                                                 dcc.Dropdown(
                                                     id="dataset-select",
-                                                    options=[{"label": d, "value": d} for d in dataset_options],
+                                                    options=_dataset_options_with_meta(),
                                                     value=dataset_id,
                                                     multi=False,
                                                 ),
                                                 html.Label("Deployment", style={"marginTop": "10px"}),
                                                 dcc.Dropdown(
                                                     id="deployment-select",
-                                                    options=[{"label": d, "value": d} for d in deployment_options],
+                                                    options=_deployment_options_with_meta(dataset_id),
                                                     value=deployment_id,
                                                     multi=False,
                                                 ),
@@ -4811,34 +5391,41 @@ main_page_layout = html.Div(
                                                                 (
                                                                     html.Div(
                                                                         [
-                                                                            html.Div(
-                                                                                (
-                                                                                    three_js_orientation.ThreeJsOrientation(
-                                                                                        id="model-3d-viewer",
-                                                                                        data=EMPTY_ORIENTATION_JSON,
-                                                                                        activeTime=float(_default_playhead_epoch(slider_default)) * 1000.0,
-                                                                                        cameraFollowModel=True,
-                                                                                        modelFile="",
-                                                                                        textureFile="",
-                                                                                        pitchOffset=_initial_model_3d_controls.get("pitch_offset", 0.0),
-                                                                                        rollOffset=_initial_model_3d_controls.get("roll_offset", 0.0),
-                                                                                        headingOffset=_initial_model_3d_controls.get("heading_offset", 0.0),
-                                                                                        pitchSign=_initial_model_3d_controls.get("pitch_sign", 1),
-                                                                                        rollSign=_initial_model_3d_controls.get("roll_sign", 1),
-                                                                                        headingSign=_initial_model_3d_controls.get("heading_sign", 1),
-                                                                                        rotationOrder=_initial_model_3d_controls.get("rotation_order", ["roll", "pitch", "heading"]),
-                                                                                        style={
-                                                                                            "width": "100%",
-                                                                                            "height": "100%",
-                                                                                            "--pause-stroke-threshold": "10",
-                                                                                            "--show-trajectory": "1",
-                                                                                            "--trajectory-line-width": str(float(_initial_model_3d_controls.get("track_line_width", 7.1))),
-                                                                                            "--trajectory-highlight-width": str(float(_initial_model_3d_controls.get("highlight_width", 1.55))),
-                                                                                            "--trajectory-highlight-offset": str(float(_initial_model_3d_controls.get("highlight_offset", 0.18))),
-                                                                                        },
-                                                                                    )
+                                                                            dcc.Loading(
+                                                                                # Spinner while the 3D model + Notion fetch resolves.
+                                                                                # This panel loads LAST (after deployment, data,
+                                                                                # and video) and never blocks them.
+                                                                                type="circle",
+                                                                                color="#7ec5eb",
+                                                                                children=html.Div(
+                                                                                    (
+                                                                                        three_js_orientation.ThreeJsOrientation(
+                                                                                            id="model-3d-viewer",
+                                                                                            data=EMPTY_ORIENTATION_JSON,
+                                                                                            activeTime=float(_default_playhead_epoch(slider_default)) * 1000.0,
+                                                                                            cameraFollowModel=True,
+                                                                                            modelFile="",
+                                                                                            textureFile="",
+                                                                                            pitchOffset=_initial_model_3d_controls.get("pitch_offset", 0.0),
+                                                                                            rollOffset=_initial_model_3d_controls.get("roll_offset", 0.0),
+                                                                                            headingOffset=_initial_model_3d_controls.get("heading_offset", 0.0),
+                                                                                            pitchSign=_initial_model_3d_controls.get("pitch_sign", 1),
+                                                                                            rollSign=_initial_model_3d_controls.get("roll_sign", 1),
+                                                                                            headingSign=_initial_model_3d_controls.get("heading_sign", 1),
+                                                                                            rotationOrder=_initial_model_3d_controls.get("rotation_order", ["roll", "pitch", "heading"]),
+                                                                                            style={
+                                                                                                "width": "100%",
+                                                                                                "height": "100%",
+                                                                                                "--pause-stroke-threshold": "10",
+                                                                                                "--show-trajectory": "1",
+                                                                                                "--trajectory-line-width": str(float(_initial_model_3d_controls.get("track_line_width", 7.1))),
+                                                                                                "--trajectory-highlight-width": str(float(_initial_model_3d_controls.get("highlight_width", 1.55))),
+                                                                                                "--trajectory-highlight-offset": str(float(_initial_model_3d_controls.get("highlight_offset", 0.18))),
+                                                                                            },
+                                                                                        )
+                                                                                    ),
+                                                                                    className="model-3d-viewer-wrap",
                                                                                 ),
-                                                                                className="model-3d-viewer-wrap",
                                                                             ),
                                                                             html.Div(
                                                                                 three_js_orientation.ThreeJsOrientation(
@@ -5155,6 +5742,8 @@ main_page_layout = html.Div(
                         ),
                                 html.Div(
                                     [
+                                html.Div(
+                                    [
                                         html.Details(
                                             [
                                                 html.Summary(
@@ -5163,35 +5752,121 @@ main_page_layout = html.Div(
                                                 ),
                                                 html.Div(
                                                     [
-                                                        html.Div(id="time-zone-used-label", className="window-summary", children=_time_display_label("local")),
-                                                        dcc.RadioItems(
-                                                            id="time-display-tz-toggle",
-                                                            options=[
-                                                                {"label": "Local", "value": "local"},
-                                                                {"label": "UTC", "value": "utc"},
+                                                        html.Div(
+                                                            [
+                                                                html.Div(
+                                                                    id="time-zone-used-label",
+                                                                    className="time-tz-caption",
+                                                                    children=_time_display_label("local"),
+                                                                ),
+                                                                dcc.RadioItems(
+                                                                    id="time-display-tz-toggle",
+                                                                    options=[
+                                                                        {"label": "Local", "value": "local"},
+                                                                        {"label": "UTC", "value": "utc"},
+                                                                    ],
+                                                                    value="local",
+                                                                    className="time-zone-toggle",
+                                                                    inputClassName="time-zone-toggle-input",
+                                                                    labelClassName="time-zone-toggle-label",
+                                                                ),
                                                             ],
-                                                            value="local",
-                                                            className="time-zone-toggle",
-                                                            inputClassName="time-zone-toggle-input",
-                                                            labelClassName="time-zone-toggle-label",
+                                                            className="time-tz-row",
                                                         ),
-                                                        html.Label("Start time"),
-                                                        dcc.Input(
-                                                            id="start-time",
-                                                            type="text",
-                                                            value=_format_ts_input(start_default, _display_tz_name("local")),
-                                                            debounce=True,
-                                                            className="time-input",
+                                                        html.Div(
+                                                            [
+                                                                html.Div(
+                                                                    [
+                                                                        html.Label("Start time", className="time-field-label"),
+                                                                        dcc.Input(
+                                                                            id="start-time",
+                                                                            type="text",
+                                                                            value=_format_ts_input(start_default, _display_tz_name("local")),
+                                                                            debounce=True,
+                                                                            className="time-input",
+                                                                        ),
+                                                                    ],
+                                                                    className="time-field",
+                                                                ),
+                                                                html.Div(
+                                                                    [
+                                                                        html.Label("End time", className="time-field-label"),
+                                                                        dcc.Input(
+                                                                            id="end-time",
+                                                                            type="text",
+                                                                            value=_format_ts_input(end_default, _display_tz_name("local")),
+                                                                            debounce=True,
+                                                                            className="time-input",
+                                                                        ),
+                                                                    ],
+                                                                    className="time-field",
+                                                                ),
+                                                                html.Div(id="window-summary", className="window-duration-chip"),
+                                                            ],
+                                                            className="time-entry-row",
                                                         ),
-                                                        html.Label("End time"),
-                                                        dcc.Input(
-                                                            id="end-time",
-                                                            type="text",
-                                                            value=_format_ts_input(end_default, _display_tz_name("local")),
-                                                            debounce=True,
-                                                            className="time-input",
+                                                        html.Div(
+                                                            [
+                                                                html.Div(
+                                                                    [
+                                                                        html.Button(
+                                                                            "▶",
+                                                                            id="play-pause-btn",
+                                                                            n_clicks=0,
+                                                                            className="time-nav-btn play-pause-btn",
+                                                                            title="Play / pause (space)",
+                                                                            **{"data-playing": "0"},
+                                                                        ),
+                                                                        dcc.Dropdown(
+                                                                            id="playback-rate-select",
+                                                                            options=[
+                                                                                {"label": "0.5×", "value": 0.5},
+                                                                                {"label": "1×", "value": 1},
+                                                                                {"label": "2×", "value": 2},
+                                                                                {"label": "5×", "value": 5},
+                                                                            ],
+                                                                            value=1,
+                                                                            clearable=False,
+                                                                            searchable=False,
+                                                                            className="playback-rate-select",
+                                                                        ),
+                                                                    ],
+                                                                    className="time-nav-group playback-group",
+                                                                ),
+                                                                html.Div(
+                                                                    [
+                                                                        html.Button("−", id="tnav-zoom-out", n_clicks=0, className="time-nav-btn", title="Zoom out (2×)"),
+                                                                        html.Button("+", id="tnav-zoom-in", n_clicks=0, className="time-nav-btn", title="Zoom in (2×)"),
+                                                                        html.Button("⤢", id="tnav-full", n_clicks=0, className="time-nav-btn", title="Fit full range"),
+                                                                    ],
+                                                                    className="time-nav-group",
+                                                                ),
+                                                                html.Div(
+                                                                    [
+                                                                        html.Button("‹", id="tnav-pan-left", n_clicks=0, className="time-nav-btn", title="Pan left"),
+                                                                        html.Button("›", id="tnav-pan-right", n_clicks=0, className="time-nav-btn", title="Pan right"),
+                                                                    ],
+                                                                    className="time-nav-group",
+                                                                ),
+                                                                html.Div(
+                                                                    [
+                                                                        html.Button(lbl, id={"type": "tnav-preset", "seconds": secs}, n_clicks=0, className="time-preset-btn", title=f"Set window to {lbl}")
+                                                                        for lbl, secs in (("10s", 10), ("1m", 60), ("5m", 300), ("30m", 1800), ("1h", 3600))
+                                                                    ],
+                                                                    className="time-nav-group time-preset-group",
+                                                                ),
+                                                                html.Div(
+                                                                    [
+                                                                        html.Button("⇤", id="tnav-ph-start", n_clicks=0, className="time-nav-btn", title="Playhead to window start"),
+                                                                        html.Button("◂", id="tnav-ph-back", n_clicks=0, className="time-nav-btn", title="Step playhead back 5s"),
+                                                                        html.Button("▸", id="tnav-ph-fwd", n_clicks=0, className="time-nav-btn", title="Step playhead forward 5s"),
+                                                                        html.Button("⇥", id="tnav-ph-end", n_clicks=0, className="time-nav-btn", title="Playhead to window end"),
+                                                                    ],
+                                                                    className="time-nav-group",
+                                                                ),
+                                                            ],
+                                                            className="time-nav-toolbar",
                                                         ),
-                                                        html.Div(id="window-summary", className="window-summary"),
                                                         html.Div(
                                                             [
                                                                 html.Label("Target Sampling (Hz)"),
@@ -5202,7 +5877,7 @@ main_page_layout = html.Div(
                                                                     step=0.01,
                                                                     value=10.0,
                                                                     debounce=True,
-                                                                    className="time-input",
+                                                                    className="time-input time-input-narrow",
                                                                 ),
                                                                 html.Div(id="target-sampling-rate-interval", className="window-summary"),
                                                             ],
@@ -5260,7 +5935,13 @@ main_page_layout = html.Div(
                                                         "edits": {"shapePosition": True},
                                                     },
                                                 ),
-                                                html.Label("Time Range Slider"),
+                                                html.Div(
+                                                    [
+                                                        html.Span("Window", className="track-legend-dot track-legend-window"),
+                                                        html.Span(id="window-summary-inline", className="track-caption"),
+                                                    ],
+                                                    className="track-row-header",
+                                                ),
                                                 dcc.RangeSlider(
                                                     id="time-range-slider",
                                                     min=slider_min,
@@ -5269,18 +5950,18 @@ main_page_layout = html.Div(
                                                     pushable=MIN_WINDOW_SECONDS,
                                                     value=slider_default,
                                                     marks=None,
+                                                    className="window-slider",
                                                     tooltip={
                                                         "always_visible": False,
                                                         "placement": "bottom",
                                                     },
                                                 ),
-                                                html.Div(id="time-range-playhead-dot", className="time-range-playhead-dot"),
                                                 html.Div(
-                                                    [
-                                                        html.Div(id="window-start-label", className="slider-window-label"),
-                                                        html.Div(id="window-end-label", className="slider-window-label"),
-                                                    ],
-                                                    className="slider-window-labels",
+                                                    _video_coverage_bars(),
+                                                    id="coverage-strip-full",
+                                                    className="coverage-strip",
+                                                    style={"--view-min": slider_min, "--view-max": slider_max},
+                                                    title="Video coverage across the full deployment",
                                                 ),
                                                 html.Div(
                                                     [
@@ -5291,16 +5972,11 @@ main_page_layout = html.Div(
                                                 ),
                                                 html.Div(
                                                     [
-                                                        html.Div(id="zoom-link-left-vert", className="zoom-link-segment zoom-link-vert"),
-                                                        html.Div(id="zoom-link-right-vert", className="zoom-link-segment zoom-link-vert"),
-                                                        html.Div(id="zoom-link-left-horiz", className="zoom-link-segment zoom-link-horiz"),
-                                                        html.Div(id="zoom-link-right-horiz", className="zoom-link-segment zoom-link-horiz"),
-                                                        html.Div(id="playhead-zoom-left-dot", className="playhead-zoom-end-dot"),
-                                                        html.Div(id="playhead-zoom-right-dot", className="playhead-zoom-end-dot"),
+                                                        html.Span("Playhead", className="track-legend-dot track-legend-playhead"),
+                                                        html.Span(id="playhead-summary", className="track-caption"),
                                                     ],
-                                                    className="playhead-zoom-link-overlay",
+                                                    className="track-row-header track-row-header-playhead",
                                                 ),
-                                                html.Label("Playhead"),
                                                 dcc.Slider(
                                                     id="playhead-slider",
                                                     min=int(min(slider_default)),
@@ -5309,21 +5985,84 @@ main_page_layout = html.Div(
                                                     value=float(_default_playhead_epoch(slider_default)),
                                                     marks=None,
                                                     className="playhead-slider",
+                                                    updatemode="drag",
                                                     tooltip={
                                                         "always_visible": False,
                                                         "placement": "bottom",
                                                     },
                                                 ),
-                                                html.Div(id="playhead-summary", className="window-summary"),
-                                                html.Div(id="time-sync-debug", className="window-summary"),
                                             ],
                                             className="time-slider-row",
                                 ),
                             ],
                             className="plot-toolbar control-card",
                         ),
+                                        html.Div(
+                                            [
+                                                html.Details(
+                                                    [
+                                                        html.Summary(
+                                                            [html.Span("Synchronized Video", className="section-title")],
+                                                            className="collapsible-summary",
+                                                        ),
+                                                        html.Div(
+                                                            [
+                                                                html.Div(
+                                                                    html.Video(
+                                                                        id="sync-video",
+                                                                        src="",
+                                                                        controls=True,
+                                                                        # "auto" (not "metadata"): metadata-only preload
+                                                                        # leaves seeks parked on a black frame because the
+                                                                        # frame data at the target time is never fetched.
+                                                                        preload="auto",
+                                                                        className="sync-video-el",
+                                                                    ),
+                                                                    className="sync-video-frame",
+                                                                ),
+                                                                html.Div(id="sync-video-status", className="sync-video-status"),
+                                                                html.Div(
+                                                                    [
+                                                                        dcc.Checklist(
+                                                                            id="sync-video-follow",
+                                                                            options=[{"label": "Follow playhead", "value": "on"}],
+                                                                            value=["on"],
+                                                                            className="sync-video-follow",
+                                                                        ),
+                                                                    ],
+                                                                    className="sync-video-controls",
+                                                                ),
+                                                            ],
+                                                            className="collapsible-body sync-video-body",
+                                                        ),
+                                                    ],
+                                                    className="collapsible-panel",
+                                                    open=True,
+                                                ),
+                                            ],
+                                            className="control-card sync-video-card",
+                                        ),
+                                    ],
+                                    className="time-video-row",
+                                ),
                             ],
                             className="plot-top-row",
+                        ),
+                        html.Div(
+                            [
+                                html.Span("Video", className="coverage-caption"),
+                                html.Div(
+                                    html.Div(
+                                        _video_coverage_bars(),
+                                        id="coverage-strip-window",
+                                        className="coverage-strip coverage-strip-window",
+                                        style={"--view-min": int(min(slider_default)), "--view-max": int(max(slider_default))},
+                                    ),
+                                    id="coverage-plot-align",
+                                    className="coverage-plot-align",
+                                ),
+                            ],
+                            className="coverage-row",
                         ),
                         dcc.Graph(
                             id="main-plot",
@@ -5553,6 +6292,11 @@ main_page_layout = html.Div(
         dcc.Store(id="color-map-version", data=0),
         dcc.Store(id="map-selected-event", data=None),
         dcc.Store(id="overlap-window-store", data={}),
+        dcc.Store(id="sync-video-current-clip", data=None),
+        dcc.Store(id="is-playing", data=False),
+        dcc.Store(id="playback-rate", data=1),
+        dcc.Store(id="playback-dummy", data=0),
+        dcc.Interval(id="playback-interval", interval=100, n_intervals=0, disabled=True),
         dcc.Store(id="peak-detect-preview-store", data={}),
         dcc.Store(id="peak-detect-progress-store", data={}),
         dcc.Store(id="peak-view-active-store", data={"active": False, "mode": "heart_rate"}),
@@ -5577,7 +6321,7 @@ main_page_layout = html.Div(
         dcc.Input(id="chip-order-updates", type="text", value="{}", style={"display": "none"}),
         dcc.Input(id="arrow-key-input", type="text", value="", style={"display": "none"}),
     ],
-    className="minimal-app",
+    className="integrated-app",
 )
 
 segmentation_page_layout = _build_segmentation_page_layout(
@@ -5674,7 +6418,7 @@ app.layout = html.Div(
     Output("water-page-shell", "style"),
     Input("url", "pathname"),
 )
-def route_minimal_pages(pathname):
+def route_integrated_pages(pathname):
     route = str(pathname or "").strip().lower()
     if route == "/segmentation":
         return {"display": "none"}, {"display": "block"}, {"display": "none"}
@@ -5796,7 +6540,7 @@ def toggle_segmentation_workflow_diagram_popout(_n_clicks, pathname, current_cla
 )
 def update_deployment_options(selected_dataset, current_deployment):
     deployments = _list_deployments(data_dir, selected_dataset)
-    opts = [{"label": d, "value": d} for d in deployments]
+    opts = _deployment_options_with_meta(selected_dataset)
     value = current_deployment if current_deployment in deployments else (deployments[0] if deployments else None)
     return opts, value
 
@@ -10315,6 +11059,133 @@ def sync_window_from_plot_zoom(relayout_data, display_mode, s_min, s_max, existi
     raise dash.exceptions.PreventUpdate
 
 
+def _clamp_window(lo, hi, s_min, s_max):
+    """Clamp a [lo, hi] window into [s_min, s_max] preserving MIN_WINDOW_SECONDS."""
+    lo = float(lo)
+    hi = float(hi)
+    if hi < lo:
+        lo, hi = hi, lo
+    span = max(float(MIN_WINDOW_SECONDS), hi - lo)
+    full = max(float(MIN_WINDOW_SECONDS), s_max - s_min)
+    span = min(span, full)
+    # Keep the window inside bounds by shifting rather than squashing where possible.
+    if lo < s_min:
+        lo, hi = s_min, s_min + span
+    if hi > s_max:
+        hi, lo = s_max, s_max - span
+    lo = max(s_min, min(lo, s_max))
+    hi = max(s_min, min(hi, s_max))
+    if hi < lo + MIN_WINDOW_SECONDS:
+        hi = min(s_max, lo + MIN_WINDOW_SECONDS)
+        if hi < lo + MIN_WINDOW_SECONDS:
+            lo = max(s_min, hi - MIN_WINDOW_SECONDS)
+    return int(round(lo)), int(round(hi))
+
+
+@app.callback(
+    Output("time-range-slider", "value", allow_duplicate=True),
+    Output("start-time", "value", allow_duplicate=True),
+    Output("end-time", "value", allow_duplicate=True),
+    Input("tnav-zoom-in", "n_clicks"),
+    Input("tnav-zoom-out", "n_clicks"),
+    Input("tnav-full", "n_clicks"),
+    Input("tnav-pan-left", "n_clicks"),
+    Input("tnav-pan-right", "n_clicks"),
+    Input({"type": "tnav-preset", "seconds": ALL}, "n_clicks"),
+    State("time-range-slider", "value"),
+    State("time-range-slider", "min"),
+    State("time-range-slider", "max"),
+    State("playhead-time", "data"),
+    State("time-display-tz-toggle", "value"),
+    prevent_initial_call=True,
+)
+def time_nav_zoom_pan(_zi, _zo, _full, _pl, _pr, _presets, slider_value, s_min, s_max, playhead_time, display_mode):
+    trigger = ctx.triggered_id
+    if trigger is None:
+        raise dash.exceptions.PreventUpdate
+    # Ignore the initial 0-click fan-out that Dash emits for pattern-matched inputs.
+    if not ctx.triggered or ctx.triggered[0].get("value") in (None, 0):
+        raise dash.exceptions.PreventUpdate
+
+    s_min = int(s_min if s_min is not None else slider_min)
+    s_max = int(s_max if s_max is not None else slider_max)
+    if isinstance(slider_value, (list, tuple)) and len(slider_value) == 2:
+        lo = float(min(slider_value))
+        hi = float(max(slider_value))
+    else:
+        lo, hi = float(s_min), float(s_max)
+    span = max(float(MIN_WINDOW_SECONDS), hi - lo)
+    center = 0.5 * (lo + hi)
+
+    if isinstance(trigger, dict) and trigger.get("type") == "tnav-preset":
+        # Center the requested duration on the current playhead when available.
+        try:
+            ph = float(playhead_time)
+        except Exception:
+            ph = center
+        target = float(trigger.get("seconds") or span)
+        lo = ph - target / 2.0
+        hi = ph + target / 2.0
+    elif trigger == "tnav-zoom-in":
+        new_span = max(float(MIN_WINDOW_SECONDS), span / 2.0)
+        lo, hi = center - new_span / 2.0, center + new_span / 2.0
+    elif trigger == "tnav-zoom-out":
+        new_span = span * 2.0
+        lo, hi = center - new_span / 2.0, center + new_span / 2.0
+    elif trigger == "tnav-full":
+        lo, hi = float(s_min), float(s_max)
+    elif trigger == "tnav-pan-left":
+        shift = span * 0.5
+        lo, hi = lo - shift, hi - shift
+    elif trigger == "tnav-pan-right":
+        shift = span * 0.5
+        lo, hi = lo + shift, hi + shift
+    else:
+        raise dash.exceptions.PreventUpdate
+
+    lo, hi = _clamp_window(lo, hi, s_min, s_max)
+    display_tz = _display_tz_name(display_mode)
+    lo_ts = _from_epoch_seconds(lo, display_tz)
+    hi_ts = _from_epoch_seconds(hi, display_tz)
+    return [lo, hi], _format_ts_input(lo_ts, display_tz), _format_ts_input(hi_ts, display_tz)
+
+
+@app.callback(
+    Output("playhead-time", "data", allow_duplicate=True),
+    Input("tnav-ph-start", "n_clicks"),
+    Input("tnav-ph-end", "n_clicks"),
+    Input("tnav-ph-back", "n_clicks"),
+    Input("tnav-ph-fwd", "n_clicks"),
+    State("time-range-slider", "value"),
+    State("playhead-time", "data"),
+    prevent_initial_call=True,
+)
+def time_nav_playhead(_start, _end, _back, _fwd, slider_value, playhead_time):
+    trigger = ctx.triggered_id
+    if trigger is None or not ctx.triggered or ctx.triggered[0].get("value") in (None, 0):
+        raise dash.exceptions.PreventUpdate
+    if isinstance(slider_value, (list, tuple)) and len(slider_value) == 2:
+        lo = float(min(slider_value))
+        hi = float(max(slider_value))
+    else:
+        lo, hi = float(slider_min), float(slider_max)
+    try:
+        cur = float(playhead_time)
+    except Exception:
+        cur = _default_playhead_epoch([lo, hi])
+
+    if trigger == "tnav-ph-start":
+        cur = lo
+    elif trigger == "tnav-ph-end":
+        cur = hi
+    elif trigger == "tnav-ph-back":
+        cur = cur - 5.0
+    elif trigger == "tnav-ph-fwd":
+        cur = cur + 5.0
+    cur = max(lo, min(hi, cur))
+    return round(cur, 3)
+
+
 @app.callback(
     Output("playhead-slider", "min", allow_duplicate=True),
     Output("playhead-slider", "max", allow_duplicate=True),
@@ -10453,56 +11324,346 @@ def update_playhead_summary(playhead_value):
         playhead_ts = _from_epoch_seconds(float(playhead_value), tz_name)
     except Exception:
         playhead_ts = _from_epoch_seconds(float(_default_playhead_epoch(slider_default)), tz_name)
-    return f"Playhead: {playhead_ts.strftime('%Y-%m-%d %H:%M:%S.000')}"
+    return f"{playhead_ts.strftime('%H:%M:%S.000')}  ·  {playhead_ts.strftime('%Y-%m-%d')}"
 
 
 @app.callback(
-    Output("time-sync-debug", "children"),
-    Input("main-plot", "relayoutData"),
-    Input("time-range-slider", "value"),
+    Output("sync-video", "src"),
+    Output("sync-video-status", "children"),
+    Output("sync-video-current-clip", "data"),
     Input("playhead-time", "data"),
+    Input("sync-video-follow", "value"),
+    State("sync-video-current-clip", "data"),
+    prevent_initial_call=False,
 )
-def update_time_sync_debug(relayout_data, slider_value, playhead_value):
-    trig = str(ctx.triggered_id or "init")
+def sync_video_to_playhead(playhead_value, follow_value, current_clip):
+    follow = bool(follow_value) and "on" in (follow_value or [])
+    if not _video_clip_index:
+        return "", f"No video clips found in {VIDEO_DIR}", None
+
+    clip, offset = _find_video_clip_for_epoch(playhead_value)
+    if clip is None:
+        # Playhead is outside every clip's range: keep whatever is loaded but note
+        # the gap, including the nearest footage boundary so it's clear this is a
+        # real coverage gap (not a sync bug).
+        try:
+            ph_epoch = float(playhead_value)
+            ph_ts = _from_epoch_seconds(ph_epoch, tz_name).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            ph_epoch, ph_ts = None, "?"
+        nearest_txt = ""
+        if ph_epoch is not None and _video_clip_index:
+            edges = []
+            for c in _video_clip_index:
+                edges.append((abs(c["end_epoch"] - ph_epoch), c["end_epoch"], "ends"))
+                edges.append((abs(c["start_epoch"] - ph_epoch), c["start_epoch"], "starts"))
+            gap_s, edge_epoch, kind = min(edges, key=lambda e: e[0])
+            # Show the date too when the gap spans days (a multi-day gap almost
+            # always means the loaded clips belong to a different deployment/date).
+            fmt = "%H:%M:%S" if gap_s < 86400 else "%Y-%m-%d %H:%M:%S"
+            edge_ts = _from_epoch_seconds(edge_epoch, tz_name).strftime(fmt)
+            nearest_txt = f" — nearest footage {kind} {edge_ts} ({_format_gap(gap_s)} away)"
+        elif not _video_clip_index:
+            nearest_txt = " — no clips loaded for this deployment"
+        return no_update, f"No video covers {ph_ts}{nearest_txt}", current_clip
+
+    offset_int = int(offset)
+    ph_ts = _from_epoch_seconds(clip["start_epoch"] + offset, tz_name).strftime("%H:%M:%S")
+    status = f"{clip['name']}  ·  +{offset_int // 60:d}:{offset_int % 60:02d}  ·  {ph_ts}"
+
+    # Only rewrite src when the clip changes; otherwise the <video> would reload and
+    # jump back to the fragment offset on every playhead tick. In-clip seeking is
+    # handled by the clientside callback below (sets video.currentTime, no reload).
+    clip_state = {"name": clip["name"], "start_epoch": clip["start_epoch"]}
+    if not follow:
+        raise dash.exceptions.PreventUpdate
+    if isinstance(current_clip, dict) and current_clip.get("name") == clip["name"]:
+        return no_update, status, clip_state
+
+    # NOTE: no "#t=" fragment. The fragment plus JS currentTime writes race each
+    # other and can leave the element parked mid-seek (black frame). The clientside
+    # seeker below owns positioning. The url is the Immich proxy (/immich-video/<id>)
+    # or the local route (/local-video/<name>), set when the index was built.
+    src = clip.get("url") or f"/local-video/{clip['name']}"
+    return src, status, clip_state
+
+
+# Seek the loaded video to the playhead position.
+#
+# CRITICAL: only seek while the video is PAUSED (user scrubbing). During playback
+# the <video> is the master clock and plays untouched — writing currentTime on
+# every 10 Hz playhead tick would interrupt playback with a seek each time the
+# clock drifted, leaving the frame perpetually blank while audio kept buffering
+# (the "audio plays, no video" symptom). The playhead is instead driven FROM the
+# video via 'timeupdate' (see below) while playing.
+app.clientside_callback(
+    """
+    function(playhead, follow, clip) {
+        const on = Array.isArray(follow) && follow.indexOf("on") !== -1;
+        if (!on || !clip || clip.start_epoch == null || playhead == null) {
+            return window.dash_clientside.no_update;
+        }
+        const v = document.getElementById("sync-video");
+        if (!v) { return window.dash_clientside.no_update; }
+        // Keep the master-clock offset current even as clips change mid-playback.
+        v._clipStart = Number(clip.start_epoch);
+        // If a clip change happened while playing, resume native playback on the
+        // freshly loaded source once it's ready.
+        const btn = document.getElementById("play-pause-btn");
+        const wantPlaying = btn && btn.getAttribute("data-playing") === "1";
+        if (wantPlaying) {
+            if (v.paused) {
+                const kick = function () { const p = v.play(); if (p && p.catch) p.catch(function(){}); };
+                if (v.readyState >= 2) { kick(); }
+                else { v.addEventListener("canplay", kick, { once: true }); }
+            }
+            return window.dash_clientside.no_update;
+        }
+        // Never fight native playback.
+        if (!v.paused && !v.ended) { return window.dash_clientside.no_update; }
+        const target = Math.max(0, Number(playhead) - Number(clip.start_epoch));
+        if (!isFinite(target)) { return window.dash_clientside.no_update; }
+
+        const seekTo = function () {
+            if (v.seeking) { v._pendingSeek = target; return; }
+            if (Math.abs((v.currentTime || 0) - target) > 0.08) {
+                try { v.currentTime = target; } catch (e) {}
+            }
+        };
+        if (!v._seekWired) {
+            v._seekWired = true;
+            v.addEventListener("seeked", function () {
+                if (v._pendingSeek != null) {
+                    const t = v._pendingSeek; v._pendingSeek = null;
+                    if (!v.seeking && Math.abs((v.currentTime || 0) - t) > 0.08) {
+                        try { v.currentTime = t; } catch (e) {}
+                    }
+                }
+            });
+        }
+        if (v.readyState >= 1) { seekTo(); }
+        else { v.addEventListener("loadedmetadata", seekTo, { once: true }); }
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output("sync-video", "title"),
+    Input("playhead-time", "data"),
+    Input("sync-video-follow", "value"),
+    Input("sync-video-current-clip", "data"),
+)
+
+
+# --- Single play/pause button driving the shared playback clock -------------
+# Toggles window.IntegratedPlayback, the is-playing store, the interval poller,
+# the button glyph, and native <video> play/pause. Modeled on EcoPhysVideoViz.
+app.clientside_callback(
+    """
+    function(n_clicks, playhead, ph_min, ph_max, rate, clip) {
+        const mgr = window.IntegratedPlayback;
+        const btn = document.getElementById("play-pause-btn");
+        const v = document.getElementById("sync-video");
+        if (!mgr) { return [false, true, "▶"]; }
+        const willPlay = (Number(n_clicks) || 0) % 2 === 1;
+        const hasClip = !!(clip && clip.start_epoch != null);
+        mgr.setBounds(ph_min, ph_max);
+        mgr.setPlaybackRate(rate || 1);
+
+        // Wire the video as the master clock: while it plays, drive playhead-time
+        // FROM the video via timeupdate (set_props), so the plot follows the real
+        // frames and we never seek the element mid-play.
+        if (v && !v._timeupdateWired) {
+            v._timeupdateWired = true;
+            v.addEventListener("timeupdate", function () {
+                if (v.paused || v.ended) { return; }
+                const cs = (v._clipStart != null) ? v._clipStart : null;
+                if (cs == null) { return; }
+                window.dash_clientside.set_props("playhead-time", { data: cs + v.currentTime });
+            });
+            v.addEventListener("ended", function () {
+                const b = document.getElementById("play-pause-btn");
+                if (b && b.getAttribute("data-playing") === "1") { b.click(); }
+            });
+        }
+        if (v) { v._clipStart = hasClip ? Number(clip.start_epoch) : null; }
+
+        if (willPlay) {
+            if (btn) btn.setAttribute("data-playing", "1");
+            if (hasClip && v) {
+                // Video is master: play it natively; the rAF manager stays idle.
+                try { v.playbackRate = Math.max(0.25, Math.min(16, Number(rate) || 1)); } catch (e) {}
+                const p = v.play(); if (p && p.catch) p.catch(function () {});
+                mgr.stop();
+                return [true, true, "⏸"];  // interval disabled — timeupdate drives playhead
+            } else {
+                // No video here (gap): the rAF manager is master and advances playhead.
+                mgr.syncTime(playhead != null ? playhead : ph_min);
+                mgr.start();
+                return [true, false, "⏸"];  // interval enabled — manager drives playhead
+            }
+        } else {
+            mgr.stop();
+            if (btn) btn.setAttribute("data-playing", "0");
+            if (v) { try { v.pause(); } catch (e) {} }
+            return [false, true, "▶"];
+        }
+    }
+    """,
+    Output("is-playing", "data"),
+    Output("playback-interval", "disabled"),
+    Output("play-pause-btn", "children"),
+    Input("play-pause-btn", "n_clicks"),
+    State("playhead-time", "data"),
+    State("playhead-slider", "min"),
+    State("playhead-slider", "max"),
+    State("playback-rate", "data"),
+    State("sync-video-current-clip", "data"),
+    prevent_initial_call=True,
+)
+
+
+# The interval poll reads the manager clock into playhead-time while playing in a
+# GAP (no video). When the video is master the interval is disabled and timeupdate
+# drives the playhead instead.
+app.clientside_callback(
+    """
+    function(n_intervals, is_playing) {
+        if (!is_playing) { return window.dash_clientside.no_update; }
+        const mgr = window.IntegratedPlayback;
+        if (!mgr || !mgr.isPlaying || mgr.currentTime == null) { return window.dash_clientside.no_update; }
+        return mgr.currentTime;
+    }
+    """,
+    Output("playhead-time", "data", allow_duplicate=True),
+    Input("playback-interval", "n_intervals"),
+    State("is-playing", "data"),
+    prevent_initial_call=True,
+)
+
+
+# Keep the manager's bounds and rate in sync with the window and rate selector.
+app.clientside_callback(
+    """
+    function(rate, ph_min, ph_max) {
+        const mgr = window.IntegratedPlayback;
+        if (mgr) {
+            mgr.setPlaybackRate(rate || 1);
+            mgr.setBounds(ph_min, ph_max);
+            const v = document.getElementById("sync-video");
+            if (v) { try { v.playbackRate = Math.max(0.25, Math.min(16, Number(rate) || 1)); } catch (e) {} }
+        }
+        return rate || 1;
+    }
+    """,
+    Output("playback-rate", "data"),
+    Input("playback-rate-select", "value"),
+    Input("playhead-slider", "min"),
+    Input("playhead-slider", "max"),
+)
+
+
+# When the playhead moves from a NON-playback source (slider drag, plot click,
+# arrow keys, zoom), keep the manager clock aligned so resuming play continues
+# from the right spot. Gated on !is_playing to avoid fighting the poller.
+app.clientside_callback(
+    """
+    function(playhead, is_playing) {
+        const mgr = window.IntegratedPlayback;
+        if (mgr && !is_playing && playhead != null) {
+            mgr.syncTime(playhead);
+        }
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output("play-pause-btn", "title"),
+    Input("playhead-time", "data"),
+    State("is-playing", "data"),
+)
+
+
+# Move the main-plot yellow playhead line clientside (patch the paper-ref line
+# shape via Plotly.relayout) on EVERY playhead change — drag, click, or playback.
+# This keeps the line glued to the playhead during live scrubbing without a
+# full-figure server round-trip per tick.
+app.clientside_callback(
+    """
+    function(playhead, is_playing) {
+        if (playhead == null) { return window.dash_clientside.no_update; }
+        const gd = document.getElementById("main-plot");
+        const inner = gd && gd.querySelector(".js-plotly-plot");
+        if (!inner || !inner._fullLayout || !inner._fullLayout.shapes) {
+            return window.dash_clientside.no_update;
+        }
+        const shapes = inner._fullLayout.shapes;
+        // Plotly datetime axes expect ms since epoch for shape x coordinates.
+        const xms = Number(playhead) * 1000;
+        for (let i = 0; i < shapes.length; i++) {
+            const s = shapes[i];
+            const col = ((s.line && s.line.color) || "").toString().toUpperCase();
+            if (s.type === "line" && s.yref === "paper" && col === "#FFD166") {
+                const patch = {};
+                patch["shapes[" + i + "].x0"] = xms;
+                patch["shapes[" + i + "].x1"] = xms;
+                try { window.Plotly.relayout(inner, patch); } catch (e) {}
+                break;
+            }
+        }
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output("playback-dummy", "data"),
+    Input("playhead-time", "data"),
+    State("is-playing", "data"),
+)
+
+
+# Keep the window-aligned coverage strip's view range matched to the plot window.
+@app.callback(
+    Output("coverage-strip-window", "style"),
+    Input("time-range-slider", "value"),
+)
+def update_window_coverage_view(slider_value):
     if isinstance(slider_value, (list, tuple)) and len(slider_value) == 2:
-        slo = float(min(slider_value))
-        shi = float(max(slider_value))
+        lo = int(min(slider_value))
+        hi = int(max(slider_value))
     else:
-        slo = float(slider_min)
-        shi = float(slider_max)
-    slo_ts = _from_epoch_seconds(slo, tz_name).strftime("%Y-%m-%d %H:%M:%S %z")
-    shi_ts = _from_epoch_seconds(shi, tz_name).strftime("%Y-%m-%d %H:%M:%S %z")
+        lo, hi = int(slider_min), int(slider_max)
+    return {"--view-min": lo, "--view-max": hi}
 
-    p_ts_text = "n/a"
-    try:
-        p_ts_text = _from_epoch_seconds(float(playhead_value), tz_name).strftime("%Y-%m-%d %H:%M:%S %z")
-    except Exception:
-        pass
 
-    x0, x1 = _extract_primary_xaxis_range(relayout_data or {})
-    rx0 = _coerce_epoch_from_relayout_value(x0)
-    rx1 = _coerce_epoch_from_relayout_value(x1)
-    if rx0 is not None and rx1 is not None:
-        rlo = _from_epoch_seconds(min(rx0, rx1), tz_name).strftime("%Y-%m-%d %H:%M:%S %z")
-        rhi = _from_epoch_seconds(max(rx0, rx1), tz_name).strftime("%Y-%m-%d %H:%M:%S %z")
-        zoom_text = (
-            f"relayout x-range raw=({x0}, {x1}) parsed=({rlo} .. {rhi}) "
-            f"epoch=({rx0:.3f}, {rx1:.3f})"
-        )
-    else:
-        zoom_text = "relayout x-range: none"
-
-    return (
-        f"[debug] trigger={trig} | slider=({slo_ts} .. {shi_ts}) | playhead={p_ts_text} | {zoom_text}"
-    )
+# Align the window coverage strip to the main plot's data area (match Plotly's
+# left/right margins) so video segments line up under the corresponding x range.
+app.clientside_callback(
+    """
+    function(fig, sliderValue) {
+        const align = document.getElementById("coverage-plot-align");
+        const gd = document.getElementById("main-plot");
+        if (!align || !gd) { return window.dash_clientside.no_update; }
+        const inner = gd.querySelector(".js-plotly-plot");
+        const sz = inner && inner._fullLayout && inner._fullLayout._size;
+        if (sz) {
+            align.style.paddingLeft = sz.l + "px";
+            align.style.paddingRight = sz.r + "px";
+        }
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output("coverage-plot-align", "title"),
+    Input("main-plot", "figure"),
+    Input("time-range-slider", "value"),
+)
 
 
 @app.callback(
     Output("mini-depth-plot", "figure"),
     Input("time-range-slider", "value"),
     Input("playhead-time", "data"),
+    Input("is-playing", "data"),
 )
-def update_depth_context_plot(slider_value, playhead_value):
+def update_depth_context_plot(slider_value, playhead_value, is_playing):
+    # Skip this figure rebuild during playback (keeps the transport snappy); it
+    # redraws once when playback stops (is-playing flips to False triggers this).
+    if is_playing and ctx.triggered_id == "playhead-time":
+        raise dash.exceptions.PreventUpdate
     if isinstance(slider_value, (list, tuple)) and len(slider_value) == 2:
         lo = int(min(slider_value))
         hi = int(max(slider_value))
@@ -10715,8 +11876,12 @@ def _build_orientation_debug_note(orient_info):
     Input("time-range-slider", "value"),
     Input("location-map-3d-toggle", "value"),
     Input("playhead-time", "data"),
+    Input("is-playing", "data"),
 )
-def update_location_map_plot(slider_value, map_3d_toggle, playhead_value):
+def update_location_map_plot(slider_value, map_3d_toggle, playhead_value, is_playing):
+    # The map redraw is heavy; skip it during playback and redraw on stop.
+    if is_playing and ctx.triggered_id == "playhead-time":
+        raise dash.exceptions.PreventUpdate
     return _build_location_map_figure(
         slider_value,
         map_3d_enabled=_is_map_3d_enabled(map_3d_toggle),
@@ -10859,9 +12024,12 @@ if THREEJS_AVAILABLE:
         animal_id = infer_animal_id(resolved_data_pkl, deployment_id_fallback=deployment_id)
         orient_info = build_orientation_data_json(resolved_data_pkl)
         if animal_id and animal_id != animal_id_hint:
-            model_info = fetch_3d_model_info(animal_id)
+            model_info = _cached_fetch_3d_model_info(animal_id)
         else:
             model_info = _resolve_model_info_from_future(model_future, animal_id)
+        if not (isinstance(model_info, dict) and model_info.get("ok")):
+            print(f"[model3d] fetch not ok for animal={animal_id!r} hint={animal_id_hint!r}: "
+                  f"{(model_info or {}).get('message')!r}")
         orientation_json = orient_info.get("data_json") or EMPTY_ORIENTATION_JSON
         x_off = _coerce_float_default(rot_x, 0.0)
         y_off = _coerce_float_default(rot_y, 0.0)
@@ -11023,7 +12191,7 @@ if THREEJS_AVAILABLE:
             animal_id = infer_animal_id(resolved_data_pkl, deployment_id_fallback=deployment_id)
             orient_info = build_orientation_data_json(resolved_data_pkl)
             if animal_id and animal_id != animal_id_hint:
-                model_info = fetch_3d_model_info(animal_id)
+                model_info = _cached_fetch_3d_model_info(animal_id)
             else:
                 model_info = _resolve_model_info_from_future(model_future, animal_id)
             orientation_json = orient_info.get("data_json") or EMPTY_ORIENTATION_JSON
@@ -11138,8 +12306,12 @@ if THREEJS_AVAILABLE:
         Input("playhead-time", "data"),
         Input("current-dataset", "data"),
         Input("current-deployment", "data"),
+        Input("is-playing", "data"),
     )
-    def update_model_3d_track_status(playhead_value, _dataset_value, _deployment_value):
+    def update_model_3d_track_status(playhead_value, _dataset_value, _deployment_value, is_playing):
+        # Skip the per-tick depth recompute during playback; refresh on stop.
+        if is_playing and ctx.triggered_id == "playhead-time":
+            raise dash.exceptions.PreventUpdate
         _depth_offset, status, source_signal = _compute_depth_z_offset(playhead_value)
         if not _is_depth_like_signal(source_signal):
             return html.Div([status, html.Div("Track is off until a depth/pressure channel is available.", style={"opacity": 0.85})])
@@ -11175,7 +12347,7 @@ else:
     )
     def update_model_3d_panel(_dataset_value, _deployment_value, rot_x, rot_y, rot_z, flip_pitch, flip_roll, flip_heading):
         animal_id = infer_animal_id(data_pkl, deployment_id_fallback=deployment_id)
-        model_info = fetch_3d_model_info(animal_id)
+        model_info = _cached_fetch_3d_model_info(animal_id)
         x_off = _coerce_float_default(rot_x, 0.0)
         y_off = _coerce_float_default(rot_y, 0.0)
         z_off = _coerce_float_default(rot_z, 0.0)
@@ -11271,14 +12443,22 @@ def refresh_model_3d_controls_from_config(_dataset_value, _deployment_value):
     )
 
 
+def _format_duration(seconds):
+    seconds = int(max(0, round(seconds)))
+    h, rem = divmod(seconds, 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{h}h {m:02d}m {s:02d}s"
+    if m:
+        return f"{m}m {s:02d}s"
+    return f"{s}s"
+
+
 @app.callback(
-    Output("window-start-label", "children"),
-    Output("window-start-label", "style"),
-    Output("window-end-label", "children"),
-    Output("window-end-label", "style"),
     Output("abs-start-label", "children"),
     Output("abs-end-label", "children"),
     Output("window-summary", "children"),
+    Output("window-summary-inline", "children"),
     Input("time-range-slider", "value"),
     Input("time-display-tz-toggle", "value"),
     State("time-range-slider", "min"),
@@ -11294,10 +12474,6 @@ def update_slider_labels(slider_value, display_mode, s_min, s_max):
 
     s_min = int(s_min if s_min is not None else slider_min)
     s_max = int(s_max if s_max is not None else slider_max)
-    span = max(1, s_max - s_min)
-
-    lo_pct = max(2, min(98, ((lo - s_min) / span) * 100))
-    hi_pct = max(2, min(98, ((hi - s_min) / span) * 100))
 
     display_tz = _display_tz_name(display_mode)
     lo_ts = _from_epoch_seconds(lo, display_tz)
@@ -11305,55 +12481,15 @@ def update_slider_labels(slider_value, display_mode, s_min, s_max):
     abs_lo_ts = _from_epoch_seconds(s_min, display_tz)
     abs_hi_ts = _from_epoch_seconds(s_max, display_tz)
 
-    # Keep a small visual gap between start/end window labels.
-    start_style = {"left": f"{lo_pct}%", "transform": "translateX(calc(-10% - 6px))"}
-    end_style = {"left": f"{hi_pct}%", "transform": "translateX(calc(-90% + 6px))"}
-    summary = f"{lo_ts.strftime('%Y-%m-%d %H:%M:%S.000')} -> {hi_ts.strftime('%Y-%m-%d %H:%M:%S.000')} ({display_tz})"
+    duration = f"⏱ {_format_duration(hi - lo)}"
+    inline = f"{lo_ts.strftime('%H:%M:%S')} → {hi_ts.strftime('%H:%M:%S')}  ·  {lo_ts.strftime('%Y-%m-%d')} ({display_tz})"
 
     return (
-        _slider_label_children(lo_ts, display_tz),
-        start_style,
-        _slider_label_children(hi_ts, display_tz),
-        end_style,
         _slider_label_children(abs_lo_ts, display_tz),
         _slider_label_children(abs_hi_ts, display_tz),
-        summary,
+        duration,
+        inline,
     )
-
-
-@app.callback(
-    Output("time-range-playhead-dot", "style"),
-    Output("zoom-link-left-vert", "style"),
-    Output("zoom-link-right-vert", "style"),
-    Output("zoom-link-left-horiz", "style"),
-    Output("zoom-link-right-horiz", "style"),
-    Input("time-range-slider", "value"),
-    Input("playhead-time", "data"),
-)
-def update_time_range_playhead_dot(slider_value, playhead_time):
-    if not isinstance(slider_value, (list, tuple)) or len(slider_value) != 2:
-        hidden = {"display": "none"}
-        return hidden, hidden, hidden, hidden, hidden
-    lo = float(min(slider_value))
-    hi = float(max(slider_value))
-    span = max(1e-9, hi - lo)
-    try:
-        p = float(playhead_time)
-    except Exception:
-        p = _default_playhead_epoch([lo, hi])
-    p = max(lo, min(hi, p))
-    full_lo = float(slider_min)
-    full_hi = float(slider_max)
-    full_span = max(1e-9, full_hi - full_lo)
-    pct = max(0.0, min(100.0, ((p - lo) / span) * 100.0))
-    lo_full_pct = max(0.0, min(100.0, ((lo - full_lo) / full_span) * 100.0))
-    hi_full_pct = max(0.0, min(100.0, ((hi - full_lo) / full_span) * 100.0))
-
-    left_vert = {"left": f"{lo_full_pct:.3f}%"}
-    right_vert = {"left": f"{hi_full_pct:.3f}%"}
-    left_horiz = {"left": "0%", "width": f"{max(0.0, lo_full_pct):.3f}%"}
-    right_horiz = {"left": f"{hi_full_pct:.3f}%", "width": f"{max(0.0, 100.0 - hi_full_pct):.3f}%"}
-    return {"left": f"{pct:.3f}%"}, left_vert, right_vert, left_horiz, right_horiz
 
 
 def _render_event_target_blocks(event_keys, order, channels_store, channel_order_store, event_styles, event_targets):
@@ -12080,9 +13216,17 @@ def update_plot(
     Input("playhead-time", "data"),
     State("main-plot", "figure"),
     State("time-range-slider", "value"),
+    State("is-playing", "data"),
     prevent_initial_call=True,
 )
-def update_playhead_line_only(playhead_time, existing_fig, slider_value):
+def update_playhead_line_only(playhead_time, existing_fig, slider_value, is_playing):
+    # The yellow playhead line is moved clientside (Plotly.relayout) on every
+    # playhead change — during playback AND drag scrubbing — to avoid a full-figure
+    # server round-trip per tick. This server callback only runs to ADD or REMOVE
+    # the shape when the playhead crosses the window edge (clientside can only move
+    # an existing shape), so live dragging stays smooth.
+    if is_playing:
+        raise dash.exceptions.PreventUpdate
     if not existing_fig:
         raise dash.exceptions.PreventUpdate
     try:
@@ -12096,6 +13240,19 @@ def update_playhead_line_only(playhead_time, existing_fig, slider_value):
     else:
         start_ts = pd.Timestamp(start_default)
         end_ts = pd.Timestamp(end_default)
+
+    # If the line already exists and the playhead is inside the window, the
+    # clientside mover has it covered — skip the expensive figure round-trip.
+    has_playhead_shape = any(
+        isinstance(shp, dict)
+        and shp.get("type") == "line"
+        and shp.get("yref") == "paper"
+        and str((shp.get("line") or {}).get("color") or "").upper() == "#FFD166"
+        for shp in (existing_fig.get("layout", {}).get("shapes") or [])
+    )
+    inside_window = start_ts <= playhead_ts <= end_ts
+    if has_playhead_shape and inside_window:
+        raise dash.exceptions.PreventUpdate
 
     shapes = []
     for shp in (existing_fig.get("layout", {}).get("shapes") or []):
@@ -12668,4 +13825,7 @@ def save_main_cluster_preview_events(_n_clicks, selected_events, slider_value):
 
 
 if __name__ == "__main__":
-    app.run(debug=False, port=args.port, use_reloader=False, threaded=False)
+    # threaded=True is required: the /immich-video and /local-video routes stream
+    # long-lived responses; a single-threaded server would block every other
+    # request (including the page's own) behind an open video stream.
+    app.run(debug=False, port=args.port, use_reloader=False, threaded=True)
