@@ -2260,6 +2260,92 @@
         "standardized_unit": "m",
         "parent_signal": "position"
       }
+    },
+    "hr-montage_V2": {
+      "gyrx": {
+        "original_unit": "RPS",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gx",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gyry": {
+        "original_unit": "RPS",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gy",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "gyrz": {
+        "original_unit": "RPS",
+        "manufacturer_signal_name": "gyroscope",
+        "standardized_channel_id": "gz",
+        "standardized_unit": "mrad/s",
+        "parent_signal": "gyroscope"
+      },
+      "accx": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ax",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "accy": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "ay",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "accz": {
+        "original_unit": "g",
+        "manufacturer_signal_name": "accelerometer",
+        "standardized_channel_id": "az",
+        "standardized_unit": "g",
+        "parent_signal": "accelerometer"
+      },
+      "magx": {
+        "original_unit": "Gauss",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mx",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "magy": {
+        "original_unit": "Gauss",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "my",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "magz": {
+        "original_unit": "Gauss",
+        "manufacturer_signal_name": "magnetometer",
+        "standardized_channel_id": "mz",
+        "standardized_unit": "\u00b5T",
+        "parent_signal": "magnetometer"
+      },
+      "illumination": {
+        "original_unit": "Lux",
+        "manufacturer_signal_name": "illumination",
+        "standardized_channel_id": "light",
+        "standardized_unit": "lux",
+        "parent_signal": "light"
+      },
+      "temperature": {
+        "original_unit": "degreeC",
+        "manufacturer_signal_name": "temperature",
+        "standardized_channel_id": "temp_int",
+        "standardized_unit": "deg C",
+        "parent_signal": "temperature_int"
+      },
+      "ch1": {
+        "original_unit": "uV",
+        "manufacturer_signal_name": "electrophysiology",
+        "standardized_channel_id": "ecg",
+        "standardized_unit": "\u00b5V",
+        "parent_signal": "ecg"
+      }
     }
   },
   "Vectronics": {

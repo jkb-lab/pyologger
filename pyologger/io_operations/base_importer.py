@@ -692,8 +692,13 @@ class BaseImporter:
             stored_signal_name = self.resolve_signal_name(signal_name)
 
             if stored_signal_name in self.data_reader.signal_data:
-                print(f"Sensor '{stored_signal_name}' has already been processed. Skipping reprocessing.")
-                continue
+                alt_name = f"{stored_signal_name}_2"
+                if alt_name not in self.data_reader.signal_data:
+                    print(f"Sensor '{stored_signal_name}' already claimed; storing this logger's version as '{alt_name}'.")
+                    stored_signal_name = alt_name
+                else:
+                    print(f"Sensor '{stored_signal_name}' (and '{alt_name}') already processed. Skipping.")
+                    continue
 
 
             print("16c")

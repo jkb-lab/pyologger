@@ -276,6 +276,7 @@ if not skip_step:
         all_peak_rows = []
         all_signal_subset_dfs = []
         all_smoothed_parts = []
+        _chunk_sample_offset = 0  # running global-sample offset for refined_index
 
         # Precompute once for chunk lookup. A monotonic datetime column lets each
         # chunk be sliced by binary search rather than a full-length boolean mask.
@@ -372,11 +373,16 @@ if not skip_step:
             process_rate(data_pkl, results, signal_subset_df, parent_signal,
                          params, sampling_rate, detection_mode)
 
-            all_peak_rows.append(results["peak_df"].copy())
+            chunk_peak_df = results["peak_df"].copy()
+            chunk_len = len(signal_subset)
+            if _chunk_sample_offset > 0:
+                chunk_peak_df["refined_index"] = chunk_peak_df["refined_index"] + _chunk_sample_offset
+            all_peak_rows.append(chunk_peak_df)
             all_signal_subset_dfs.append(signal_subset_df)
             # Accumulate and concatenate once after the loop; growing the array per
             # chunk re-copies everything already collected (quadratic).
             all_smoothed_parts.append(results.get("smoothed", np.array([])))
+            _chunk_sample_offset += chunk_len
 
         # end of per-chunk loop ─────────────────────────────────────────
 
@@ -875,10 +881,10 @@ if not skip_step:
         point_events = []
 
         KEY_MAP = {
-            "beat_auto_detect_accepted":          ("heartbeat_auto_detect_accepted",          "auto-detected heartbeat (accepted)"),
-            "beat_auto_detect_rejected":          ("heartbeat_auto_detect_rejected",          "auto-detected heartbeat (rejected as spurious / atrial)"),
-            "beat_auto_detect_rejected_conflict": ("heartbeat_auto_detect_rejected_conflict", "auto-detected heartbeat (rejected: conflict pair / double-beat)"),
-            "beat_auto_detect_suggested":         ("heartbeat_auto_detect_suggested",         "auto-detected heartbeat (suggested, missed-beat fix)"),
+            "beat_auto_detect_accepted":          ("heartbeat_auto_detect_accepted", "auto-detected heartbeat (accepted)"),
+            "beat_auto_detect_rejected":          ("heartbeat_auto_detect_rejected", "auto-detected heartbeat (rejected)"),
+            "beat_auto_detect_rejected_conflict": ("heartbeat_auto_detect_rejected", "auto-detected heartbeat (rejected)"),
+            "beat_auto_detect_suggested":         ("heartbeat_auto_detect_suggested", "auto-detected heartbeat (suggested)"),
         }
 
         for _, row in results["peak_df"].iterrows():
@@ -995,19 +1001,25 @@ if not skip_step:
             "keys": [
                 "heartbeat_auto_detect_accepted",
                 "heartbeat_auto_detect_rejected",
-                "heartbeat_auto_detect_rejected_conflict",
                 "heartbeat_auto_detect_suggested",
+                "heartbeat_manual_ok",
                 "QC_unusable_ecg",
                 "QC_usable_ecg",
             ],
             "description": "Events related to heartbeat detection and ECG quality control",
             "color_map": {
-                "heartbeat_auto_detect_accepted":          "#4caf50",
-                "heartbeat_auto_detect_rejected":          "#f44336",
-                "heartbeat_auto_detect_rejected_conflict": "#ff9800",
-                "heartbeat_auto_detect_suggested":         "#ffeb3b",
-                "QC_unusable_ecg":                         "rgba(80, 80, 80, 0.5)",
-                "QC_usable_ecg":                           "rgba(100, 220, 100, 0.20)",
+                "heartbeat_auto_detect_accepted": "#4caf50",
+                "heartbeat_auto_detect_rejected": "#f44336",
+                "heartbeat_auto_detect_suggested": "#ffeb3b",
+                "heartbeat_manual_ok": "#2196f3",
+                "QC_unusable_ecg": "rgba(80, 80, 80, 0.5)",
+                "QC_usable_ecg": "rgba(100, 220, 100, 0.20)",
+            },
+            "display_config": {
+                "heartbeat_auto_detect_accepted": {"symbol": "triangle-up", "y_offset_frac": 0.15},
+                "heartbeat_auto_detect_rejected": {"symbol": "triangle-up", "y_offset_frac": 0.45},
+                "heartbeat_auto_detect_suggested": {"symbol": "triangle-up", "y_offset_frac": 0.30},
+                "heartbeat_manual_ok": {"symbol": "circle", "y_offset_frac": 0.60},
             },
         }
 
@@ -1028,10 +1040,11 @@ if not skip_step:
         TARGET_SAMPLING_RATE = 25
 
         notes_to_plot = {
-            'heartbeat_manual_ok': {'signal': 'ecg', 'symbol': 'circle', 'color': 'blue', 'y_offset_frac': -1.5},
-            'heartbeat_auto_detect_accepted': {'signal': 'ecg', 'symbol': 'triangle-up', 'color': 'green'},
-            'heartbeat_auto_detect_rejected': {'signal': 'ecg', 'symbol': 'triangle-up', 'color': 'red'},
-            'strokebeat_auto_detect_accepted': {'signal': 'sr_smoothed', 'symbol': 'triangle-up', 'color': 'green'},
+            'heartbeat_auto_detect_accepted':  {'signal': 'ecg', 'symbol': 'triangle-up', 'color': '#4caf50', 'y_offset_frac': 0.15},
+            'heartbeat_auto_detect_suggested': {'signal': 'ecg', 'symbol': 'triangle-up', 'color': '#ffeb3b', 'y_offset_frac': 0.30},
+            'heartbeat_auto_detect_rejected':  {'signal': 'ecg', 'symbol': 'triangle-up', 'color': '#f44336', 'y_offset_frac': 0.45},
+            'heartbeat_manual_ok':             {'signal': 'ecg', 'symbol': 'circle',      'color': '#2196f3', 'y_offset_frac': 0.60},
+            'strokebeat_auto_detect_accepted': {'signal': 'sr_smoothed', 'symbol': 'triangle-up', 'color': '#4caf50'},
         }
 
         # fig = plot_tag_data_interactive(
@@ -1056,14 +1069,14 @@ if not skip_step:
         keys_to_remove = ['hr_broad_bandpass','hr_narrow_bandpass', 'hr_smoothed'] # KEEPING 'hr_normalized' because it is clearest
         clear_intermediate_signals(data_pkl, remove_keys=keys_to_remove)
 
-        initial_event_count = len(data_pkl.event_data)
-        # Remove events with keys ending in '_rejected'
-        data_pkl.event_data = data_pkl.event_data[~data_pkl.event_data['key'].str.endswith('_rejected', na=False)]
-        # Get the final count of events
-        final_event_count = len(data_pkl.event_data)
-        # Print the number of removed events
-        removed_event_count = initial_event_count - final_event_count
-        print(f"Removed {removed_event_count} events with keys ending in '_rejected'.")
+        # Remove stale heartbeat_auto_detect_* events from any prior run before writing new ones.
+        # (create_state_event already overwrites events of the same key, but this cleans up
+        # old _rejected_conflict events that no longer exist as a separate key.)
+        stale_keys = {"heartbeat_auto_detect_rejected_conflict"}
+        stale_mask = data_pkl.event_data["key"].isin(stale_keys)
+        if stale_mask.any():
+            data_pkl.event_data = data_pkl.event_data[~stale_mask]
+            print(f"Removed {stale_mask.sum()} stale heartbeat_auto_detect_rejected_conflict events.")
 
 current_processing_step = "Processing Step 05. Heart rate calculation complete."
 print(current_processing_step)

@@ -237,6 +237,26 @@
             "shade_mode": "fill_trace_split",
             "shade_pct_min": 0.0,
             "shade_pct_max": 100.0
+        },
+        "QC_usable_ecg": {
+            "color": "#4CAF50",
+            "shade_color": "#4CAF50",
+            "symbol": "square",
+            "shade_enabled": true,
+            "shade_opacity": 0.18,
+            "shade_mode": "fill_trace",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
+        },
+        "QC_unusable_ecg": {
+            "color": "#E64747",
+            "shade_color": "#E64747",
+            "symbol": "square",
+            "shade_enabled": true,
+            "shade_opacity": 0.18,
+            "shade_mode": "fill_trace",
+            "shade_pct_min": 0.0,
+            "shade_pct_max": 100.0
         }
     },
     "__event_targets__": {
@@ -245,6 +265,7 @@
         ],
         "heartbeat_auto_detect_accepted": [
             "ecg",
+            "heart_rate_fixed",
             "hr_normalized"
         ],
         "heartbeat_auto_detect_gap": [
@@ -254,7 +275,6 @@
             "corrected_gyr"
         ],
         "heartbeat_auto_detect_suggested": [
-            "heart_rate",
             "heart_rate_fixed",
             "ecg"
         ],
@@ -267,9 +287,7 @@
         ],
         "strokebeat_auto_detect_accepted": [
             "sr_smoothed",
-            "stroke_rate",
-            "corrected_acc",
-            "heart_rate_fixed"
+            "stroke_rate"
         ],
         "2_dynX+dynY+odba+pitch+roll_full_30S_PCA": [
             "accelerometer"
@@ -416,8 +434,7 @@
             "accelerometer"
         ],
         "exhalation_breath": [
-            "depth",
-            "heart_rate_fixed"
+            "depth"
         ],
         "heartbeat_manual_reject": [
             "heart_rate_fixed",
@@ -484,6 +501,19 @@
         ],
         "uw_exhalation": [
             "corrected_acc"
+        ],
+        "QC_usable_ecg": [
+            "ecg"
+        ],
+        "QC_unusable_ecg": [
+            "ecg"
+        ],
+        "heartbeat_auto_detect_rejected_conflict": [
+            "ecg",
+            "heart_rate_fixed"
+        ],
+        "heartbeat_auto_detect_rejected": [
+            "heart_rate_fixed"
         ]
     },
     "corrected_depth": "#385C73",
@@ -687,5 +717,9 @@
     "heart_rate_fixed.manually_derived_hr": "#1565C0",
     "heart_rate_fixed:manually_derived_hr": "#1565C0",
     "heart_rate_fixed.heart_rate_nan": "rgba(160, 160, 160, 0.6)",
-    "heart_rate_fixed:heart_rate_nan": "rgba(160, 160, 160, 0.6)"
+    "heart_rate_fixed:heart_rate_nan": "rgba(160, 160, 160, 0.6)",
+    "QC_usable_ecg": "#4CAF50",
+    "QC_unusable_ecg": "#E64747",
+    "heartbeat_auto_detect_accepted": "#69f78c",
+    "heartbeat_manual_ok": "#94e4ff"
 }

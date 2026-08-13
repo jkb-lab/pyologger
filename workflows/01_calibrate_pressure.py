@@ -561,7 +561,11 @@ if not skip_step:
     # Run this check on the baseline-adjusted downsampled signal so sign decision reflects user baseline settings.
     disable_automatic_sign_flipping = bool(dive_detection_settings.get("disable_automatic_sign_flipping", False))
     downsampled_valid = pd.Series(downsampled_depth).dropna()
-    if disable_automatic_sign_flipping:
+    if conversion_factor == -1.0:
+        # conversion_factor=-1.0 already applied the inversion above; skip the auto-sign
+        # check to prevent a double-flip on reruns.
+        print("ℹ️ conversion_factor=-1.0 already applied; skipping post-baseline sign check.")
+    elif disable_automatic_sign_flipping:
         print("ℹ️ Automatic sign flipping is disabled by config; skipping sign check.")
     elif downsampled_valid.empty:
         print("⚠️ No valid baseline-adjusted depth values to evaluate sign (all NaN).")
@@ -569,17 +573,32 @@ if not skip_step:
         neg_count = (downsampled_valid < 0).sum()
         pos_count = (downsampled_valid > 0).sum()
         zero_count = (downsampled_valid == 0).sum()
-        print(f"📊 Post-baseline sign check — negative: {neg_count}, positive: {pos_count}, zero: {zero_count}")
+        median_depth = float(downsampled_valid.median())
+        print(f"📊 Post-baseline sign check — negative: {neg_count}, positive: {pos_count}, zero: {zero_count}, median: {median_depth:.4f}")
 
-        if neg_count > pos_count:
+        # Use median rather than neg/pos count: in pool/coastal deployments the animal
+        # is near the surface most of the time, so neg and pos counts can be nearly equal
+        # even when the signal is fully inverted (surface offset ≈ -1.5 m, dives go more
+        # negative). The median of an upright signal is always ≥ 0 (surface = 0); if it
+        # is negative the signal must be flipped.
+        if median_depth < 0:
             # Keep all depth representations consistent if sign flip is needed.
             depth_data *= -1
             interpolated_depth_data *= -1
             downsampled_depth *= -1
             first_derivative *= -1
-            print("🔄 Baseline-adjusted depth was mostly negative; multiplied by -1 to make it positive.")
+            print(f"🔄 Baseline-adjusted depth has negative median ({median_depth:.4f} m); multiplied by -1 to make it positive.")
+            # Persist the inversion so reruns apply it via conversion_factor and never
+            # double-flip. Only write if conversion_factor wasn't already -1.0 (i.e. this
+            # flip was auto-detected, not already recorded from a prior run).
+            if conversion_factor != -1.0:
+                param_manager.add_to_config(
+                    "conversion_factor", -1.0,
+                    section="dive_detection_settings"
+                )
+                print("💾 Wrote conversion_factor=-1.0 to parameter_log.json (dive_detection_settings) to prevent double-flip on rerun.")
         else:
-            print("✅ Baseline-adjusted depth is not mostly negative; no sign change applied.")
+            print(f"✅ Baseline-adjusted depth median is non-negative ({median_depth:.4f} m); no sign change applied.")
 
     # Adjust datetime indexing based on the new downsample rate
     downsample_step = int(depth_fs / dive_detection_settings["downsampled_sampling_rate"])

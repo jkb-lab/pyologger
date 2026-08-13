@@ -409,7 +409,14 @@ class DataReader:
             # final fallback
             return CSVImporter
 
-        # 7. Process each logger once
+        # 7. Process each logger once — CATS first so it claims primary signal slots;
+        # other loggers (Evolocus, etc.) will fall back to _2 names for any overlap.
+        _PRIORITY_MANUFACTURERS = {"CATS"}
+        loggers_used = sorted(
+            loggers_used,
+            key=lambda l: (0 if l.get("Manufacturer") in _PRIORITY_MANUFACTURERS else 1)
+        )
+
         processed_logger_ids = set()
 
         for logger in loggers_used:
@@ -1074,26 +1081,50 @@ class DataReader:
         return True
 
     def import_notes(self):
-        """Imports and processes {deployment_id}_00_Notes.xlsx in the data folder, if present."""
+        """Imports and processes the deployment's notes files, if present.
+
+        Reads {deployment_id}_00_Notes.xlsx (hand-written field notes) and
+        appends {deployment_id}_01_GUI_Notes.xlsx when it exists. The GUI file
+        is written by the interactive viewers (e.g. mini-dash) when an operator
+        adds or removes event markers, so those edits survive reprocessing from
+        step 00. Rows flagged deleted=True remove a matching note instead of
+        adding one.
+        """
 
         if not self.deployment_info:
             print("❌ Selected deployment metadata not found. Please ensure you have selected a deployment.")
             return None
 
         notes_filename = f"{self.deployment_id}_00_Notes.xlsx"
+        gui_notes_filename = f"{self.deployment_id}_01_GUI_Notes.xlsx"
         time_zone = self.deployment_info.get("Time Zone") or "UTC"
 
         notes_filepath = os.path.join(self.data_folder, notes_filename)
-        if not os.path.exists(notes_filepath):
+        gui_notes_filepath = os.path.join(self.data_folder, gui_notes_filename)
+        have_notes = os.path.exists(notes_filepath)
+        have_gui = os.path.exists(gui_notes_filepath)
+        if not have_notes and not have_gui:
             print(f"⚠️ Notes file '{notes_filename}' not found in {self.data_folder}. Skipping import.")
             return None
 
-        try:
-            event_df = pd.read_excel(notes_filepath)
-            print(f"📂 Successfully loaded notes file: {notes_filepath}")
-        except Exception as e:
-            print(f"❌ Error reading {notes_filename}: {e}")
+        frames = []
+        if have_notes:
+            try:
+                frames.append(pd.read_excel(notes_filepath))
+                print(f"📂 Successfully loaded notes file: {notes_filepath}")
+            except Exception as e:
+                print(f"❌ Error reading {notes_filename}: {e}")
+                return None
+        if have_gui:
+            try:
+                frames.append(pd.read_excel(gui_notes_filepath))
+                print(f"📂 Successfully loaded GUI notes file: {gui_notes_filepath}")
+            except Exception as e:
+                print(f"⚠️ Error reading {gui_notes_filename}: {e}. Continuing without GUI notes.")
+
+        if not frames:
             return None
+        event_df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
 
         # timestamp handling
         event_df, _ = process_datetime(event_df, time_zone=time_zone)
@@ -1104,6 +1135,29 @@ class DataReader:
         # sort chronologically
         event_df = event_df.sort_values(by="datetime").reset_index(drop=True)
 
+        # Apply GUI deletions: a row flagged deleted=True removes any note with
+        # the same key at the same instant (within a small tolerance, since the
+        # timestamp round-trips through Excel), then drops the flag rows.
+        if "deleted" in event_df.columns:
+            flags = event_df["deleted"].astype(str).str.strip().str.lower().isin(["true", "1", "yes"])
+            n_before = len(event_df)
+            if flags.any():
+                drop_idx = set(event_df.index[flags])
+                tol = pd.Timedelta(milliseconds=1)
+                for _, row in event_df.loc[flags].iterrows():
+                    match = (
+                        (event_df["key"] == row["key"])
+                        & ((event_df["datetime"] - row["datetime"]).abs() <= tol)
+                        & (~flags)
+                    )
+                    drop_idx.update(event_df.index[match])
+                event_df = event_df.drop(index=drop_idx).reset_index(drop=True)
+                print(f"🗑️ Applied {int(flags.sum())} GUI deletion(s): {n_before} → {len(event_df)} notes.")
+            else:
+                event_df = event_df.drop(columns=["deleted"]).reset_index(drop=True)
+            if "deleted" in event_df.columns:
+                event_df = event_df.drop(columns=["deleted"])
+
         # ensure 'duration' exists
         if "duration" not in event_df.columns:
             event_df["duration"] = 0
@@ -1111,7 +1165,10 @@ class DataReader:
         # zero duration for 'point' events
         event_df.loc[event_df["type"] == "point", "duration"] = 0
 
-        print(f"✅ Notes imported and processed from {notes_filename}. Sorted chronologically.")
+        sources = ", ".join(
+            [n for n, ok in ((notes_filename, have_notes), (gui_notes_filename, have_gui)) if ok]
+        )
+        print(f"✅ Notes imported and processed from {sources}. Sorted chronologically.")
         return event_df
 
     def save_datareader_object(self):
