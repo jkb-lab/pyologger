@@ -10,12 +10,57 @@ from dotenv import load_dotenv
 from notion_client import Client
 
 
+# Databases this class pulls. Each maps to NOTION_<NAME>_DB in the environment.
+NOTION_DATABASES = (
+    "deployment",
+    "recording",
+    "logger",
+    "animal",
+    "dataset",
+    "procedure",
+    "observation",
+    "collaborator",
+    "location",
+    "montage",
+    "signal",
+    "attachment",
+    "originalchannel",
+    "standardizedchannel",
+)
+
+
+# Databases whose env var name differs from a plain upper-casing of the key above.
+_ENV_ALIASES = {
+    "animal": "ORGANISM",  # the Notion database is titled "Organism DB"
+    "originalchannel": "ORIGINAL_CHANNEL",
+    "standardizedchannel": "STANDARDIZED_CHANNEL",
+}
+
+
+def _db_env(name: str):
+    """Database ID for `name`, read as NOTION_DB_<NAME>.
+
+    Falls back to the older NOTION_<NAME>_DB and databases.<name>_DB spellings so
+    unmigrated .env files keep working. `databases.x` is not a valid shell
+    identifier and cannot be exported or passed through Docker, which is part of
+    why the NOTION_DB_* prefix form is now canonical.
+    """
+    suffix = _ENV_ALIASES.get(name, name.upper())
+    return (
+        os.getenv(f"NOTION_DB_{suffix}")
+        or os.getenv(f"NOTION_{name.upper()}_DB")
+        or os.getenv(f"databases.{name}_DB")
+    )
+
+
 class Metadata:
     def __init__(self):
         load_dotenv()
-        notion_token = os.getenv("notion_token")
+        notion_token = os.getenv("NOTION_TOKEN") or os.getenv("notion_token")
         if not notion_token:
-            raise ValueError("Notion token not found in environment variables")
+            raise ValueError(
+                "Notion token not found. Set NOTION_TOKEN in your .env file."
+            )
         print("Loaded Notion secret token.")
 
         # Use the DS API release
@@ -28,23 +73,9 @@ class Metadata:
             notion_version=self.notion_version,
         )
 
-        # These are DATABASE IDs from .env
-        self.databases = {
-            "deployment_DB": os.getenv("databases.deployment_DB"),
-            "recording_DB": os.getenv("databases.recording_DB"),
-            "logger_DB": os.getenv("databases.logger_DB"),
-            "animal_DB": os.getenv("databases.animal_DB"),
-            "dataset_DB": os.getenv("databases.dataset_DB"),
-            "procedure_DB": os.getenv("databases.procedure_DB"),
-            "observation_DB": os.getenv("databases.observation_DB"),
-            "collaborator_DB": os.getenv("databases.collaborator_DB"),
-            "location_DB": os.getenv("databases.location_DB"),
-            "montage_DB": os.getenv("databases.montage_DB"),
-            "signal_DB": os.getenv("databases.signal_DB"),
-            "attachment_DB": os.getenv("databases.attachment_DB"),
-            "originalchannel_DB": os.getenv("databases.originalchannel_DB"),
-            "standardizedchannel_DB": os.getenv("databases.standardizedchannel_DB"),
-        }
+        # DATABASE IDs from .env, keyed as <name>_DB for backwards compatibility
+        # with callers that index self.databases directly.
+        self.databases = {f"{name}_DB": _db_env(name) for name in NOTION_DATABASES}
 
         # runtime state
         self.data_source_cache = {}   # {database_id: data_source_id}

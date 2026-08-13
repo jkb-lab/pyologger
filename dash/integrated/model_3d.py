@@ -545,18 +545,18 @@ def fetch_3d_model_info(animal_id):
     except Exception:
         pass
 
-    notion_token = os.getenv("NOTION_TOKEN") or os.getenv("NOTION_API_KEY")
-    asset_db = os.getenv("NOTION_ASSETS_DB") or os.getenv("NOTION_ASSET_DB")
+    notion_token = os.getenv("NOTION_TOKEN")
+    asset_db = os.getenv("NOTION_DB_ASSET") or os.getenv("NOTION_ASSET_DB")
     db_map = {
-        "Deployment DB": os.getenv("NOTION_DEPLOYMENT_DB"),
-        "Recording DB": os.getenv("NOTION_RECORDING_DB"),
-        "Logger DB": os.getenv("NOTION_LOGGER_DB"),
-        "Animal DB": os.getenv("NOTION_ANIMAL_DB"),
-        "Species DB": os.getenv("NOTION_SPECIES_DB"),
+        "Deployment DB": os.getenv("NOTION_DB_DEPLOYMENT"),
+        "Recording DB": os.getenv("NOTION_DB_RECORDING"),
+        "Logger DB": os.getenv("NOTION_DB_LOGGER"),
+        "Animal DB": os.getenv("NOTION_DB_ORGANISM"),
+        "Species DB": os.getenv("NOTION_DB_SPECIES"),
         "Asset DB": asset_db,
-        "Dataset DB": os.getenv("NOTION_DATASET_DB"),
-        "Signal DB": os.getenv("NOTION_SIGNAL_DB"),
-        "Standardized Channel DB": os.getenv("NOTION_STANDARDIZEDCHANNEL_DB"),
+        "Dataset DB": os.getenv("NOTION_DB_DATASET"),
+        "Signal DB": os.getenv("NOTION_DB_SIGNAL"),
+        "Standardized Channel DB": os.getenv("NOTION_DB_STANDARDIZED_CHANNEL"),
     }
     missing = [k for k, v in db_map.items() if not v]
     if not notion_token or missing:

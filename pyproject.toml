@@ -39,7 +39,11 @@ dependencies = [
   "magnetic_field_calculator",
   "pelicanfs",
   "s3fs",
-  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB",
+  # Pinned to an exact commit (tip of organism-rename / PR #53). main still has the
+  # pre-rename data_uploader requiring metadata["animal"], which fails organism-keyed
+  # uploads with KeyError: 'animal'. Unpinned, pip resolves to whatever the default
+  # branch holds at install time. Re-pin to a tag once this merges to main.
+  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB.git@197449138c8c108d862f9a1547e99abb9c195e61",
   "EDFlib-Python",
   "openpyxl",
   "notebook",
