@@ -39,11 +39,16 @@ class BaseImporter:
         "ecg": 250,
     }
 
-    # Signals that pyologger recomputes from raw data later in the pipeline. When a
-    # "derived" logger (e.g. NL-D1, montage juv-nese-sleep-derived) supplies one of
-    # these, it is imported under a "<signal>_2" name so the canonical name stays free
-    # for pyologger's own, more precise version. Labels and analysis products that
-    # pyologger does not recompute (sleep_state, eeg_*_analysis, ...) keep their names.
+    # Signals that pyologger recomputes from raw data later in the pipeline.
+    #
+    # These no longer drive any renaming. They previously fed resolve_signal_name(),
+    # which suffixed them unconditionally for a derived logger -- so a deployment
+    # whose only source for depth/location/prh was derived lost the canonical name
+    # entirely. Collisions are resolved by the caller, which falls back to
+    # "<signal>_2" only when the canonical name is genuinely taken.
+    #
+    # Retained as documentation of which signals pyologger recomputes, and because
+    # is_derived_logger() is part of the importer API.
     DERIVED_SIGNAL_SUFFIX = "_2"
     RECOMPUTED_SIGNALS = {
         "stroke_rate",
@@ -61,9 +66,18 @@ class BaseImporter:
         return "derived" in montage_id
 
     def resolve_signal_name(self, signal_name):
-        """Map a signal to its stored name, suffixing derived duplicates."""
-        if signal_name in self.RECOMPUTED_SIGNALS and self.is_derived_logger():
-            return f"{signal_name}{self.DERIVED_SIGNAL_SUFFIX}"
+        """Map a signal to its stored name.
+
+        Returns the canonical name. Suffixing is NOT applied here: this used to
+        rename every RECOMPUTED_SIGNALS entry from a derived logger unconditionally,
+        so a deployment whose only source for `depth`/`location`/`prh` was a derived
+        logger ended up with `depth_2` etc. and no canonical name at all — even
+        though nothing else had claimed it.
+
+        The caller already resolves genuine collisions by falling back to
+        `<name>_2` when the canonical name is taken, which is the only case the
+        suffix was ever meant to cover.
+        """
         return signal_name
 
     def get_edf_target_frequencies(self):
