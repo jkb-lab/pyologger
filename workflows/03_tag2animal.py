@@ -923,6 +923,13 @@ if not skip_step:
     # )
     #fig.show()
 
+    # Intentional: calibrated_acc/calibrated_mag are an intermediate stage. This step has
+    # just rotated them into the animal frame (corrected_acc = calibrated_acc @ W), and
+    # corrected_acc/corrected_mag are what get exported, so no information is lost.
+    #
+    # Comparing a fresh run against an outputs_backup/ made before commit 88b1edd will
+    # report "variables lost: signal_data_calibrated_acc, signal_data_calibrated_mag".
+    # That is expected, not a regression — do not remove this cleanup.
         keys_to_remove = ['calibrated_acc','calibrated_mag']
 
     # Clear the specified keys

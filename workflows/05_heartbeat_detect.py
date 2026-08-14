@@ -280,6 +280,20 @@ if not skip_step:
 
         # Precompute once for chunk lookup. A monotonic datetime column lets each
         # chunk be sliced by binary search rather than a full-length boolean mask.
+        def _to_utc_naive(ts, signal_tz):
+            """A timestamp as UTC-naive, matching the searchsorted haystack.
+
+            A naive `ts` is a local wall-clock time, so it is localized to the
+            signal's timezone before conversion. Returning it unchanged would
+            compare local time against UTC values and shift the window by the
+            UTC offset.
+            """
+            if ts.tzinfo is not None:
+                return ts.tz_convert("UTC").tz_localize(None)
+            if signal_tz is not None:
+                return ts.tz_localize(str(signal_tz)).tz_convert("UTC").tz_localize(None)
+            return ts
+
         _datetime_is_sorted = bool(datetime_signal.is_monotonic_increasing)
         if _datetime_is_sorted:
             _dt_utc = datetime_signal
@@ -309,11 +323,14 @@ if not skip_step:
             # instead of building a full-length boolean mask per chunk (which is O(n)
             # over the whole ECG series for each of ~100+ chunks).
             if _datetime_is_sorted:
-                _lo_key = _chunk_start
-                _hi_key = _chunk_end
-                if _lo_key.tzinfo is not None:
-                    _lo_key = _lo_key.tz_convert("UTC").tz_localize(None)
-                    _hi_key = _hi_key.tz_convert("UTC").tz_localize(None)
+                # _datetime_values is UTC-naive (see _dt_utc above), so both search
+                # keys must be too. A naive key is interpreted in the signal's own
+                # timezone first: comparing a local wall-clock time straight against
+                # UTC values silently shifts the window by the UTC offset, which put
+                # every chunk outside the signal span and produced an empty subset --
+                # and so an empty heart_rate -- for tz-aware deployments.
+                _lo_key = _to_utc_naive(_chunk_start, datetime_signal.dt.tz)
+                _hi_key = _to_utc_naive(_chunk_end, datetime_signal.dt.tz)
                 # side='left'/'right' makes the span inclusive on both ends, matching
                 # the original (datetime >= start) & (datetime <= end) mask.
                 _i0 = np.searchsorted(_datetime_values, np.datetime64(_lo_key), side="left")

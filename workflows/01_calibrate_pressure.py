@@ -13,6 +13,12 @@ import pytz
 # Ensure direct workflow execution resolves the repo-local pyologger package.
 WORKFLOW_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(WORKFLOW_DIR)
+
+# How deep the baseline-adjusted median must be, in metres, before a negative median is
+# read as an inverted signal rather than a surface offset. Shallow coastal deployments
+# hover just below zero when already correct; deep divers sit tens to hundreds of metres
+# down when inverted. See the post-baseline sign check for the observed separation.
+SIGN_FLIP_MIN_MEDIAN_DEPTH_M = 10.0
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -581,7 +587,17 @@ if not skip_step:
         # even when the signal is fully inverted (surface offset ≈ -1.5 m, dives go more
         # negative). The median of an upright signal is always ≥ 0 (surface = 0); if it
         # is negative the signal must be flipped.
-        if median_depth < 0:
+        #
+        # A negative median alone is not enough. Shallow deployments sit near the surface
+        # with a small negative offset, so an already-correct signal can show a median of
+        # a few tens of centimetres below zero — flipping those inverts good data, and the
+        # -1.0 then persists to parameter_log.json where it can never self-correct
+        # (a recorded -1.0 skips this check entirely on the next run).
+        #
+        # Require the median to be genuinely deep before trusting it. Observed |median|:
+        # shallow coastal orca 0.00-1.00 m vs. deep-diving elephant seal 53-353 m, so 10 m
+        # separates the two by a wide margin in both directions.
+        if median_depth < -SIGN_FLIP_MIN_MEDIAN_DEPTH_M:
             # Keep all depth representations consistent if sign flip is needed.
             depth_data *= -1
             interpolated_depth_data *= -1
@@ -597,6 +613,13 @@ if not skip_step:
                     section="dive_detection_settings"
                 )
                 print("💾 Wrote conversion_factor=-1.0 to parameter_log.json (dive_detection_settings) to prevent double-flip on rerun.")
+        elif median_depth < 0:
+            print(
+                f"✅ Baseline-adjusted depth median is negative ({median_depth:.4f} m) but "
+                f"shallower than the {SIGN_FLIP_MIN_MEDIAN_DEPTH_M:.0f} m inversion "
+                "threshold; treating as a surface offset, not an inverted signal. "
+                "Set conversion_factor=-1.0 explicitly if this signal really is inverted."
+            )
         else:
             print(f"✅ Baseline-adjusted depth median is non-negative ({median_depth:.4f} m); no sign change applied.")
 

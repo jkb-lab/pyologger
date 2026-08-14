@@ -130,29 +130,27 @@ if args.csvs_only:
     print("--csvs-only: skipping NetCDF export and pkl save.")
     exit(0)
 
-# Crop all derived dataframes to analysis time window if defined
+# signal_data is deliberately NOT cropped to the analysis window.
+#
+# This step used to trim every signal to [analysis_start_time, analysis_end_time] and
+# then save the trimmed result back to data.pkl. Two problems followed:
+#
+#  1. The trim was destructive and permanent. Across the oror dataset it removed 28-91%
+#     of the record (2023-10-18_oror-002 kept 1.8 min of a 20.4 min deployment), and the
+#     raw signal was only recoverable by reprocessing from step 00.
+#  2. Step 05 builds its heartbeat chunk grid from the wider `selected` window. On a
+#     rerun those chunks no longer lined up with the shortened ECG, so no chunk yielded
+#     peaks, and heart_rate/hr_normalized were silently dropped from the export.
+#
+# The analysis window is still recorded in parameter_log.json for downstream consumers
+# that want to restrict their own analysis; it just no longer mutates stored data.
 if ANALYSIS_START_TIME and ANALYSIS_END_TIME:
-    analysis_start = pd.Timestamp(ANALYSIS_START_TIME)
-    analysis_end = pd.Timestamp(ANALYSIS_END_TIME)
-    for key, df in data_pkl.signal_data.items():
-        if 'datetime' in df.columns:
-            # Align timezone awareness before comparing: a single naive signal
-            # would otherwise raise "Cannot compare tz-naive and tz-aware
-            # datetime-like objects" and abort the whole export.
-            dt = pd.to_datetime(df['datetime'])
-            start, end = analysis_start, analysis_end
-            if dt.dt.tz is None and start.tz is not None:
-                print(f"⚠️ Signal '{key}' has naive datetimes; assuming {start.tz} for cropping.")
-                dt = dt.dt.tz_localize(start.tz)
-            elif dt.dt.tz is not None and start.tz is None:
-                start = start.tz_localize(dt.dt.tz)
-                end = end.tz_localize(dt.dt.tz)
-            data_pkl.signal_data[key] = df[(dt >= start) & (dt <= end)]
-    print(f"Cropped signal_data to analysis window: {analysis_start} to {analysis_end}")
-else:
-    print("No analysis window defined; skipping cropping of signal_data.")
+    print(
+        f"ℹ️ Analysis window {ANALYSIS_START_TIME} to {ANALYSIS_END_TIME} recorded but "
+        "not applied; exporting the full signal record."
+    )
 
-# Save the updated data_pkl with cropped signal_data
+# Save the updated data_pkl
 with open(pkl_path, 'wb') as f:
     pickle.dump(data_pkl, f)
 print(f"Updated data.pkl saved to {pkl_path}")

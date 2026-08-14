@@ -175,7 +175,7 @@ class Metadata:
                 value = ", ".join(
                     [
                         opt.get("name", "")
-                        for opt in prop.get("multi_select", [])
+                        for opt in (prop.get("multi_select") or [])
                         if opt.get("name")
                     ]
                 )
@@ -190,13 +190,15 @@ class Metadata:
             elif prop_type == "relation":
                 related_ids = [
                     rel.get("id")
-                    for rel in prop.get("relation", [])
+                    for rel in (prop.get("relation") or [])
                     if rel.get("id")
                 ]
                 return ", ".join(related_ids) if related_ids else np.nan
 
             elif prop_type == "date":
-                date_info = prop.get("date", {})
+                # An empty Notion date property is {"date": null}, not a missing key,
+                # so `or {}` is needed -- .get("date", {}) still returns None there.
+                date_info = prop.get("date") or {}
                 start_date = date_info.get("start")
                 if start_date:
                     try:
@@ -208,7 +210,7 @@ class Metadata:
             elif prop_type == "people":
                 # Notion user objects typically include "name"; fallback if missing
                 names = []
-                for person in prop.get("people", []):
+                for person in (prop.get("people") or []):
                     name = person.get("name")
                     if not name:
                         # Older payloads may require a further lookup; keep id/email if present
