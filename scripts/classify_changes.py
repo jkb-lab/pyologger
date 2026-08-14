@@ -135,13 +135,17 @@ def classify(dataset: str, deployment: str) -> dict:
     if recovered:
         out["notes"].append(f"record recovered: {o_s:.1f} -> {n_s:.1f} min")
 
+    # Only losses need review. Gained signals are the crop fix restoring records that the
+    # old analysis-window trim had shortened so far that step 05 produced no heart rate at
+    # all -- 2023-10-18_oror-002 gains heart_rate/hr_normalized alongside 1.8 -> 20.4 min
+    # of recovered ECG. Treating that as suspect would invert the finding.
     if unexpected_lost:
         out["category"] = "review"
     elif recovered:
         out["category"] = "recovered"
     elif depth_corrected:
         out["category"] = "corrected"
-    elif lost <= INTENTIONAL_DROPS and not gained:
+    elif lost <= INTENTIONAL_DROPS:
         out["category"] = "expected"
     return out
 
