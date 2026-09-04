@@ -2031,6 +2031,164 @@ def _format_signal_axis_title(display_meta):
     return label or ""
 
 
+# --- EEG display -----------------------------------------------------------------
+# Channels are stacked with a fixed offset so each trace keeps a true microvolt scale
+# instead of being autoscaled independently.
+EEG_CHANNEL_OFFSET_UV = 200.0
+# Spectrogram row geometry and STFT parameters. Nothing here is EEG-specific; EEG is
+# only the default target because it is the usual case.
+SPECTROGRAM_ROW_HEIGHT = 0.6
+# 2 s windows at 75% overlap give a 0.5 s time step while keeping 0.5 Hz frequency
+# resolution -- enough to separate delta/theta/alpha in sleep EEG.
+SPECTROGRAM_NPERSEG_SEC = 2.0
+SPECTROGRAM_OVERLAP = 0.75
+SPECTROGRAM_RANGE_HZ = (0.0, 30.0)
+SPECTROGRAM_MAX_COLS = 8000
+SPECTROGRAM_COLORSCALE = "magma"
+# Power is concentrated in a narrow dB band, so the raw min/max wastes most of the
+# color ramp on empty range. Clip to these percentiles for usable contrast.
+SPECTROGRAM_CONTRAST_PCT = (2.0, 98.0)
+
+DEFAULT_SPECTROGRAM_SIGNAL = "eeg"
+
+
+def _is_eeg_signal(signal_name):
+    return str(signal_name or "").strip().lower() == "eeg"
+
+
+def _normalize_spectrogram_range(value):
+    """Coerce a (low_hz, high_hz) pair, falling back to the default on bad input."""
+    lo_default, hi_default = SPECTROGRAM_RANGE_HZ
+    if value is None:
+        return lo_default, hi_default
+    try:
+        lo, hi = value
+        lo, hi = float(lo), float(hi)
+    except (TypeError, ValueError):
+        print(f"⚠ Invalid spectrogram_range {value!r}; using {SPECTROGRAM_RANGE_HZ}.")
+        return lo_default, hi_default
+    if not np.isfinite(lo) or not np.isfinite(hi):
+        return lo_default, hi_default
+    lo, hi = min(lo, hi), max(lo, hi)
+    lo = max(0.0, lo)
+    if hi <= lo:
+        print(f"⚠ Empty spectrogram_range {value!r}; using {SPECTROGRAM_RANGE_HZ}.")
+        return lo_default, hi_default
+    return lo, hi
+
+
+def _normalize_spectrogram_contrast(value):
+    """Coerce a (low_pct, high_pct) percentile pair within [0, 100]."""
+    lo_default, hi_default = SPECTROGRAM_CONTRAST_PCT
+    if value is None:
+        return lo_default, hi_default
+    try:
+        lo, hi = value
+        lo, hi = float(lo), float(hi)
+    except (TypeError, ValueError):
+        print(
+            f"⚠ Invalid spectrogram_contrast {value!r}; expected a (low_pct, high_pct) "
+            f"pair. Using {SPECTROGRAM_CONTRAST_PCT}."
+        )
+        return lo_default, hi_default
+    if not np.isfinite(lo) or not np.isfinite(hi):
+        return lo_default, hi_default
+    lo, hi = min(lo, hi), max(lo, hi)
+    lo = max(0.0, min(100.0, lo))
+    hi = max(0.0, min(100.0, hi))
+    if hi <= lo:
+        print(f"⚠ Empty spectrogram_contrast {value!r}; using {SPECTROGRAM_CONTRAST_PCT}.")
+        return lo_default, hi_default
+    return lo, hi
+
+
+def _compute_spectrogram(times, values, fs, freq_range=None, contrast_pct=None):
+    """
+    Short-time Fourier transform of one channel, returned as
+    (t_index, freqs, dB, (zmin, zmax)).
+
+    Uses scipy.signal.stft. Returns None when the segment is too short to transform.
+    """
+    from scipy.signal import stft
+
+    y = pd.to_numeric(pd.Series(values), errors="coerce").to_numpy(dtype=float)
+    if y.size == 0 or not np.isfinite(fs) or fs <= 0:
+        return None
+    # STFT cannot span NaN gaps; fill them with the channel mean.
+    finite = np.isfinite(y)
+    if not finite.any():
+        return None
+    y = np.where(finite, y, np.nanmean(y[finite]))
+
+    fmin, fmax = _normalize_spectrogram_range(freq_range)
+    lo_pct, hi_pct = _normalize_spectrogram_contrast(contrast_pct)
+
+    nperseg = int(max(32, round(SPECTROGRAM_NPERSEG_SEC * fs)))
+    if y.size < nperseg:
+        nperseg = int(2 ** np.floor(np.log2(max(32, y.size))))
+    if y.size < nperseg or nperseg < 8:
+        return None
+    noverlap = int(nperseg * SPECTROGRAM_OVERLAP)
+
+    freqs, t_sec, Zxx = stft(y, fs=fs, nperseg=nperseg, noverlap=noverlap, boundary=None)
+    power = np.abs(Zxx)
+    # dB relative to the segment max, floored to keep the color range readable.
+    ref = np.max(power) or 1.0
+    db = 20.0 * np.log10(np.maximum(power, ref * 1e-5) / ref)
+
+    keep = (freqs >= fmin) & (freqs <= fmax)
+    if keep.any():
+        freqs, db = freqs[keep], db[keep, :]
+    else:
+        print(
+            f"⚠ No spectrogram bins in {fmin:g}-{fmax:g} Hz at {fs:g} Hz sampling "
+            f"(resolution {freqs[1] - freqs[0] if freqs.size > 1 else float('nan'):.2f} Hz); "
+            "showing the full band."
+        )
+
+    # Cap the column count so the browser payload stays reasonable.
+    if db.shape[1] > SPECTROGRAM_MAX_COLS:
+        idx = np.linspace(0, db.shape[1] - 1, SPECTROGRAM_MAX_COLS).astype(int)
+        db, t_sec = db[:, idx], t_sec[idx]
+
+    t0 = pd.Timestamp(times.iloc[0]) if hasattr(times, "iloc") else pd.Timestamp(times[0])
+    t_index = [t0 + pd.Timedelta(seconds=float(v)) for v in t_sec]
+
+    # Color limits from percentiles of the actual distribution.
+    finite_db = db[np.isfinite(db)]
+    if finite_db.size:
+        zmin = float(np.percentile(finite_db, lo_pct))
+        zmax = float(np.percentile(finite_db, hi_pct))
+        if not np.isfinite(zmin) or not np.isfinite(zmax) or zmax <= zmin:
+            zmin, zmax = float(finite_db.min()), float(finite_db.max())
+    else:
+        zmin, zmax = -100.0, 0.0
+    return t_index, freqs, db, (zmin, zmax)
+
+
+def _row_domain_bounds(fig, row, total_rows):
+    """
+    Return the (low, high) paper-space y bounds of a subplot row.
+
+    Reads the axis domain rather than assuming every row is 1/total_rows tall --
+    row_heights and the rangeslider reservation both make rows uneven.
+    """
+    axis_key = "yaxis" if row == 1 else f"yaxis{row}"
+    axis = fig.layout[axis_key] if axis_key in fig.layout else None
+    domain = getattr(axis, "domain", None) if axis is not None else None
+    if domain and len(domain) == 2 and domain[0] is not None and domain[1] is not None:
+        return float(domain[0]), float(domain[1])
+    # Fall back to uniform rows when the axis is missing a usable domain.
+    row_height = 1.0 / float(total_rows)
+    hi = 1.0 - ((row - 1) * row_height)
+    return hi - row_height, hi
+
+
+def _row_domain_center(fig, row, total_rows):
+    lo, hi = _row_domain_bounds(fig, row, total_rows)
+    return (lo + hi) / 2.0
+
+
 def _add_signal_axis_label_annotation(fig, row, total_rows, label, unit):
     """
     Render horizontal left-aligned signal labels per subplot row:
@@ -2042,8 +2200,7 @@ def _add_signal_axis_label_annotation(fig, row, total_rows, label, unit):
         return
     if total_rows <= 0:
         return
-    row_height = 1.0 / float(total_rows)
-    y_mid = 1.0 - ((row - 0.5) * row_height)
+    y_mid = _row_domain_center(fig, row, total_rows)
     if label_txt and unit_txt:
         text = (
             f"<span style='font-size:15px; font-weight:700; color:#4b5563;'>{html.escape(label_txt)}</span>"
@@ -2079,8 +2236,8 @@ def _add_signal_help_annotation(fig, row, total_rows, text):
         return
     if total_rows <= 0:
         return
-    row_height = 1.0 / float(total_rows)
-    y_top = 1.0 - ((row - 1) * row_height) - 0.01
+    _, y_hi = _row_domain_bounds(fig, row, total_rows)
+    y_top = y_hi - 0.01
     fig.add_annotation(
         xref="paper",
         yref="paper",
@@ -3033,7 +3190,10 @@ def _normalize_annotation_cfg_list(cfg):
 
 
 def _append_annotation_cfg(existing_cfg, new_cfg):
-    left = _normalize_annotation_cfg_list(existing_cfg)
+    # existing_cfg is None for a key we have not seen yet. Normalizing None would
+    # synthesize an empty cfg, which renders a second, unconfigured (gray) copy of
+    # every annotation and steals the legend entry from the real one.
+    left = _normalize_annotation_cfg_list(existing_cfg) if existing_cfg is not None else []
     right = _normalize_annotation_cfg_list(new_cfg)
     merged = left + right
     return merged if len(merged) != 1 else merged[0]
@@ -3255,6 +3415,21 @@ def _resolve_state_annotations_with_mapping(state_annotations, color_mapping, si
     return resolved
 
 
+# Rangeslider geometry for plot_tag_data_interactive. The slider renders beneath the
+# top row; RANGESLIDER_GAP is extra vertical room for its tick labels.
+RANGESLIDER_THICKNESS = 0.12
+RANGESLIDER_GAP = 0.035
+# Height of the dedicated bottom row that the rangeslider is attached to.
+RANGESLIDER_ROW_HEIGHT = 0.01
+# Annotation/overlay traces are opted out of plotly-resampler with this cap.
+ANNOTATION_MAX_SAMPLES = 10_000_000
+# Legend placement. With a rangeslider the legend must clear the reserved band at
+# the bottom of the plotting area, so it sits lower and needs more bottom margin.
+LEGEND_Y_BASE = -0.12
+LEGEND_Y_WITH_SLIDER = -0.20
+LEGEND_BOTTOM_MARGIN_WITH_SLIDER = 150
+
+
 def plot_tag_data_interactive(data_pkl, signals=None, channels=None, 
                                time_range=None, note_annotations=None, state_annotations=None, color_mapping_path=None, 
                                target_sampling_rate=10, zoom_start_time=None, zoom_end_time=None, 
@@ -3265,9 +3440,48 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
                                render_state_on_signal_rows=True,
                                state_annotation_channel_mode=None,
                                state_annotation_channel_height_ratio=0.2,
-                               state_annotation_channel_line_width=3.0):
+                               state_annotation_channel_line_width=3.0,
+                               show_signal_legend=False,
+                               show_spectrogram=True,
+                               spectrogram_channel=None,
+                               spectrogram_range=SPECTROGRAM_RANGE_HZ,
+                               spectrogram_contrast=SPECTROGRAM_CONTRAST_PCT,
+                               eeg_channel_offset_uv=EEG_CHANNEL_OFFSET_UV,
+                               show_eeg_spectrogram=None,
+                               eeg_spectrogram_channel=None):
     """
     Function to plot tag data interactively using Plotly with optional initial zooming into a specific time range.
+
+    show_signal_legend:
+        Signal traces are already named by the row label on the left, so they are kept
+        out of the legend by default -- that reserves the legend for event and state
+        annotations, which have no other label. Set True for the old behavior.
+
+    show_spectrogram:
+        Add a magma spectrogram row directly above the signal it is computed from.
+
+    spectrogram_channel:
+        Which channel the spectrogram is computed from (e.g. "eeg_p4", "ecg"). The
+        owning signal is inferred from the channel, so the row is inserted above that
+        signal's traces. The channel need not be one of the plotted traces, only
+        present in its signal's dataframe. Defaults to the first plotted channel of
+        the "eeg" signal when it is present.
+
+    spectrogram_range:
+        (low_hz, high_hz) frequency band to display. Defaults to (0, 30).
+
+    spectrogram_contrast:
+        (low_pct, high_pct) percentiles of the dB distribution used as the color
+        limits, each within [0, 100]. Defaults to (2, 98). Widening toward (0, 100)
+        lowers contrast; narrowing (e.g. (10, 90)) raises it.
+
+    show_eeg_spectrogram, eeg_spectrogram_channel:
+        Deprecated aliases for show_spectrogram / spectrogram_channel.
+
+    eeg_channel_offset_uv:
+        EEG channels are stacked this many microvolts apart and the row's y-range is
+        clipped to (n_channels x offset), so the row grows with the channel count and
+        every channel keeps a true microvolt scale. Set None/0 to disable stacking.
     """
     register_plotly_resampler(mode='auto')
     # Default signal order
@@ -3331,20 +3545,97 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
     )
     state_channel_row_count = len(state_channel_keys)
 
-    # Keep legacy spacer-row behavior for regular plots, but default to no spacer
-    # when explicit state-annotation channel rows are requested.
+    # The spacer row existed to clear the rangeslider that used to be declared on the
+    # top row. The slider now lives on the bottom axis with its own reserved band, so
+    # the spacer is dead space -- default it off. Pass include_blank_row=True to keep it.
     if include_blank_row is None:
-        include_blank_row = state_channel_row_count == 0
+        include_blank_row = False
     include_blank_row = bool(include_blank_row)
 
     # Add subplots: One row per signal, plus optional blank row, optional state channel rows,
     # and event value rows.
     extra_rows = len(plot_event_values) if plot_event_values else 0
-    total_rows = len(signals_sorted) + extra_rows + (1 if include_blank_row else 0) + state_channel_row_count
+    # A dedicated bottom row hosts the rangeslider so it can display the selector
+    # signal instead of an empty strip.
+    slider_signal = (
+        zoom_range_selector_channel
+        if zoom_range_selector_channel in getattr(data_pkl, "signal_data", {})
+        else None
+    )
+    slider_row_count = 1 if slider_signal else 0
+    # Deprecated aliases win only when the new parameter was left at its default.
+    if show_eeg_spectrogram is not None and show_spectrogram is True:
+        show_spectrogram = show_eeg_spectrogram
+    if eeg_spectrogram_channel and not spectrogram_channel:
+        spectrogram_channel = eeg_spectrogram_channel
+
+    # Infer which plotted signal owns the requested channel; the spectrogram row is
+    # inserted immediately above that signal's traces.
+    signal_data_map = getattr(data_pkl, "signal_data", {}) or {}
+
+    def _owner_signal_for_channel(channel_name):
+        target = str(channel_name)
+        for sig in signals_sorted:
+            df = signal_data_map.get(sig)
+            if df is not None and target in getattr(df, "columns", []):
+                return sig
+        return None
+
+    spectrogram_signal_name = None
+    if show_spectrogram:
+        if spectrogram_channel:
+            spectrogram_signal_name = _owner_signal_for_channel(spectrogram_channel)
+            if spectrogram_signal_name is None:
+                print(
+                    f"⚠ spectrogram_channel '{spectrogram_channel}' is not a channel of "
+                    f"any plotted signal ({list(signals_sorted)}); skipping spectrogram."
+                )
+        else:
+            # Default target: EEG when it is plotted.
+            spectrogram_signal_name = next(
+                (sig for sig in signals_sorted if _is_eeg_signal(sig)), None
+            )
+
+    spectrogram_enabled = bool(show_spectrogram and spectrogram_signal_name)
+    spectrogram_row_count = 1 if spectrogram_enabled else 0
+
+    # EEG stacking is still keyed off the EEG signal itself, independent of the
+    # spectrogram target.
+    eeg_signal_name = next((sig for sig in signals_sorted if _is_eeg_signal(sig)), None)
+
+    total_rows = (
+        len(signals_sorted) + extra_rows + (1 if include_blank_row else 0)
+        + state_channel_row_count + slider_row_count + spectrogram_row_count
+    )
     row_heights = [1.0] * total_rows
+    if slider_row_count:
+        row_heights[-1] = RANGESLIDER_ROW_HEIGHT
+    if spectrogram_enabled:
+        # The spectrogram takes the slot immediately above its source signal.
+        row_heights[signals_sorted.index(spectrogram_signal_name)] = SPECTROGRAM_ROW_HEIGHT
+    if eeg_signal_name is not None:
+        eeg_display_index = signals_sorted.index(eeg_signal_name)
+        # Row order is [.., spectrogram, eeg, ..] when the spectrogram sits above EEG.
+        spec_before_eeg = (
+            spectrogram_row_count
+            if spectrogram_enabled
+            and signals_sorted.index(spectrogram_signal_name) <= eeg_display_index
+            else 0
+        )
+        eeg_row_index = eeg_display_index + spec_before_eeg
+        # Give a stacked EEG row one unit of height per channel so lanes stay legible.
+        if eeg_channel_offset_uv:
+            eeg_ch = (channels or {}).get(eeg_signal_name) or (
+                (data_pkl.signal_info.get(eeg_signal_name, {}) or {}).get("channels") or []
+            )
+            if len(eeg_ch) > 1 and eeg_row_index < len(row_heights):
+                row_heights[eeg_row_index] = max(1.0, 0.5 * len(eeg_ch))
     if state_channel_row_count > 0:
         state_h = max(0.05, min(0.5, float(state_annotation_channel_height_ratio)))
-        state_row_start = len(signals_sorted) + (1 if include_blank_row else 0) + 1
+        state_row_start = (
+            len(signals_sorted) + spectrogram_row_count
+            + (1 if include_blank_row else 0) + 1
+        )
         for rr in range(state_row_start, state_row_start + state_channel_row_count):
             row_heights[rr - 1] = state_h
     fig = FigureResampler(
@@ -3383,12 +3674,28 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
         # Downsample the data if needed
         signal_data_filtered = downsample(signal_data_filtered, original_fs, target_sampling_rate)
 
+        # EEG channels are stacked a fixed number of microvolts apart so each keeps a
+        # true amplitude scale rather than being autoscaled into the same band.
+        eeg_offset = 0.0
+        if _is_eeg_signal(signal) and eeg_channel_offset_uv:
+            try:
+                eeg_offset = abs(float(eeg_channel_offset_uv))
+            except (TypeError, ValueError):
+                eeg_offset = 0.0
+        eeg_plotted_channels = 0
+
         for channel in signal_channels:
             if channel in signal_data_filtered.columns:
                 # Use plain Python lists to avoid narwhals/duckdb inspection paths
                 # that can fail in some environments with partially initialized duckdb.
                 x_data = signal_data_filtered['datetime'].tolist()
-                y_data = signal_data_filtered[channel].tolist()
+                y_series_raw = signal_data_filtered[channel]
+                if eeg_offset:
+                    # Top channel sits highest; center each on its own lane.
+                    lane = len(signal_channels) - 1 - list(signal_channels).index(channel)
+                    y_series_raw = pd.to_numeric(y_series_raw, errors="coerce") + lane * eeg_offset
+                    eeg_plotted_channels += 1
+                y_data = y_series_raw.tolist()
                 # Skip traces that contain no finite values to avoid downstream
                 # empty-slice warnings in plotting/stat helpers.
                 y_numeric = pd.to_numeric(pd.Series(y_data), errors="coerce")
@@ -3433,16 +3740,127 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
                         line=dict(**line_kwargs),
                         hovertemplate=hovertemplate,
                         connectgaps=False,
+                        showlegend=show_signal_legend,
                     ),
                               hf_x=x_data, hf_y=y_data,
                               row=row_counter, col=1,
                 )
+        if eeg_offset and eeg_plotted_channels:
+            # Clip to exactly n_channels lanes so the row grows with the channel count
+            # and each lane keeps the same microvolt scale.
+            drawn = [c for c in signal_channels if c in signal_data_filtered.columns]
+            n_lanes = len(drawn)
+            tickvals = [
+                (n_lanes - 1 - idx) * eeg_offset for idx in range(n_lanes)
+            ]
+            fig.update_yaxes(
+                range=[-eeg_offset / 2.0, (n_lanes - 0.5) * eeg_offset],
+                tickvals=tickvals,
+                ticktext=list(drawn),
+                row=row_counter,
+                col=1,
+            )
+
+        row_label = _safe_text(display_meta.get("signal_label")) or signal
+        row_unit = _safe_text(display_meta.get("signal_unit"))
+        if eeg_offset and eeg_plotted_channels:
+            # Lanes are already named by the axis ticks; a second label would print
+            # over them. Keep the scale in the unit slot instead.
+            row_unit = f"{eeg_offset:g} {row_unit or 'uV'}/ch"
         signal_row_meta[row_counter] = {
             "title": _format_signal_axis_title(display_meta) or signal,
             "description": _safe_text(display_meta.get("signal_description")),
-            "label": _safe_text(display_meta.get("signal_label")) or signal,
-            "unit": _safe_text(display_meta.get("signal_unit")),
+            "label": row_label,
+            "unit": row_unit,
         }
+
+    def _plot_spectrogram_row(signal, signal_data, signal_info, target_row):
+        """Render a magma STFT heatmap for one EEG channel.
+
+        Returns the channel name used, or None when nothing was drawn.
+        """
+        if channels is None or signal not in channels:
+            spec_channels = signal_info.get("channels", []) or []
+        else:
+            spec_channels = channels[signal]
+
+        df = signal_data
+        if time_range:
+            df = _filter_df_by_time(df, time_range[0], time_range[1])
+        else:
+            df = df.copy()
+            df["datetime"] = _coerce_datetime_series(df["datetime"])
+        df = df.dropna(subset=["datetime"]).sort_values("datetime").reset_index(drop=True)
+        if df.empty:
+            return
+
+        # An explicit request wins, even if that channel is not one of the plotted
+        # traces; fall back to the first plotted channel.
+        channel = None
+        if spectrogram_channel:
+            requested = str(spectrogram_channel)
+            if requested in df.columns:
+                channel = requested
+            else:
+                available = [c for c in df.columns if c != "datetime"]
+                print(
+                    f"⚠ spectrogram_channel '{requested}' not found on signal "
+                    f"'{signal}'; available: {available}. Falling back to the first "
+                    "plotted channel."
+                )
+        if channel is None:
+            channel = next((c for c in spec_channels if c in df.columns), None)
+        if channel is None:
+            return
+
+        # Use the native rate: the STFT needs full bandwidth, not the display rate.
+        fs = signal_info.get("sampling_frequency")
+        try:
+            fs = float(fs)
+        except (TypeError, ValueError):
+            fs = float(calculate_sampling_frequency(df["datetime"]) or 0.0)
+        if not np.isfinite(fs) or fs <= 0:
+            return
+
+        try:
+            result = _compute_spectrogram(
+                df["datetime"], df[channel], fs,
+                freq_range=spectrogram_range,
+                contrast_pct=spectrogram_contrast,
+            )
+        except Exception as exc:
+            print(f"⚠ Could not compute spectrogram: {type(exc).__name__}: {exc}")
+            return
+        if result is None:
+            return
+        t_index, freqs, db, (zmin, zmax) = result
+
+        fig.add_trace(
+            go.Heatmap(
+                x=t_index,
+                y=freqs,
+                z=db,
+                colorscale=SPECTROGRAM_COLORSCALE,
+                zmin=zmin,
+                zmax=zmax,
+                showscale=False,
+                zsmooth="best",
+                hovertemplate=(
+                    f"<b>{channel}</b><br>%{{x}}<br>%{{y:.1f}} Hz<br>%{{z:.1f}} dB<extra></extra>"
+                ),
+                name=f"{channel} spectrogram",
+                showlegend=False,
+            ),
+            max_n_samples=ANNOTATION_MAX_SAMPLES,
+            row=target_row,
+            col=1,
+        )
+        fig.update_yaxes(
+            range=[float(freqs.min()), float(freqs.max())],
+            row=target_row,
+            col=1,
+        )
+        return channel
 
     def _determine_annotation_window(requested_range):
         if requested_range and len(requested_range) == 2:
@@ -3465,6 +3883,26 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
         if signal in data_pkl.signal_data:
             signal_data = data_pkl.signal_data[signal]
             signal_info = data_pkl.signal_info[signal]
+
+            # Spectrogram occupies the row immediately above the EEG traces.
+            if spectrogram_enabled and signal == spectrogram_signal_name:
+                spec_channel = _plot_spectrogram_row(
+                    signal, signal_data, signal_info, row_counter
+                )
+                _lo_hz, _hi_hz = _normalize_spectrogram_range(spectrogram_range)
+                _lo_pct, _hi_pct = _normalize_spectrogram_contrast(spectrogram_contrast)
+                signal_row_meta[row_counter] = {
+                    "title": "spectrogram",
+                    "description": (
+                        f"STFT of {spec_channel or signal}, {_lo_hz:g}-{_hi_hz:g} Hz, "
+                        f"power in dB ({_lo_pct:g}th-{_hi_pct:g}th percentile of this "
+                        "window)."
+                    ),
+                    "label": "spectrogram",
+                    "unit": f"{spec_channel}, Hz" if spec_channel else "Hz",
+                }
+                row_counter += 1
+
             signal_plot_row = row_counter
 
             plot_signal_data(signal, signal_data, signal_info)
@@ -3545,7 +3983,9 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
                     scatter_x = filtered_notes["datetime"]
                     scatter_y = [y_fixed] * len(filtered_notes)
 
-                    # Add point event markers
+                    # Add point event markers. max_n_samples opts the trace out of
+                    # plotly-resampler: these are discrete events, so resampling would
+                    # drop some and rename the legend entry to "[R] ... ~11s".
                     fig.add_trace(go.Scatter(
                         x=scatter_x,
                         y=scatter_y,
@@ -3554,7 +3994,7 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
                         name=label,
                         opacity=0.5,
                         showlegend=showlegend and (legend_key not in plotted_annotations)
-                    ), row=row_counter, col=1)
+                    ), max_n_samples=ANNOTATION_MAX_SAMPLES, row=row_counter, col=1)
 
                     if bool(note_params.get("highlight_trace", False)):
                         try:
@@ -4167,7 +4607,7 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
                 col=1,
             )
             if not any_trace:
-                fig.add_trace(go.Scatter(x=[], y=[], mode="markers", showlegend=False), row=row_for_channel, col=1)
+                fig.add_trace(go.Scatter(x=[], y=[], mode="markers", showlegend=False), max_n_samples=ANNOTATION_MAX_SAMPLES, row=row_for_channel, col=1)
             row_counter += 1
 
     # Add event values as separate subplots
@@ -4180,7 +4620,7 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
                     y=[1] * len(event_data),
                     mode='markers',
                     name=f"{event_type} events"
-                ), row=row_counter, col=1)
+                ), max_n_samples=ANNOTATION_MAX_SAMPLES, row=row_counter, col=1)
                 fig.update_yaxes(title_text=f"{event_type} events", row=row_counter, col=1)
                 row_counter += 1
 
@@ -4205,23 +4645,94 @@ def plot_tag_data_interactive(data_pkl, signals=None, channels=None,
                     dict(step="all", label="All")
                 ]
             ),
-            rangeslider=dict(
-                visible=show_range_controls,
-                thickness=0.15
-            ),
             type="date"
         ),
         legend=dict(
             orientation="h",
             yanchor="top",
-            y=-0.12,
+            y=LEGEND_Y_WITH_SLIDER if show_range_controls else LEGEND_Y_BASE,
             xanchor="center",
             x=0.5,
         ),
-        margin=dict(l=170, r=20, t=72, b=90),
+        margin=dict(
+            l=170,
+            r=20,
+            t=72,
+            b=LEGEND_BOTTOM_MARGIN_WITH_SLIDER if show_range_controls else 90,
+        ),
         height=600 + 50 * (len(signals_sorted) + extra_rows) + int(120 * state_channel_row_count),
         showlegend=True
     )
+
+    # With shared_xaxes=True every upper x-axis is slaved to the bottom one and has
+    # its tick labels hidden, so a rangeslider declared on xaxis1 is never rendered --
+    # it only stole vertical space from row 1 and drew over row 2. Attach it to the
+    # bottom axis (where the tick labels live) and lift the plotting area to make room.
+    if show_range_controls and total_rows >= 1:
+        if slider_signal:
+            slider_df = data_pkl.signal_data[slider_signal]
+            slider_info = data_pkl.signal_info.get(slider_signal, {}) or {}
+            slider_channels = (channels or {}).get(slider_signal) or slider_info.get("channels") or []
+            slider_channel = next(
+                (c for c in slider_channels if c in slider_df.columns), None
+            )
+            if slider_channel is not None:
+                sdf = slider_df
+                if time_range:
+                    sdf = _filter_df_by_time(sdf, time_range[0], time_range[1])
+                else:
+                    sdf = sdf.copy()
+                    sdf["datetime"] = _coerce_datetime_series(sdf["datetime"])
+                sdf = sdf.dropna(subset=["datetime"]).sort_values("datetime")
+                s_fs = calculate_sampling_frequency(sdf["datetime"])
+                sdf = downsample(sdf, s_fs, min(target_sampling_rate, 5))
+                fig.add_trace(
+                    # Must be go.Scatter, not go.Scattergl: WebGL traces are not
+                    # rendered inside the rangeslider, leaving it an empty strip.
+                    go.Scatter(
+                        x=sdf["datetime"].tolist(),
+                        y=sdf[slider_channel].tolist(),
+                        mode="lines",
+                        line=dict(
+                            width=1,
+                            color=_resolve_color_for_channel(
+                                color_mapping, slider_signal, slider_channel
+                            ) or "#4b5563",
+                        ),
+                        showlegend=False,
+                        hoverinfo="skip",
+                        name=f"{slider_signal} (range selector)",
+                    ),
+                    max_n_samples=ANNOTATION_MAX_SAMPLES,
+                    row=total_rows,
+                    col=1,
+                )
+                if slider_signal in ("depth", "pressure"):
+                    fig.update_yaxes(autorange="reversed", row=total_rows, col=1)
+                # Hide the host row's chrome but keep the axis itself visible --
+                # visible=False also blanks the slider's copy of the trace.
+                fig.update_yaxes(
+                    showticklabels=False, showgrid=False, zeroline=False,
+                    row=total_rows, col=1,
+                )
+        fig.update_xaxes(
+            rangeslider=dict(visible=True, thickness=RANGESLIDER_THICKNESS),
+            row=total_rows,
+            col=1,
+        )
+        reserve = min(0.45, max(0.0, RANGESLIDER_THICKNESS + RANGESLIDER_GAP))
+        for row_num in range(1, total_rows + 1):
+            axis_key = "yaxis" if row_num == 1 else f"yaxis{row_num}"
+            axis = fig.layout[axis_key]
+            domain = getattr(axis, "domain", None)
+            if not domain or len(domain) != 2:
+                continue
+            lo, hi = float(domain[0]), float(domain[1])
+            # Compress all rows upward into the space above the slider.
+            new_lo = min(1.0, max(0.0, reserve + lo * (1.0 - reserve)))
+            new_hi = min(1.0, max(0.0, reserve + hi * (1.0 - reserve)))
+            if new_hi > new_lo:
+                fig.update_yaxes(domain=[new_lo, new_hi], row=row_num, col=1)
 
     for row_num, meta in signal_row_meta.items():
         _add_signal_axis_label_annotation(

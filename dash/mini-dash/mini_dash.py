@@ -771,7 +771,15 @@ def _parse_dur(s):
 
 
 def _build_immich_clips():
-    """Immich album DepID_<deployment> (raw fileCreatedAt = true UTC), else []."""
+    """Immich album DepID_<deployment>, else [].
+
+    Immich reports these uploads' fileCreatedAt as a UTC-tagged wall-clock that
+    is really deployment-local (the files carry no true EXIF timezone), so
+    trusting the tag puts every clip TZ-offset hours away from the signals and
+    no video ever matches the playhead. Prefer the local-time range encoded in
+    the filename -- same convention as _build_local_clips, and it carries a real
+    end time -- and fall back to localizing fileCreatedAt to TZ.
+    """
     svc = _immich()
     if not svc:
         return []
@@ -787,14 +795,29 @@ def _build_immich_clips():
         aid, created = a.get("id"), a.get("fileCreatedAt")
         if not aid or not created:
             continue
-        ts = pd.Timestamp(created)
-        if ts.tzinfo is None:
-            ts = ts.tz_localize("UTC")
-        s0 = float(ts.timestamp())
+        name = a.get("originalFileName") or aid
+        s0 = e0 = None
+        m = _LOCAL_FILENAME_RE.search(name)
+        if m:
+            try:
+                st = pd.Timestamp(f"{m.group('date')} {m.group('s').replace('-', ':')}").tz_localize(TZ)
+                en = pd.Timestamp(f"{m.group('date')} {m.group('e').replace('-', ':')}").tz_localize(TZ)
+                if en <= st:
+                    en = en + pd.Timedelta(days=1)
+                s0, e0 = float(st.timestamp()), float(en.timestamp())
+            except Exception:
+                s0 = e0 = None
+        if s0 is None:
+            # No parsable filename: treat the reported wall-clock as deployment-local.
+            ts = pd.Timestamp(created)
+            ts = ts.tz_localize(None) if ts.tzinfo is not None else ts
+            ts = ts.tz_localize(TZ)
+            s0 = float(ts.timestamp())
+            e0 = s0 + _parse_dur(a.get("duration"))
         clips.append({
-            "name": a.get("originalFileName") or aid,
+            "name": name,
             "start_epoch": s0,
-            "end_epoch": s0 + _parse_dur(a.get("duration")),
+            "end_epoch": e0,
             "url": f"/mini-video/{aid}",
         })
     clips.sort(key=lambda c: c["start_epoch"])
@@ -1372,6 +1395,9 @@ app.layout = html.Div(
         dcc.Store(id="colors", data=_default_colors()),
         dcc.Store(id="playhead", data=PLAYHEAD0),
         dcc.Store(id="clip", data=None),
+        # Set while the user is dragging a win-slider handle, so autoscroll does
+        # not overwrite the in-progress drag (see follow_playhead).
+        dcc.Store(id="win-adjusting", data=0),
         dcc.Store(id="playing", data=False),
         dcc.Store(id="rate", data=1),
         dcc.Store(id="dummy", data=0),
@@ -1473,6 +1499,7 @@ app.layout = html.Div(
                         html.Div([
                             dcc.RangeSlider(id="win-slider", min=FULL_MIN, max=FULL_MAX, step=1,
                                             value=[WIN_LO, WIN_HI], marks=None, className="win-slider",
+                                            updatemode="mouseup",
                                             tooltip={"always_visible": False, "transform": "epochToDateTime"}),
                         ], className="tl-inset"),
                     ], className="tl-row"),
@@ -2023,9 +2050,10 @@ def cov_view(win):
     Input("playhead", "data"),
     State("win-slider", "value"),
     State("autoscroll", "value"),
+    State("win-adjusting", "data"),
     prevent_initial_call=True,
 )
-def follow_playhead(ph, win, autoscroll):
+def follow_playhead(ph, win, autoscroll, adjusting):
     """Page the window so the playhead stays in the readable middle.
 
     Rather than waiting for the playhead to fall off the edge (which made it
@@ -2037,6 +2065,11 @@ def follow_playhead(ph, win, autoscroll):
     window is always clamped to the deployment bounds.
     """
     if not autoscroll:
+        raise dash.exceptions.PreventUpdate
+    # While a win-slider handle is being dragged, autoscroll must not rewrite the
+    # value: it preserves the OLD width, so it would snap the handle back and make
+    # setting a new window edge impossible.
+    if adjusting:
         raise dash.exceptions.PreventUpdate
     lo, hi = float(min(win)), float(max(win))
     p = float(ph if ph is not None else PLAYHEAD0)
@@ -2063,6 +2096,25 @@ def follow_playhead(ph, win, autoscroll):
     if int(new_lo) == int(lo) and int(new_hi) == int(hi):
         raise dash.exceptions.PreventUpdate
     return [int(new_lo), int(new_hi)]
+
+
+# While a window handle is being dragged, drag_value fires continuously but
+# value only commits on mouseup (updatemode="mouseup"). Raise the flag on drag
+# and lower it once the committed value lands, so autoscroll stays out of the way
+# for the whole gesture.
+app.clientside_callback(
+    "function(dv){ return dv ? 1 : window.dash_clientside.no_update; }",
+    Output("win-adjusting", "data", allow_duplicate=True),
+    Input("win-slider", "drag_value"),
+    prevent_initial_call=True,
+)
+
+app.clientside_callback(
+    "function(v){ return 0; }",
+    Output("win-adjusting", "data", allow_duplicate=True),
+    Input("win-slider", "value"),
+    prevent_initial_call=True,
+)
 
 
 # --------------------------------------------------------------------------- #

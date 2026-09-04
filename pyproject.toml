@@ -39,11 +39,14 @@ dependencies = [
   "magnetic_field_calculator",
   "pelicanfs",
   "s3fs",
-  # Pinned to an exact commit (tip of organism-rename / PR #53). main still has the
-  # pre-rename data_uploader requiring metadata["animal"], which fails organism-keyed
-  # uploads with KeyError: 'animal'. Unpinned, pip resolves to whatever the default
-  # branch holds at install time. Re-pin to a tag once this merges to main.
-  "DiveDB @ git+https://github.com/ecophysviz-lab/DiveDB.git@197449138c8c108d862f9a1547e99abb9c195e61",
+  # Pinned to an exact commit on the jkb-lab fork: the tip of organism-rename
+  # (PR #53) plus a one-line fix loosening importlib-metadata, which upstream
+  # pinned to ==4.8.3 and made uninstallable alongside dask 2025.7.0 on Python
+  # < 3.12. Upstream main still has the pre-rename data_uploader requiring
+  # metadata["animal"], which fails organism-keyed uploads with KeyError:
+  # 'animal'. Re-point to ecophysviz-lab and re-pin to a tag once both the
+  # rename and the importlib fix land upstream.
+  "DiveDB @ git+https://github.com/jkb-lab/DiveDB.git@1e90fc3afaa5f59fc0219ceccbbcc4737bee3806",
   "EDFlib-Python",
   "openpyxl",
   "notebook",
