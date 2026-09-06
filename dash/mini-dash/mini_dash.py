@@ -1383,6 +1383,17 @@ _PROXY_PREFIX = _resolve_proxy_pathname_prefix(args.port)
 if _PROXY_PREFIX:
     print(f"[mini-dash] behind a proxy; using pathname prefix {_PROXY_PREFIX}")
 
+
+def _proxied_path(path: str) -> str:
+    """Prefix a same-origin URL (video routes, anything else served straight
+    off app.server rather than through Dash's own routing) with the proxy
+    path, so it resolves correctly behind NDP's VS Code port forwarder.
+    requests_pathname_prefix only affects Dash's own asset/callback URLs --
+    routes added directly to the underlying Flask app need this by hand.
+    """
+    prefix = (_PROXY_PREFIX or "/").rstrip("/")
+    return f"{prefix}{path}"
+
 # Pin the assets folder to this file's own directory. Dash otherwise resolves it
 # relative to the invoking script's location, so launching from pyologger/ picked
 # up dash/assets/ (integrated_dash's) and mini-dash's css/js/wav 404'd.
@@ -1591,7 +1602,7 @@ app.layout = html.Div(
 _ASSET_RE = re.compile(r"^[0-9a-fA-F-]{16,64}$")
 
 
-@app.server.route("/mini-video/<asset_id>")
+@app.server.route(_proxied_path("/mini-video/<asset_id>"))
 def _serve_video(asset_id):
     from flask import Response, abort, request, stream_with_context
     if not _ASSET_RE.match(asset_id or ""):
@@ -1626,7 +1637,7 @@ def _serve_video(asset_id):
     return Response(stream_with_context(gen()), status=up.status_code, headers=headers)
 
 
-@app.server.route("/mini-local/<path:filename>")
+@app.server.route(_proxied_path("/mini-local/<path:filename>"))
 def _serve_local(filename):
     """Serve a local mp4 from LOCAL_VIDEO_DIR with Range support (for A/B vs Immich)."""
     from flask import abort, send_file
@@ -2298,7 +2309,7 @@ def video_sync(ph, current):
     state = {"name": clip["name"], "start_epoch": clip["start_epoch"]}
     if isinstance(current, dict) and current.get("name") == clip["name"]:
         return no_update, status, state
-    return clip["url"], status, state
+    return _proxied_path(clip["url"]), status, state
 
 
 # seek video (when paused) to the playhead, without fighting playback
