@@ -1,0 +1,49 @@
+# Demo config for NDP workshop participants.
+#
+# After downloading data through the NDP Launcher, files land flat (or inside
+# an NDP-named subfolder) in a sibling folder next to this repo, named like:
+#   2020-04-10_mian-002_data.pkl
+#   2020-04-10_mian-002.nc
+#   2020-04-10_mian-002_trimmed.EDF
+#
+# Run `python setup_demo.py` from the pyologger/ folder (or point it elsewhere
+# with --source/--dest) to sort those files into the same dataset/deployment
+# hierarchy pyologger and DiveDB expect, built in a `pyologger_demo_data/`
+# folder that sits *next to* this repo (not inside it), and to install this
+# file as config.yaml (only if config.yaml doesn't already exist):
+#   pyologger_demo_data/00_Metadata/metadata_snapshot.pkl
+#   pyologger_demo_data/<dataset_id>/<deployment_id>/01_raw-data/<deployment_id>_NL-02_001.edf
+#   pyologger_demo_data/<dataset_id>/<deployment_id>/outputs/data.pkl
+#   pyologger_demo_data/<dataset_id>/<deployment_id>/outputs/<deployment_id>_output.nc
+#
+# paths.local_private_data must point at the folder that directly CONTAINS
+# the dataset folder(s) above (i.e. the parent of mian-juv-nese_sleep_lml-ano_JKB/).
+# That's `../pyologger_demo_data`, a sibling of this repo -- change it (and
+# setup_demo.py's --dest) together if you'd rather keep demo data elsewhere.
+#
+# This config also supports running the Snakemake pipeline end-to-end
+# (`snakemake --configfile config.yaml --cores 1`), starting from step 00
+# (00_load_data.py). Step 00 normally needs a live Notion connection; the
+# demo instead ships a pre-trimmed metadata_snapshot.pkl (scoped to just this
+# deployment, see scripts/trim_metadata_snapshot.py) that setup_demo.py fetches
+# into 00_Metadata/, so step 00 runs fully offline.
+
+paths:
+  local_private_data: "../pyologger_demo_data" # sibling of this repo; parent folder of the dataset/deployment hierarchy below
+  local_private_meta_analysis_data: "../pyologger_demo_data/00_Meta-Analysis" # required key for Snakemake; unused in this demo
+  local_repo_path: "." # this pyologger/ checkout (color_mappings.json, montage_log.json live here)
+
+edf_import:
+  target_frequencies: {}
+
+run_selection:
+  processing: true
+  segmentation: false
+  make_map: false
+  make_phylogeny: false
+
+datasets:
+
+  mian-juv-nese_sleep_lml-ano_JKB: # Sleep (EEG, ECG, TDR, IMU) in juvenile northern elephant seals
+    deployments:
+      - 2020-04-10_mian-002

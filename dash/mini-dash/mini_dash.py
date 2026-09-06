@@ -1355,10 +1355,42 @@ load_deployment(args.dataset, args.deployment)
 
 DATASETS = list_datasets()
 
+
+def _resolve_proxy_pathname_prefix(port: int) -> str | None:
+    """Path prefix Dash must prepend to every asset/callback URL when running
+    behind a reverse proxy that doesn't strip its own path (NDP's JupyterHub).
+
+    NDP's VS Code port-forwarding serves this app at
+    .../vscode/proxy/<port>/ -- VSCODE_PROXY_URI is the exact template
+    JupyterHub sets for that (with a `{{port}}` placeholder to fill in).
+    Falls back to JUPYTERHUB_SERVICE_PREFIX (plain JupyterHub proxy, no VS
+    Code layer) if that's the only one set, and to None (no prefix -- the
+    normal case when running locally) if neither is present.
+    """
+    vscode_proxy_uri = os.environ.get("VSCODE_PROXY_URI")
+    if vscode_proxy_uri:
+        full_url = vscode_proxy_uri.replace("{{port}}", str(port))
+        return "/" + full_url.split("://", 1)[-1].split("/", 1)[-1]
+
+    jupyterhub_prefix = os.environ.get("JUPYTERHUB_SERVICE_PREFIX")
+    if jupyterhub_prefix:
+        return jupyterhub_prefix
+
+    return None
+
+
+_PROXY_PREFIX = _resolve_proxy_pathname_prefix(args.port)
+if _PROXY_PREFIX:
+    print(f"[mini-dash] behind a proxy; using pathname prefix {_PROXY_PREFIX}")
+
 # Pin the assets folder to this file's own directory. Dash otherwise resolves it
 # relative to the invoking script's location, so launching from pyologger/ picked
 # up dash/assets/ (integrated_dash's) and mini-dash's css/js/wav 404'd.
-app = Dash(__name__, assets_folder=str(pathlib.Path(__file__).resolve().parent / "assets"))
+app = Dash(
+    __name__,
+    assets_folder=str(pathlib.Path(__file__).resolve().parent / "assets"),
+    requests_pathname_prefix=_PROXY_PREFIX,
+)
 app.title = "mini-dash"
 
 # Slider tooltips format epochs in the deployment's timezone, not the browser's.
@@ -2313,4 +2345,8 @@ app.clientside_callback(
 if __name__ == "__main__":
     # threaded=True: the /mini-video proxy streams long-lived responses; a single
     # worker would block the page's own requests behind an open video stream.
-    app.run(debug=False, port=args.port, use_reloader=False, threaded=True)
+    # host="0.0.0.0" when a proxy prefix was detected: NDP's VS Code port
+    # forwarder connects from outside the container's loopback interface, so
+    # binding to 127.0.0.1 (Dash's default) would leave it unreachable.
+    host = "0.0.0.0" if _PROXY_PREFIX else "127.0.0.1"
+    app.run(debug=False, host=host, port=args.port, use_reloader=False, threaded=True)
