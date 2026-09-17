@@ -51,7 +51,7 @@ dependencies = [
   "openpyxl",
   "notebook",
   "ipykernel",
-  "geoai-py",
+  # "geoai-py",
   "leafmap",
   "pystac-client",
   "planetary-computer",

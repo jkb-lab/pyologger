@@ -6,6 +6,7 @@ __pycache__/
 vidformer
 
 config.yaml
+.demo_review_metadata_snapshot.pkl
 
 data/*
 .vscode

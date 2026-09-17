@@ -1,15 +1,18 @@
-"""Set up an NDP demo download into a pyologger dataset/deployment hierarchy.
+"""Set up a downloaded demo dataset into a pyologger dataset/deployment hierarchy.
 
-NDP Launcher downloads land in a dataset-named sibling folder next to this
-repo, e.g.:
+Download and unzip the workshop demo data (Google Drive link provided
+separately) into a sibling folder next to this repo, e.g.:
     _User-Persistent-Storage_CephBlock_/
     +-- pyologger/                                  <- this repo
-    +-- subset-of-data-for-brain-activity-.../       <- NDP download, name varies
+    +-- NSF_demo_data/                               <- unzipped demo download
 
 containing files named like:
     2020-04-10_mian-002_data.pkl
     2020-04-10_mian-002.nc
     2020-04-10_mian-002_trimmed.EDF
+    2020-04-10_mian-002_NL-D2_001_trimmed.csv
+    metadata_snapshot.pkl
+    parameter_log.json
 
 This script finds those files under --source and moves them into a new
 `pyologger_demo_data/` folder that sits *next to* this repo (not inside it,
@@ -18,10 +21,12 @@ so the repo stays clean):
     +-- pyologger/
     +-- pyologger_demo_data/
     |   +-- 00_Metadata/metadata_snapshot.pkl
+    |   +-- <dataset_id>/parameter_log.json
     |   +-- <dataset_id>/<deployment_id>/outputs/data.pkl
     |   +-- <dataset_id>/<deployment_id>/outputs/<deployment_id>_output.nc
     |   +-- <dataset_id>/<deployment_id>/01_raw-data/<deployment_id>_NL-02_001.edf
-    +-- subset-of-data-for-brain-activity-.../       <- emptied out, now sourced
+    |   +-- <dataset_id>/<deployment_id>/01_raw-data/<deployment_id>_NL-D2_001.csv
+    +-- NSF_demo_data/                               <- emptied out, now sourced
 
 using the dataset/deployment mapping in demo_config.yaml, then installs
 demo_config.yaml as config.yaml inside pyologger/ (only if config.yaml doesn't
@@ -30,21 +35,21 @@ already exist, so it never clobbers a real config). demo_config.yaml points
 
 It also installs .env from .env.example (only if .env doesn't already exist),
 commenting out variables the demo doesn't need (Notion tokens/database IDs --
-metadata comes from the pre-trimmed snapshot fetched above, not live Notion --
+metadata comes from the pre-trimmed snapshot in the download, not live Notion --
 and a few pyologger-specific paths unused by the demo) so participants are
 only asked to fill in IMMICH_API_KEY/IMMICH_BASE_URL if they want mini-dash's
 video playback, and can otherwise run the demo untouched.
 
-If the raw EDF wasn't part of the NDP download, it's fetched from the public
-Pelican/OSDF namespace (osdf:///jkb-lab-public/demo/) instead. A trimmed,
-demo-scoped metadata_snapshot.pkl (built with scripts/trim_metadata_snapshot.py)
-is also fetched into 00_Metadata/, so `workflows/00_load_data.py` can run
-fully offline (no Notion token needed) if students want to try the Snakemake
-pipeline from raw data.
+All demo files (including the pre-trimmed metadata_snapshot.pkl, so
+`workflows/00_load_data.py` can run fully offline with no Notion token) ship
+in the same Google Drive zip -- there's no separate fetch step. (An earlier
+version of this script pulled missing files from the lab's public Pelican/OSDF
+namespace; that namespace's origin has since become unreliable, so the
+workshop now distributes a self-contained zip instead.)
 
 Usage:
     # From inside this repo -- searches every sibling folder next to it for
-    # the demo files, whatever NDP happened to name the download folder, and
+    # the demo files, whatever you named the unzipped download folder, and
     # builds the hierarchy in a sibling pyologger_demo_data/ folder:
     cd pyologger && python setup_demo.py
 
@@ -54,7 +59,6 @@ Usage:
 
 import argparse
 import shutil
-import subprocess
 from pathlib import Path
 
 import yaml
@@ -62,7 +66,6 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = SCRIPT_DIR / "demo_config.yaml"
 DEFAULT_DEST_DIRNAME = "pyologger_demo_data"
-PELICAN_DEMO_NAMESPACE = "osdf:///jkb-lab-public/demo"
 
 # Variable name prefixes/exact names not needed for the demo -- these get
 # commented out in the installed .env rather than removed, so the file still
@@ -97,12 +100,27 @@ def find_deployment_files(source: Path, deployment_id: str) -> dict[str, Path]:
     edf_matches = list(source.rglob(f"{deployment_id}_trimmed.EDF")) or list(
         source.rglob(f"{deployment_id}_trimmed.edf")
     )
+    csv_matches = list(source.rglob(f"{deployment_id}_NL-D2_001_trimmed.csv"))
     if pkl_matches:
         found["pkl"] = pkl_matches[0]
     if nc_matches:
         found["nc"] = nc_matches[0]
     if edf_matches:
         found["edf"] = edf_matches[0]
+    if csv_matches:
+        found["csv"] = csv_matches[0]
+    return found
+
+
+def find_shared_files(source: Path) -> dict[str, Path]:
+    """Files shared at the dataset/root level, not per-deployment."""
+    found = {}
+    metadata_matches = list(source.rglob("metadata_snapshot.pkl"))
+    param_log_matches = list(source.rglob("parameter_log.json"))
+    if metadata_matches:
+        found["metadata_snapshot"] = metadata_matches[0]
+    if param_log_matches:
+        found["parameter_log"] = param_log_matches[0]
     return found
 
 
@@ -130,22 +148,6 @@ def resolve_default_source(deployment_ids: list[str], dest: Path) -> Path:
     return Path(".")
 
 
-def fetch_from_pelican(remote_name: str, target: Path) -> bool:
-    """Fetch a file from the public Pelican demo namespace."""
-    remote_path = f"{PELICAN_DEMO_NAMESPACE}/{remote_name}"
-    print(f"[fetch] {remote_path} -> {target}")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        subprocess.run(
-            ["pelican", "object", "get", remote_path, str(target)],
-            check=True,
-        )
-        return True
-    except (FileNotFoundError, subprocess.CalledProcessError) as e:
-        print(f"[warn] could not fetch {remote_name} from Pelican: {e}")
-        return False
-
-
 def organize(source: Path, dest: Path, config: dict, dry_run: bool = False) -> None:
     deployment_to_dataset = build_deployment_to_dataset(config)
 
@@ -155,7 +157,8 @@ def organize(source: Path, dest: Path, config: dict, dry_run: bool = False) -> N
             print(f"[skip] no downloaded files found for {deployment_id}")
             continue
 
-        deployment_dir = dest / dataset_id / deployment_id
+        dataset_dir = dest / dataset_id
+        deployment_dir = dataset_dir / deployment_id
         outputs_dir = deployment_dir / "outputs"
         rawdata_dir = deployment_dir / "01_raw-data"
         outputs_dir.mkdir(parents=True, exist_ok=True)
@@ -176,22 +179,44 @@ def organize(source: Path, dest: Path, config: dict, dry_run: bool = False) -> N
         else:
             print(f"[warn] missing *.nc for {deployment_id}")
 
-        edf_target = rawdata_dir / f"{deployment_id}_NL-02_001.edf"
         if "edf" in files:
             rawdata_dir.mkdir(parents=True, exist_ok=True)
+            edf_target = rawdata_dir / f"{deployment_id}_NL-02_001.edf"
             print(f"[move] {files['edf']} -> {edf_target}")
             if not dry_run:
                 shutil.move(str(files["edf"]), edf_target)
-        elif not dry_run:
-            fetch_from_pelican(f"{deployment_id}_trimmed.EDF", edf_target)
         else:
-            print(f"[dry-run] would fetch missing EDF for {deployment_id} from Pelican")
+            print(f"[warn] missing *_trimmed.EDF for {deployment_id}")
+
+        if "csv" in files:
+            rawdata_dir.mkdir(parents=True, exist_ok=True)
+            csv_target = rawdata_dir / f"{deployment_id}_NL-D2_001.csv"
+            print(f"[move] {files['csv']} -> {csv_target}")
+            if not dry_run:
+                shutil.move(str(files["csv"]), csv_target)
+        else:
+            print(f"[warn] missing *_NL-D2_001_trimmed.csv for {deployment_id}")
+
+    shared = find_shared_files(source)
 
     metadata_target = dest / "00_Metadata" / "metadata_snapshot.pkl"
-    if not dry_run:
-        fetch_from_pelican("metadata_snapshot.pkl", metadata_target)
+    if "metadata_snapshot" in shared:
+        print(f"[move] {shared['metadata_snapshot']} -> {metadata_target}")
+        if not dry_run:
+            metadata_target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(shared["metadata_snapshot"]), metadata_target)
     else:
-        print(f"[dry-run] would fetch demo metadata_snapshot.pkl -> {metadata_target}")
+        print("[warn] missing metadata_snapshot.pkl in download")
+
+    if "parameter_log" in shared:
+        for dataset_id in set(deployment_to_dataset.values()):
+            param_log_target = dest / dataset_id / "parameter_log.json"
+            print(f"[copy] {shared['parameter_log']} -> {param_log_target}")
+            if not dry_run:
+                param_log_target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(shared["parameter_log"], param_log_target)
+    else:
+        print("[warn] missing parameter_log.json in download")
 
 
 def install_config(config_path: Path, dry_run: bool = False) -> None:

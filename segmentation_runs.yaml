@@ -1293,6 +1293,373 @@ segmentation_runs:
         source_channel: depth.depth
         rule: first_last_depth_threshold
         depth_threshold_m: 10.0
+  demo_sleep_rf_full:
+    # NDP workshop demo: feature generation -> clustering -> supervised RF,
+    # single deployment (no cross-deployment holdout folds — the demo only
+    # ships one deployment's data), full sensor stack (EEG/ECG/HR + motion).
+    # Pair with demo_sleep_rf_hr_only below to compare classifier skill with
+    # vs. without brain/heart signals.
+    scope:
+      analysis_id: demo_sleep_rf_full
+      dataset_ids:
+      - mian-juv-nese_sleep_lml-ano_JKB
+      deployment_ids:
+      - 2020-04-10_mian-002
+      expected_signals:
+      - depth
+      - prh
+      - stroke_rate
+      - heart_rate
+      - heart_rate_analysis
+      - eeg_analysis
+    features:
+      normalization_level: deployment
+      cluster_length_mode: variable
+      window_s: 30
+      stride_s: 10
+      min_samples_per_chunk: 5
+      max_chunks_per_deployment: 40000
+      max_chunks_total: 40000
+      test_run: false
+      test_max_chunks_per_deployment: 1000
+      umap_sample_frac: 0.2
+      random_state: 42
+      strict_qc: false
+      sampling_compatibility_tolerance: 0.05
+      channel_feature_spec:
+        depth.depth:
+          transforms:
+          - raw
+          - diff
+          - diff2
+          feature_set: full
+        stroke_rate.stroke_rate:
+          transforms:
+          - raw
+          feature_set: medium
+          required: false
+        prh.pitch:
+          transforms:
+          - raw
+          feature_set: full
+          required: false
+        prh.roll:
+          transforms:
+          - raw
+          feature_set: full
+          required: false
+        prh.heading:
+          transforms:
+          - raw
+          feature_set: full
+          required: false
+        heart_rate.heart_rate:
+          transforms:
+          - raw
+          feature_set: medium
+          required: false
+        heart_rate_analysis.heart_rate_vlf_power:
+          transforms:
+          - raw
+          feature_set: medium
+          required: false
+        is_sleepspiral.is_sleepspiral:
+          transforms:
+          - raw
+          feature_set: minimal
+          required: false
+        eeg_analysis.eeg_f3_delta_power:
+          transforms:
+          - raw
+          feature_set: medium
+          required: false
+      preprocessing:
+        standardized_channels:
+          depth.depth:
+            method: adaptive_gaussian_quantized
+            quantize_step: 1.0
+            base_smooth_seconds: 6
+            coarse_smooth_seconds: 12
+            coarse_interval_threshold_s: 5
+            coarse_resolution_threshold: 1.0
+            derivative_orders:
+            - 0
+            - 1
+            - 2
+            output_prefix: standardized_depth
+    unsupervised:
+      clustering_window_scope: all_windows
+      cluster_passes:
+      - name: k2
+        n_clusters: 2
+        channel_feature_spec:
+          depth.depth:
+            transforms:
+            - raw
+            feature_set: full
+      - name: k5
+        n_clusters: 5
+        channel_feature_spec:
+          depth.depth:
+            transforms:
+            - diff
+            - diff2
+            feature_set: full
+      primary_input_channel_for_ranking: depth.depth
+      corr_threshold: 0.8
+      n_clusters: auto
+      max_k: 8
+      run_pca: true
+      run_tsne: false
+      run_umap: false
+    supervised:
+      enabled: true
+      config:
+        # Single deployment, no cross-deployment transfer: ordinary random
+        # train/test split within this deployment's labeled windows.
+        prediction_scope: labeled_windows_only
+        source_dataset_ids:
+        - mian-juv-nese_sleep_lml-ano_JKB
+        source_training_deployment_ids_always: []
+        source_holdout_folds: []
+        transfer_source_split_mode: random_70_30
+        test_size: 0.3
+        rf_n_estimators: 500
+        rf_min_samples_leaf: 2
+        rf_class_weight: balanced_subsample
+        enable_lightgbm: false
+        enable_svm: false
+        enable_knn: false
+        enable_channel_ablation: true
+        ablation_mode: grouped_forward_addition
+        ablation_feature_groups:
+        - label: TDR Only
+          channels:
+          - depth.depth
+        - label: TDR + SR
+          channels:
+          - depth.depth
+          - stroke_rate.stroke_rate
+        - label: TDR + SR + PRH
+          channels:
+          - depth.depth
+          - stroke_rate.stroke_rate
+          - prh.pitch
+          - prh.roll
+          - prh.heading
+          - is_sleepspiral.is_sleepspiral
+        - label: TDR + SR + PRH + HR
+          channels:
+          - depth.depth
+          - stroke_rate.stroke_rate
+          - prh.pitch
+          - prh.roll
+          - prh.heading
+          - is_sleepspiral.is_sleepspiral
+          - heart_rate.heart_rate
+        - label: TDR + SR + PRH + HR + HRV
+          channels:
+          - depth.depth
+          - stroke_rate.stroke_rate
+          - prh.pitch
+          - prh.roll
+          - prh.heading
+          - is_sleepspiral.is_sleepspiral
+          - heart_rate.heart_rate
+          - heart_rate_analysis.heart_rate_vlf_power
+        - label: TDR + SR + PRH + HR + HRV + EEG_DELTA
+          channels:
+          - depth.depth
+          - stroke_rate.stroke_rate
+          - prh.pitch
+          - prh.roll
+          - prh.heading
+          - heart_rate.heart_rate
+          - is_sleepspiral.is_sleepspiral
+          - heart_rate_analysis.heart_rate_vlf_power
+          - eeg_analysis.eeg_f3_delta_power
+        include_algorithmic_baseline: false
+        confidence_threshold: 0.4
+        use_probability_calibration: true
+        calibration_method: sigmoid
+        calibration_cv: 3
+        export_rf_events: false
+        label_group: SWS_v_REM_SEALS
+    summary:
+      plots:
+        interactive_review:
+          enabled: true
+          deployment_scope: first_per_dataset
+          time_range_mode: full_deployment
+      window_trim:
+        enabled: false
+        source_channel: depth.depth
+        rule: first_last_depth_threshold
+        depth_threshold_m: 10.0
+
+  demo_sleep_rf_hr_only:
+    # Same demo deployment/features/clustering as demo_sleep_rf_full, but the
+    # supervised classifier only ever sees heart-rate-derived channels (no
+    # EEG, no motion/TDR/PRH) — a point of comparison for "how much does
+    # brain/motion data actually buy you over heart rate alone."
+    scope:
+      analysis_id: demo_sleep_rf_hr_only
+      dataset_ids:
+      - mian-juv-nese_sleep_lml-ano_JKB
+      deployment_ids:
+      - 2020-04-10_mian-002
+      expected_signals:
+      - depth
+      - prh
+      - stroke_rate
+      - heart_rate
+      - heart_rate_analysis
+      - eeg_analysis
+    features:
+      normalization_level: deployment
+      cluster_length_mode: variable
+      window_s: 30
+      stride_s: 10
+      min_samples_per_chunk: 5
+      max_chunks_per_deployment: 40000
+      max_chunks_total: 40000
+      test_run: false
+      test_max_chunks_per_deployment: 1000
+      umap_sample_frac: 0.2
+      random_state: 42
+      strict_qc: false
+      sampling_compatibility_tolerance: 0.05
+      channel_feature_spec:
+        depth.depth:
+          transforms:
+          - raw
+          - diff
+          - diff2
+          feature_set: full
+        stroke_rate.stroke_rate:
+          transforms:
+          - raw
+          feature_set: medium
+          required: false
+        prh.pitch:
+          transforms:
+          - raw
+          feature_set: full
+          required: false
+        prh.roll:
+          transforms:
+          - raw
+          feature_set: full
+          required: false
+        prh.heading:
+          transforms:
+          - raw
+          feature_set: full
+          required: false
+        heart_rate.heart_rate:
+          transforms:
+          - raw
+          feature_set: medium
+          required: false
+        heart_rate_analysis.heart_rate_vlf_power:
+          transforms:
+          - raw
+          feature_set: medium
+          required: false
+        is_sleepspiral.is_sleepspiral:
+          transforms:
+          - raw
+          feature_set: minimal
+          required: false
+        eeg_analysis.eeg_f3_delta_power:
+          transforms:
+          - raw
+          feature_set: medium
+          required: false
+      preprocessing:
+        standardized_channels:
+          depth.depth:
+            method: adaptive_gaussian_quantized
+            quantize_step: 1.0
+            base_smooth_seconds: 6
+            coarse_smooth_seconds: 12
+            coarse_interval_threshold_s: 5
+            coarse_resolution_threshold: 1.0
+            derivative_orders:
+            - 0
+            - 1
+            - 2
+            output_prefix: standardized_depth
+    unsupervised:
+      clustering_window_scope: all_windows
+      cluster_passes:
+      - name: k2
+        n_clusters: 2
+        channel_feature_spec:
+          depth.depth:
+            transforms:
+            - raw
+            feature_set: full
+      - name: k5
+        n_clusters: 5
+        channel_feature_spec:
+          depth.depth:
+            transforms:
+            - diff
+            - diff2
+            feature_set: full
+      primary_input_channel_for_ranking: depth.depth
+      corr_threshold: 0.8
+      n_clusters: auto
+      max_k: 8
+      run_pca: true
+      run_tsne: false
+      run_umap: false
+    supervised:
+      enabled: true
+      config:
+        prediction_scope: labeled_windows_only
+        source_dataset_ids:
+        - mian-juv-nese_sleep_lml-ano_JKB
+        source_training_deployment_ids_always: []
+        source_holdout_folds: []
+        transfer_source_split_mode: random_70_30
+        test_size: 0.3
+        rf_n_estimators: 500
+        rf_min_samples_leaf: 2
+        rf_class_weight: balanced_subsample
+        enable_lightgbm: false
+        enable_svm: false
+        enable_knn: false
+        enable_channel_ablation: true
+        ablation_mode: grouped_forward_addition
+        ablation_feature_groups:
+        - label: HR Only
+          channels:
+          - heart_rate.heart_rate
+        - label: HR + HRV
+          channels:
+          - heart_rate.heart_rate
+          - heart_rate_analysis.heart_rate_vlf_power
+        include_algorithmic_baseline: false
+        confidence_threshold: 0.4
+        use_probability_calibration: true
+        calibration_method: sigmoid
+        calibration_cv: 3
+        export_rf_events: false
+        label_group: SWS_v_REM_SEALS
+    summary:
+      plots:
+        interactive_review:
+          enabled: true
+          deployment_scope: first_per_dataset
+          time_range_mode: full_deployment
+      window_trim:
+        enabled: false
+        source_channel: depth.depth
+        rule: first_last_depth_threshold
+        depth_threshold_m: 10.0
+
   cafa_silky_motion_only:
     scope:
       analysis_id: cafa_silky_motion_only
