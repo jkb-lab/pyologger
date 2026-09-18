@@ -152,10 +152,28 @@ class SignalMetadata:
 
 
 class DeploymentDataSource:
-    def __init__(self, deployment_folder: str, deployment_id: str, *, real_data_pkl=None):
+    def __init__(
+        self,
+        deployment_folder: str,
+        deployment_id: str,
+        *,
+        real_data_pkl=None,
+        netcdf_path: str | None = None,
+        pkl_path: str | None = None,
+    ):
+        """
+        netcdf_path / pkl_path: explicit overrides for which processed file to
+        read, bypassing the standard outputs/{deployment_id}_output.nc /
+        outputs/data.pkl lookup -- e.g. to load a trimmed demo slice
+        (outputs_demo/*_output_trimmed.nc, outputs_demo/data_trimmed.pkl)
+        instead of the full deployment's real outputs. When netcdf_path is
+        given it always wins (netcdf takes priority over pickle, same as the
+        default lookup); pkl_path is only used if no netcdf is found.
+        """
         self.deployment_folder = deployment_folder
         self.deployment_id = deployment_id
-        self.netcdf_path = latest_processing_netcdf_path(deployment_folder, deployment_id)
+        self._pkl_path_override = pkl_path
+        self.netcdf_path = netcdf_path or latest_processing_netcdf_path(deployment_folder, deployment_id)
         self._real_data_pkl = real_data_pkl
         self._metadata_shell = None
         self._location_cache: dict[int, pd.DataFrame] = {}
@@ -250,7 +268,7 @@ class DeploymentDataSource:
 
     def get_real_data_pkl(self):
         if self._real_data_pkl is None:
-            pkl_path = os.path.join(self.deployment_folder, "outputs", "data.pkl")
+            pkl_path = self._pkl_path_override or os.path.join(self.deployment_folder, "outputs", "data.pkl")
             with open(pkl_path, "rb") as fh:
                 self._real_data_pkl = pickle.load(fh)
         return self._real_data_pkl
@@ -468,11 +486,13 @@ def resolve_deployment_source(
     deployment_id: str,
     *,
     deployment_folder: str | None = None,
+    netcdf_path: str | None = None,
+    pkl_path: str | None = None,
 ) -> DeploymentDataSource:
     folder = deployment_folder
     if not folder:
         folder = os.path.join(str(data_dir or ""), str(dataset_id or ""), str(deployment_id))
-    return DeploymentDataSource(folder, deployment_id)
+    return DeploymentDataSource(folder, deployment_id, netcdf_path=netcdf_path, pkl_path=pkl_path)
 
 
 def resolve_plot_signal_allowlist(param_manager, source: DeploymentDataSource) -> list[str]:

@@ -141,9 +141,11 @@ parser.add_argument("--deployment", default=DEFAULT_DEPLOYMENT)
 parser.add_argument("--port", type=int, default=DEFAULT_PORT)
 parser.add_argument("--source", choices=["auto", "immich", "local"], default="auto",
                     help="video source: auto (immich then local), or force immich/local")
-parser.add_argument("--video-only", action="store_true",
-                    help="trim the loaded span to first-clip-start..last-clip-end, "
-                         "skipping non-video stretches of the deployment")
+parser.add_argument("--demo", action="store_true",
+                    help="load the deployment's trimmed demo outputs "
+                         "(outputs_demo/data_trimmed.pkl or outputs_demo/*_output_trimmed.nc) "
+                         "instead of the full outputs/ -- falls back to the full outputs "
+                         "if no _demo files exist for this deployment")
 args = parser.parse_args()
 
 config, data_dir, color_mapping_path, _ = load_configuration()
@@ -192,6 +194,29 @@ def list_deployments(ds_id):
     return out
 
 
+def _resolve_demo_paths(deployment_folder, deployment_id):
+    """Find a deployment's trimmed demo outputs, if any.
+
+    Looks in outputs_demo/ for a netcdf (preferred, matching the standard
+    outputs/ lookup's own netcdf-over-pickle priority) or pickle -- e.g.
+    outputs_demo/2020-04-10_mian-002_output_trimmed.nc or
+    outputs_demo/data_trimmed.pkl. Returns (netcdf_path, pkl_path), either or
+    both None if not found.
+    """
+    demo_dir = os.path.join(deployment_folder, "outputs_demo")
+    if not os.path.isdir(demo_dir):
+        return None, None
+    netcdf_path = None
+    pkl_path = None
+    for fname in sorted(os.listdir(demo_dir)):
+        full = os.path.join(demo_dir, fname)
+        if fname.endswith(".nc") and netcdf_path is None:
+            netcdf_path = full
+        elif fname.endswith(".pkl") and pkl_path is None:
+            pkl_path = full
+    return netcdf_path, pkl_path
+
+
 def load_deployment(ds_id, dep_id):
     """(Re)bind all deployment-scoped globals for the given dataset/deployment.
 
@@ -208,8 +233,18 @@ def load_deployment(ds_id, dep_id):
 
     (animal_id, dataset_id, deployment_id, dataset_folder, deployment_folder,
      param_manager) = resolve_deployment_context(data_dir, dataset_id=ds_id, deployment_id=dep_id)
+
+    demo_netcdf_path, demo_pkl_path = (None, None)
+    if args.demo:
+        demo_netcdf_path, demo_pkl_path = _resolve_demo_paths(deployment_folder, deployment_id)
+        if not (demo_netcdf_path or demo_pkl_path):
+            print(f"[mini-dash] --demo requested but no outputs_demo/ files found for "
+                  f"{deployment_id}; falling back to the full outputs/.")
+
     source = resolve_deployment_source(data_dir, dataset_id, deployment_id,
-                                       deployment_folder=deployment_folder)
+                                       deployment_folder=deployment_folder,
+                                       netcdf_path=demo_netcdf_path,
+                                       pkl_path=demo_pkl_path)
     allowlist = resolve_plot_signal_allowlist(param_manager, source)
     shell = source.build_metadata_shell(allowed_signals=allowlist)
 
@@ -254,18 +289,6 @@ def load_deployment(ds_id, dep_id):
     _immich_service = None
     LOCAL_VIDEO_DIR = None
     CLIPS = _build_clip_index(args.source)
-
-    # --video-only: trim the deployment's full span down to first-clip-start..
-    # last-clip-end, so the timeline/slider/data loads skip the (often much
-    # longer) non-video stretches of a multi-day deployment.
-    if args.video_only:
-        if CLIPS:
-            clip_start = _epoch_to_ts(min(c["start_epoch"] for c in CLIPS))
-            clip_end = _epoch_to_ts(max(c["end_epoch"] for c in CLIPS))
-            _g_start = max(_g_start, clip_start)
-            _g_end = min(_g_end, clip_end)
-        else:
-            print("[mini-dash] --video-only requested but no clips found; showing full deployment span.")
 
     FULL_MIN, FULL_MAX = int(_g_start.timestamp()), int(_g_end.timestamp())
     WIN_LO = FULL_MIN

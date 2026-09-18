@@ -18,8 +18,8 @@ python dash/mini-dash/mini_dash.py
 # mini-dash — SnoozySuzy demo deployment (juvenile elephant seal sleep study)
 python dash/mini-dash/mini_dash.py --dataset mian-juv-nese_sleep_lml-ano_JKB --deployment 2020-04-10_mian-002 --port 8070
 
-# mini-dash — SnoozySuzy, trimmed to first-clip-start..last-clip-end (skips non-video days)
-python dash/mini-dash/mini_dash.py --dataset mian-juv-nese_sleep_lml-ano_JKB --deployment 2020-04-10_mian-002 --port 8070 --video-only
+# mini-dash — SnoozySuzy, trimmed 3-hour demo slice (outputs_demo/, matches the NSF_demo_data.zip content)
+python dash/mini-dash/mini_dash.py --dataset mian-juv-nese_sleep_lml-ano_JKB --deployment 2020-04-10_mian-002 --port 8070 --demo
 
 # integrated_dash — blue whale heart rate deployment
 python dash/integrated/integrated_dash.py --dataset wild-whale-adult_hr-sr_JG-PP --deployment 2018-08-27_bamu-002 --port 8061
