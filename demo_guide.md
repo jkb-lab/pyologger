@@ -5,6 +5,26 @@ workspace: pulling demo data, setting up config, running the processing
 pipeline, viewing results in mini-dash, and (optionally) running feature
 generation, clustering, and a sleep-stage random forest classifier.
 
+## Quick Launch Reference
+
+Run each from inside `pyologger/`, with the **root** `EcoViz_DiveDB` venv
+active (`source ../venv/bin/activate` — not `pyologger/venv`, which has a
+stale, non-editable DiveDB install missing `services/immich_service.py`).
+
+```bash
+# mini-dash — default (orca) deployment, no args needed
+python dash/mini-dash/mini_dash.py
+
+# mini-dash — SnoozySuzy demo deployment (juvenile elephant seal sleep study)
+python dash/mini-dash/mini_dash.py --dataset mian-juv-nese_sleep_lml-ano_JKB --deployment 2020-04-10_mian-002 --port 8070
+
+# mini-dash — SnoozySuzy, trimmed to first-clip-start..last-clip-end (skips non-video days)
+python dash/mini-dash/mini_dash.py --dataset mian-juv-nese_sleep_lml-ano_JKB --deployment 2020-04-10_mian-002 --port 8070 --video-only
+
+# integrated_dash — blue whale heart rate deployment
+python dash/integrated/integrated_dash.py --dataset wild-whale-adult_hr-sr_JG-PP --deployment 2018-08-27_bamu-002 --port 8061
+```
+
 Assumes you've already completed general NDP onboarding (sign-in, workspace
 launch, VS Code). This guide picks up once you have a VS Code terminal open
 inside your NDP workspace with the `pyologger` repo cloned.

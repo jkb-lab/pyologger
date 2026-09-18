@@ -141,6 +141,9 @@ parser.add_argument("--deployment", default=DEFAULT_DEPLOYMENT)
 parser.add_argument("--port", type=int, default=DEFAULT_PORT)
 parser.add_argument("--source", choices=["auto", "immich", "local"], default="auto",
                     help="video source: auto (immich then local), or force immich/local")
+parser.add_argument("--video-only", action="store_true",
+                    help="trim the loaded span to first-clip-start..last-clip-end, "
+                         "skipping non-video stretches of the deployment")
 args = parser.parse_args()
 
 config, data_dir, color_mapping_path, _ = load_configuration()
@@ -246,15 +249,29 @@ def load_deployment(ds_id, dep_id):
         _g_start = _g_start.tz_localize(TZ)
     if _g_end.tzinfo is None:
         _g_end = _g_end.tz_localize(TZ)
-    FULL_MIN, FULL_MAX = int(_g_start.timestamp()), int(_g_end.timestamp())
-    WIN_LO = FULL_MIN
-    WIN_HI = min(FULL_MAX, FULL_MIN + WINDOW_MINUTES * 60)
-    PLAYHEAD0 = float(WIN_LO + (WIN_HI - WIN_LO) / 2)
 
     _win_cache.clear()
     _immich_service = None
     LOCAL_VIDEO_DIR = None
     CLIPS = _build_clip_index(args.source)
+
+    # --video-only: trim the deployment's full span down to first-clip-start..
+    # last-clip-end, so the timeline/slider/data loads skip the (often much
+    # longer) non-video stretches of a multi-day deployment.
+    if args.video_only:
+        if CLIPS:
+            clip_start = _epoch_to_ts(min(c["start_epoch"] for c in CLIPS))
+            clip_end = _epoch_to_ts(max(c["end_epoch"] for c in CLIPS))
+            _g_start = max(_g_start, clip_start)
+            _g_end = min(_g_end, clip_end)
+        else:
+            print("[mini-dash] --video-only requested but no clips found; showing full deployment span.")
+
+    FULL_MIN, FULL_MAX = int(_g_start.timestamp()), int(_g_end.timestamp())
+    WIN_LO = FULL_MIN
+    WIN_HI = min(FULL_MAX, FULL_MIN + WINDOW_MINUTES * 60)
+    PLAYHEAD0 = float(WIN_LO + (WIN_HI - WIN_LO) / 2)
+
     CTX_X, CTX_Y, CTX_SIG = _load_depth_context()
 
     print(f"[mini-dash] {dataset_id} / {deployment_id}  tz={TZ}  "

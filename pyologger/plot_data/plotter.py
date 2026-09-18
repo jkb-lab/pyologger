@@ -3369,12 +3369,22 @@ def _resolve_state_annotations_with_mapping(state_annotations, color_mapping, si
     - signal target from __event_targets__
     - color from top-level event key color, then __event_styles__
     - line_opacity from __event_styles__.shade_opacity when not provided
+    - shade_mode, shade_pct_min/max, shade_bounds_mode, above_y_pct_min/max
+      from __event_styles__ when not provided
     """
     normalized = _normalize_state_annotations_input(state_annotations)
     if not normalized:
         return {}
 
     event_styles = (color_mapping or {}).get("__event_styles__", {}) or {}
+    shade_keys = (
+        "shade_mode",
+        "shade_pct_min",
+        "shade_pct_max",
+        "shade_bounds_mode",
+        "above_y_pct_min",
+        "above_y_pct_max",
+    )
     resolved = {}
     for event_key, raw_cfg in normalized.items():
         cfg_list = raw_cfg if isinstance(raw_cfg, list) else [raw_cfg]
@@ -3392,6 +3402,11 @@ def _resolve_state_annotations_with_mapping(state_annotations, color_mapping, si
                 shade_opacity = style.get("shade_opacity")
                 if shade_opacity is not None:
                     cfg0["line_opacity"] = shade_opacity
+
+            if isinstance(style, dict):
+                for shade_key in shade_keys:
+                    if shade_key not in cfg0 and shade_key in style:
+                        cfg0[shade_key] = style[shade_key]
 
             target_signals = _resolve_state_target_signals(
                 event_key,
